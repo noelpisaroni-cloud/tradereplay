@@ -19,7 +19,7 @@
 </script>
 <title>TradeReplay</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
 
   :root{
     --bg:#131722;
@@ -562,6 +562,194 @@
   .boot-banner .bb-actions button.alt{ background:transparent; color:var(--ink); }
   .boot-banner .bb-log{ margin-top:12px; text-align:left; white-space:pre-wrap; font:11px/1.45 ui-monospace,Menlo,monospace; color:var(--ink-soft); max-height:30vh; overflow:auto; }
   .boot-banner .bb-ver{ margin-top:8px; font-size:11px; color:var(--ink-faint); }
+
+  /* =====================================================================
+     Theme v3 (Redesign 2026-10-15): klarer und ruhiger, naeher an TradingView.
+     Wieder als eigene Schicht ueber v1/v2 (spaeter = gewinnt) — nur Optik,
+     Struktur und Logik bleiben unangetastet. Die Chartfarben (--chart-*)
+     hat der Nutzer selbst gewaehlt und bleiben deshalb bewusst unveraendert.
+     ===================================================================== */
+  :root{
+    --bg:#12161f; --panel:#181c27; --panel-alt:#1f2431; --panel-hover:#282e3c;
+    --line:#252a37; --line-strong:#353b4b;
+    --ink:#e3e6ec; --ink-soft:#959bab; --ink-faint:#666d7e;
+    --accent:#2962ff; --accent-hover:#4174ff; --accent-soft:rgba(41,98,255,.16); --accent-text:#93b2ff;
+    --up-soft:rgba(38,166,154,.15); --down-soft:rgba(239,83,80,.15);
+    --radius:12px; --ctl:34px; --ctl-radius:8px;
+    --font-ui:'IBM Plex Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    --pop-shadow:0 16px 40px -12px rgba(0,0,0,.7), 0 0 0 1px rgba(255,255,255,.04);
+  }
+  body{ font-family:var(--font-ui); font-size:13.5px; line-height:1.45; font-variant-numeric:tabular-nums; }
+  /* Zahlen in derselben Schrift wie der Rest — gleich breite Ziffern statt Schreibmaschinenschrift */
+  .num, input, select, .mono, .price-now, .progress-label, .balance-badge b, .quick-trade button .qt-price, .comp-sub,
+  .brand, .boot-banner, .boot-banner .bb-actions button{ font-family:var(--font-ui); font-variant-numeric:tabular-nums; }
+  kbd{ font-family:'IBM Plex Mono',ui-monospace,monospace; }
+  .ico{ width:15px; height:15px; flex-shrink:0; display:block; }
+  :focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+  input:focus-visible, select:focus-visible{ outline:none; }
+
+  /* ---------- Beschriftungen: normale Schreibweise statt Versalien ---------- */
+  .section-title, .acct-k, .session-label, .menu-title, thead th, .tile .k, .strat-filter-row label,
+  .help-sections h4, .acct-panel summary, .ana-head, .src-tag{ text-transform:none; letter-spacing:0; }
+  .section-title{ font-size:13.5px; font-weight:600; color:var(--ink); margin-bottom:12px; }
+  .acct-panel summary{ font-size:13.5px; font-weight:600; color:var(--ink); padding:14px; }
+  .acct-panel summary:hover{ color:var(--ink); background:rgba(255,255,255,.02); }
+  .acct-k{ font-size:11px; font-weight:500; color:var(--ink-faint); }
+  .session-label{ font-size:12.5px; font-weight:500; color:var(--ink-soft); }
+  .menu-title{ font-size:12px; font-weight:600; color:var(--ink-soft); padding:6px 8px; }
+  thead th{ font-size:12px; font-weight:500; color:var(--ink-soft); padding:9px 12px; }
+  .tile .k{ font-size:12px; font-weight:500; color:var(--ink-soft); }
+  .strat-filter-row label{ font-size:12px; font-weight:500; }
+  .help-sections h4{ font-size:14px; font-weight:600; color:var(--ink); margin:20px 0 6px; }
+  .ana-head{ font-size:12px; font-weight:500; }
+  .src-tag{ font-size:11px; font-weight:600; padding:2px 9px; }
+
+  /* ---------- Kopfzeile ---------- */
+  .topbar{ background:rgba(18,22,31,.92); padding-top:9px; padding-bottom:9px; gap:10px; }
+  .brand{ font-size:15.5px; font-weight:600; letter-spacing:-.005em; }
+  .symbol-select{ font-weight:600; }
+  .balance-badge{ border-radius:var(--ctl-radius); padding:3px 14px; background:var(--panel-alt); border-color:transparent; }
+  .balance-badge b{ font-size:13.5px; }
+
+  /* ---------- Buttons & Eingaben: gefuellte Flaechen statt Rahmen ---------- */
+  .btn, .icon-btn, .sidebar-toggle, .symbol-select, .replay-bar button, .replay-bar select,
+  input[type=number], input[type=text], select.full, .session-len-field, .alltf-field{
+    border-radius:var(--ctl-radius); border-color:transparent; background-color:var(--panel-alt);
+  }
+  .btn, .icon-btn, .sidebar-toggle, .symbol-select, .replay-bar button, .replay-bar select, input[type=number], select.full{ height:var(--ctl); }
+  .btn:hover, .icon-btn:hover, .sidebar-toggle:hover, .symbol-select:hover,
+  .replay-bar button:hover:not(:disabled), .replay-bar select:hover{ background-color:var(--panel-hover); border-color:transparent; }
+  input[type=number]:hover, input[type=text]:hover, select.full:hover{ border-color:var(--line-strong); }
+  input[type=number]:focus, select.full:focus, input[type=text]:focus{ border-color:var(--accent); box-shadow:0 0 0 3px rgba(41,98,255,.18); }
+  .strat-editor input[type=text], #posNoteInput{ height:var(--ctl); width:100%; padding:0 10px; color:var(--ink); font-size:13px; border:1px solid transparent; }
+  .btn{ font-size:13px; font-weight:500; gap:7px; }
+  .icon-btn{ font-size:14px; }
+  .tabgroup{ border-color:transparent; border-radius:9px; }
+  .tabgroup button{ font-weight:500; border-radius:6px; }
+  .tabgroup button.active{ background:var(--panel-hover); color:var(--ink); box-shadow:none; font-weight:600; }
+  #tfTabs button.active, #orderTypeToggle button.active{ background:var(--accent-soft); color:var(--accent-text); }
+
+  /* ---------- Panels ---------- */
+  .panel{ border-radius:var(--radius); border-color:var(--line); }
+  .chart-card{ border-color:var(--line); }
+  .chart-head{ padding:12px 14px 6px; }
+  .chart-head h2{ font-size:15px; font-weight:600; }
+  .price-now{ font-size:15px; font-weight:600; }
+  .tool-btn{ font-weight:500; border-radius:var(--ctl-radius); }
+  .tool-btn.active, .tool-btn[aria-expanded="true"]{ background:var(--accent-soft); color:var(--accent-text); }
+  .draw-btn{ border-radius:var(--ctl-radius); }
+  .draw-btn.active{ background:var(--accent-soft); color:var(--accent-text); }
+  .range-bar button{ font-weight:500; color:var(--ink-soft); }
+  .loading-badge{ border-radius:var(--ctl-radius); }
+
+  /* ---------- Schnellhandel im Chart ---------- */
+  .quick-trade{ border-radius:var(--ctl-radius); gap:2px; }
+  .quick-trade button{ min-width:76px; padding:5px 12px; gap:0; }
+  .quick-trade button .qt-label{ font-size:10.5px; font-weight:500; letter-spacing:0; opacity:.9; }
+  .quick-trade button .qt-price{ font-size:12px; font-weight:600; }
+  .qt-sell, .qt-buy{ color:#fff; }
+
+  /* ---------- Replay & Sessions ---------- */
+  .replay-bar{ gap:8px; padding:12px 4px; }
+  .replay-bar button{ font-weight:500; display:inline-flex; align-items:center; gap:6px; }
+  .replay-bar button.play{ font-weight:600; background:var(--accent); border-color:transparent; }
+  .replay-bar button.play:hover:not(:disabled){ background:var(--accent-hover); filter:none; }
+  .progress-track{ height:4px; background:var(--panel-hover); }
+  .progress-label{ font-size:11.5px; color:var(--ink-soft); }
+  .session-bar{ padding:10px 24px 12px 4px; }
+  .slot-pills button{ border-color:transparent; background:var(--panel-alt); font-weight:500; }
+  .slot-pills button:hover{ background:var(--panel-hover); border-color:transparent; }
+  .slot-pills button.active{ background:var(--accent-soft); border-color:transparent; color:var(--accent-text); font-weight:600; box-shadow:inset 0 0 0 1px rgba(41,98,255,.55); }
+
+  /* ---------- Order-Panel ---------- */
+  .order-col{ gap:12px; }
+  .panel-pad{ padding:14px 14px 8px; }
+  .panel-head .section-title{ margin:0; }
+  .field-top{ font-size:12px; font-weight:500; color:var(--ink-soft); }
+  .input-wrap .prefix, .input-wrap .suffix{ color:var(--ink-faint); }
+  .order-preview{ background:rgba(255,255,255,.025); border:1px solid var(--line); color:var(--ink-soft); font-size:12px; }
+  .plan-btn{ display:flex; align-items:center; justify-content:center; gap:6px; height:30px; background:transparent; border:1px solid var(--line-strong); color:var(--ink-soft); font-size:12px; font-weight:500; }
+  .plan-btn:hover{ border-color:var(--accent); color:var(--ink); }
+  .plan-btn.active{ border-style:solid; }
+  .plan-btn .ico{ width:13px; height:13px; }
+  .plan-active{ border-radius:var(--ctl-radius); border-color:rgba(41,98,255,.55); color:var(--accent-text); }
+  .buysell-row button{ height:46px; border-radius:var(--ctl-radius); font-size:13.5px; font-weight:600; color:#fff; gap:5px; padding:0 6px; white-space:nowrap; min-width:0; }
+  .btn-buy, .btn-sell{ color:#fff; }
+  .btn-buy:hover, .btn-sell:hover{ filter:brightness(1.08); }
+  .buysell-row .bs-arrow{ font-size:10px; opacity:.85; }
+  .margin-note, .footnote-sm, .drag-hint{ color:var(--ink-faint); }
+  .pos-card{ padding:14px; }
+  .pos-side{ font-weight:600; border-radius:var(--ctl-radius); }
+  .pos-pnl{ font-size:24px; font-weight:600; letter-spacing:-.01em; }
+  .stat-line{ padding:5px 0; }
+  .stat-line .v{ font-weight:500; color:var(--ink); }
+  .close-btn{ border-radius:var(--ctl-radius); font-weight:600; background:transparent; }
+  .mini-btn{ border-color:transparent; background:var(--panel-alt); border-radius:6px; }
+  .mini-btn:hover{ background:var(--panel-hover); border-color:transparent; }
+  .mini-btn.remove{ background:var(--down-soft); border-color:transparent; }
+  .chip{ font-weight:600; border-radius:6px; }
+  .score-badge{ font-weight:600; border-radius:6px; }
+
+  /* ---------- Reiter & Tabellen ---------- */
+  .tab-heads{ padding:6px 12px 0; }
+  .tab-heads button{ font-weight:500; padding:10px 12px; }
+  .tab-heads button.active{ font-weight:600; }
+  .table-wrap{ border-color:var(--line); }
+  thead th{ background:rgba(255,255,255,.02); }
+  tbody td{ padding:8px 12px; border-bottom-color:rgba(255,255,255,.045); }
+  tbody tr:hover{ background:rgba(255,255,255,.025); }
+  .tile{ border-color:transparent; border-radius:var(--ctl-radius); }
+  .tile .v{ font-weight:600; }
+  .info-box, .ana-insights{ border-color:transparent; }
+  .ana-row{ border-bottom-color:rgba(255,255,255,.045); }
+
+  /* ---------- Menues, Dialoge, Footer ---------- */
+  .menu-pop{ background:#1c212d; border-color:var(--line-strong); border-radius:10px; }
+  .menu-item{ border-radius:6px; }
+  .modal-backdrop{ background:rgba(8,10,15,.72); }
+  .modal-panel{ border-radius:14px; border-color:var(--line-strong); box-shadow:var(--pop-shadow); }
+  .modal-head h3{ font-size:16px; font-weight:600; }
+  .strat-list-item{ border-color:transparent; border-radius:var(--ctl-radius); }
+  .strat-list-item.active{ border-color:rgba(41,98,255,.55); }
+  .backup-actions label.btn{ height:var(--ctl); }
+  .end-banner h3{ font-weight:600; }
+  footer{ font-size:12px; }
+  .boot-banner{ border-radius:12px; border-color:var(--line-strong); }
+  .boot-banner .bb-actions button{ border-radius:var(--ctl-radius); border-color:transparent; }
+
+  /* ---------- Tablet & Handy ---------- */
+  @media (max-width:760px){
+    .topbar{ position:static; gap:8px; }
+    .balance-badge{ flex:1 1 auto; justify-content:flex-start; }
+    #tfTabs{ flex:1 1 100%; justify-content:space-between; overflow-x:auto; }
+    #tfTabs button{ flex:1 1 0; padding:0 6px; }
+    .chart-head{ padding:10px 12px 4px; }
+    .replay-bar{ padding:10px 2px; }
+    .progress-wrap{ flex-basis:100%; order:5; }
+    .session-bar{ padding:10px 4px 12px; }
+    .session-slots{ flex:1 1 100%; }
+    .session-actions{ flex:1 1 100%; flex-wrap:nowrap; }
+    .session-actions #newSessionBtn{ flex:1 1 auto; min-width:0; }
+    .stats-grid{ gap:8px; }
+  }
+  /* Touch-Geraete (iPad, Handy): groessere Tippflaechen */
+  @media (pointer:coarse){
+    :root{ --ctl:40px; }
+    .tabgroup button{ height:34px; }
+    .tabgroup.tiny button{ height:26px; padding:0 10px; }
+    .draw-btn{ width:36px; height:36px; }
+    .tool-btn{ height:36px; }
+    .range-bar button{ height:30px; padding:0 11px; }
+    .slot-pills button{ width:34px; height:34px; }
+    .plan-btn{ height:36px; }
+    .buysell-row button{ height:50px; }
+    .menu-item{ padding:10px 8px; }
+    .mini-btn{ width:28px; height:28px; line-height:26px; }
+    .quick-trade button{ min-width:84px; padding:7px 12px; }
+  }
+  @media (prefers-reduced-motion:reduce){
+    *, *::before, *::after{ transition:none !important; animation:none !important; }
+  }
 </style>
 
 <div class="app">
@@ -637,7 +825,7 @@
       <div class="acct-sep"></div>
       <div class="acct-item"><span class="acct-k">Equity</span><b id="equityOut">–</b></div>
     </div>
-    <button class="btn" id="manageStrategiesBtn" title="Strategien &amp; Checklisten anlegen/bearbeiten">📋 <span class="lbl">Strategien</span></button>
+    <button class="btn" id="manageStrategiesBtn" title="Strategien &amp; Checklisten anlegen/bearbeiten"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"/></svg><span class="lbl">Strategien</span></button>
     <button class="btn cloud-chip" id="cloudChip" data-state="off" title="Cloud-Abgleich"><span class="cdot"></span><span class="cl">Lokal</span></button>
     <button class="icon-btn" id="helpBtn" title="Hilfe: So funktioniert TradeReplay">?</button>
     <button class="sidebar-toggle" id="sidebarToggleBtn" title="Seitenpanel ein-/ausblenden">
@@ -652,7 +840,7 @@
           <div class="chart-title-group">
             <h2 id="chartTitle">BTC/USDT &middot; 15 Min</h2>
             <span class="price-now" id="priceNow">&ndash;</span>
-            <span class="loading-badge" id="dataLoadingBadge" hidden>⏳ Lade Kursdaten…</span>
+            <span class="loading-badge" id="dataLoadingBadge" hidden>Lade Kursdaten…</span>
             <span class="src-tag" id="srcTag" hidden></span>
           </div>
           <div class="chart-tools">
@@ -715,14 +903,14 @@
               <div class="chart-overlay-tl">
                 <div class="ohlc-line" id="ohlcLine"></div>
                 <div class="quick-trade">
-                  <button class="qt-sell" id="qtSellBtn"><span class="qt-label">VERKAUFEN</span><span class="qt-price" id="qtSellPrice">&ndash;</span></button>
-                  <button class="qt-buy" id="qtBuyBtn"><span class="qt-label">KAUFEN</span><span class="qt-price" id="qtBuyPrice">&ndash;</span></button>
+                  <button class="qt-sell" id="qtSellBtn"><span class="qt-label">Verkaufen</span><span class="qt-price" id="qtSellPrice">&ndash;</span></button>
+                  <button class="qt-buy" id="qtBuyBtn"><span class="qt-label">Kaufen</span><span class="qt-price" id="qtBuyPrice">&ndash;</span></button>
                 </div>
               </div>
               <div class="end-banner" id="endBanner">
                 <h3>Session beendet</h3>
                 <p>Alle Kerzen dieser Session wurden aufgedeckt. Schau dir Journal &amp; Statistik unten an oder starte eine neue Session.</p>
-                <button class="btn" id="endNewSessionBtn">🔀 Neue Zufalls-Session</button>
+                <button class="btn" id="endNewSessionBtn"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg>Neue Zufalls-Session</button>
               </div>
             </div>
             <div class="chart-comp" id="compPane" hidden>
@@ -768,10 +956,10 @@
                 <div class="slot-pills" id="sessionSlotTabs"></div>
               </div>
               <div class="session-actions">
-                <button class="btn" id="newSessionBtn" title="Neue Zufalls-Session aus dem aktuellen Markt starten">🔀 Neue Zufalls-Session</button>
+                <button class="btn" id="newSessionBtn" title="Neue Zufalls-Session aus dem aktuellen Markt starten"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg>Neue Zufalls-Session</button>
                 <button class="btn" id="restartSessionBtn" title="Dieselbe Session von vorn beginnen">↺ Neustart</button>
                 <div class="menu-wrap">
-                  <button class="btn icon" id="sessionSettingsBtn" data-menu-btn="sessionMenu" aria-haspopup="true" aria-expanded="false" title="Session-Einstellungen">⚙</button>
+                  <button class="btn icon" id="sessionSettingsBtn" data-menu-btn="sessionMenu" aria-haspopup="true" aria-expanded="false" title="Session-Einstellungen"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
                   <div class="menu-pop right up" id="sessionMenu" hidden>
                     <div class="menu-title">Session-Einstellungen</div>
                     <label class="menu-field"><span>Kerzen pro Session</span><input type="number" id="sessionLenInput" min="150" max="3500" step="50" value="300"></label>
@@ -862,13 +1050,13 @@
           <div class="field">
             <div class="field-top"><span>Take-Profit</span><label class="toggle-en"><input type="checkbox" id="tpEnabled" checked> aktiv</label></div>
             <div class="input-wrap has-suffix"><span class="suffix">%</span><input type="number" id="tpPct" min="0.1" step="0.1" value="1"></div>
-            <div class="plan-row" id="tpPlanRow"><button class="plan-btn" id="tpPlanBtn" title="Preis im Chart per Klick planen">🎯 Im Chart</button></div>
+            <div class="plan-row" id="tpPlanRow"><button class="plan-btn" id="tpPlanBtn" title="Preis im Chart per Klick planen"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.2" fill="currentColor" stroke="none"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>Im Chart</button></div>
             <div class="plan-active" id="tpPlanActive" hidden><span id="tpPlanText">–</span><button class="mini-btn remove" id="tpPlanRemoveBtn">✕</button></div>
           </div>
           <div class="field">
             <div class="field-top"><span>Stop-Loss</span><label class="toggle-en"><input type="checkbox" id="slEnabled" checked> aktiv</label></div>
             <div class="input-wrap has-suffix"><span class="suffix">%</span><input type="number" id="slPct" min="0.1" step="0.1" value="1"></div>
-            <div class="plan-row" id="slPlanRow"><button class="plan-btn" id="slPlanBtn" title="Preis im Chart per Klick planen">🎯 Im Chart</button></div>
+            <div class="plan-row" id="slPlanRow"><button class="plan-btn" id="slPlanBtn" title="Preis im Chart per Klick planen"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.2" fill="currentColor" stroke="none"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>Im Chart</button></div>
             <div class="plan-active" id="slPlanActive" hidden><span id="slPlanText">–</span><button class="mini-btn remove" id="slPlanRemoveBtn">✕</button></div>
           </div>
         </div>
@@ -987,7 +1175,7 @@
         <li>Positionsgr&ouml;&szlig;e (optional Hebel), Take-Profit und Stop-Loss festlegen, dann <b>Kaufen (Long)</b> oder <b>Verkaufen (Short)</b>.</li>
         <li><b>Limit</b>: Einstieg erst, wenn der Kurs einen bestimmten Preis erreicht.</li>
         <li>TP/SL werden bei jeder neuen Kerze gegen deren Hoch/Tief gepr&uuml;ft (nicht nur den Schlusskurs).</li>
-        <li><b>🎯 Im Chart</b>: TP/SL schon <b>vor</b> dem Einstieg per Klick auf den Chart planen. Die Linien (geplant oder in einer offenen Position) lassen sich jederzeit per Drag verschieben.</li>
+        <li><b>Im Chart</b>: TP/SL schon <b>vor</b> dem Einstieg per Klick auf den Chart planen. Die Linien (geplant oder in einer offenen Position) lassen sich jederzeit per Drag verschieben.</li>
         <li><b>Größe in € oder in % Risiko:</b> Mit dem kleinen Schalter &bdquo;€ / %&ldquo; neben &bdquo;Größe&ldquo; kannst du statt eines festen Betrags das Risiko pro Trade in % deines Kontos wählen &ndash; die Positionsgröße wird dann automatisch aus deinem Stop-Loss berechnet (inklusive Gebühren und Slippage).</li>
         <li>Gebühr und Slippage sind pro Markt voreingestellt (Forex: typische Spreads, Krypto: 0,05 %); eigene Werte stellst du unter &bdquo;Konto &amp; Kosten&ldquo; ein.</li>
         <li>Bei Hebel &gt; 1x wird bei zu hohen Verlusten <b>zwangsliquidiert</b> (isolierte Marge) &ndash; du kannst nie mehr als deine Marge verlieren. Die Liquidations-Linie erscheint im Chart.</li>
@@ -1046,8 +1234,8 @@
         <div class="section-title">Backup</div>
         <div class="footnote-sm">Sichert deine Strategien und die komplette Trade-Historie (&uuml;ber alle Sessions hinweg) als Datei. Die aktuell laufende Session (offene Position, Kontostand) ist nicht enthalten &ndash; die wird ohnehin bei jeder neuen Session zur&uuml;ckgesetzt. Deine Daten liegen sonst nur im Speicher dieses Browsers und k&ouml;nnten z.B. beim L&ouml;schen der Browserdaten verloren gehen.</div>
         <div class="backup-actions">
-          <button class="btn" id="exportBackupBtn">⬇ Backup exportieren</button>
-          <label class="btn" id="importBackupLabel">⬆ Backup importieren<input type="file" id="importBackupInput" accept="application/json" hidden></label>
+          <button class="btn" id="exportBackupBtn"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Backup exportieren</button>
+          <label class="btn" id="importBackupLabel"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V4M7 9l5-5 5 5M5 20h14"/></svg>Backup importieren<input type="file" id="importBackupInput" accept="application/json" hidden></label>
         </div>
       </div>
     </div>
@@ -1211,7 +1399,7 @@
   };
   const chart = LightweightCharts.createChart(container, {
     width: container.clientWidth, height: 440,
-    layout: { background:{color:THEME.chartBg}, textColor:THEME.text, fontFamily:"'IBM Plex Mono',monospace" },
+    layout: { background:{color:THEME.chartBg}, textColor:THEME.text, fontFamily:"'IBM Plex Sans',-apple-system,BlinkMacSystemFont,sans-serif" },
     grid: { vertLines:{color:THEME.grid}, horzLines:{color:THEME.grid} },
     rightPriceScale: { borderColor:THEME.border },
     timeScale: { borderColor:THEME.border, timeVisible:true, secondsVisible:false, rightOffset:6 },
@@ -1845,7 +2033,7 @@
   function svgText(x,y,str,extra){
     const el = document.createElementNS(NS_SVG,'text');
     el.setAttribute('x',x); el.setAttribute('y',y);
-    el.setAttribute('font-family',"'IBM Plex Mono',monospace"); el.setAttribute('font-size','10.5px');
+    el.setAttribute('font-family',"'IBM Plex Sans',-apple-system,BlinkMacSystemFont,sans-serif"); el.setAttribute('font-size','11px');
     for(const k in extra) el.setAttribute(k, extra[k]);
     el.textContent = str;
     return el;
@@ -4181,7 +4369,7 @@
     const el = document.getElementById('compContainer');
     comp.chart = LightweightCharts.createChart(el, {
       width: el.clientWidth || 320, height: el.clientHeight || 320,
-      layout: { background:{ color:THEME.chartBg }, textColor:THEME.text, fontFamily:"'IBM Plex Mono',monospace" },
+      layout: { background:{ color:THEME.chartBg }, textColor:THEME.text, fontFamily:"'IBM Plex Sans',-apple-system,BlinkMacSystemFont,sans-serif" },
       grid: { vertLines:{ color:THEME.grid }, horzLines:{ color:THEME.grid } },
       rightPriceScale: { borderColor:THEME.border },
       timeScale: { borderColor:THEME.border, timeVisible:true, secondsVisible:false, rightOffset:4 },
