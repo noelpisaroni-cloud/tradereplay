@@ -774,7 +774,7 @@
                   <button class="btn icon" id="sessionSettingsBtn" data-menu-btn="sessionMenu" aria-haspopup="true" aria-expanded="false" title="Session-Einstellungen">⚙</button>
                   <div class="menu-pop right up" id="sessionMenu" hidden>
                     <div class="menu-title">Session-Einstellungen</div>
-                    <label class="menu-field"><span>Kerzen pro Session</span><input type="number" id="sessionLenInput" min="150" max="3500" step="50" value="300"></label>
+                    <label class="menu-field"><span>Kerzen pro Session</span><input type="number" id="sessionLenInput" min="150" max="3500" step="50" value="400"></label>
                     <p class="menu-note">So viele Kerzen kannst du pro Session durchhandeln (mehr = längere Session, mehr Historie bleibt verdeckt).</p>
                     <div class="menu-sep"></div>
                     <label class="menu-item"><input type="checkbox" id="allTfToggle" checked><span>Alle Zeitrahmen nutzbar</span></label>
@@ -1060,7 +1060,10 @@
   "use strict";
 
   const MIN_REPLAY = 150;
-  const DEFAULT_REPLAY_TAIL = 300;
+  const DEFAULT_REPLAY_TAIL = 400;
+  // Vorgeschichte vor dem Replay-Start: mindestens so viele Kerzen, damit man die
+  // uebergeordnete Struktur (Hochs/Tiefs, Zonen) der letzten Wochen sieht.
+  const MIN_HISTORY_BARS = 3000;
   const MIN_WARMUP_FRACTION = 0.7;
   const SYMBOL_NAME = {
     BTCUSDT:'BTC/USDT', ETHUSDT:'ETH/USDT', BNBUSDT:'BNB/USDT', SOLUSDT:'SOL/USDT', XRPUSDT:'XRP/USDT',
@@ -1098,7 +1101,7 @@
   const state = {
     symbol:'BTCUSDT', tf:'15m', data:[], sessionStart:0, cursor:0, replayClockMs:null,
     playing:false, timer:null, speedMs:700, ended:false,
-    startingBalance:10000, balance:10000, feePct:0.05, slippagePct:0.05, sessionLen:300,
+    startingBalance:10000, balance:10000, feePct:0.05, slippagePct:0.05, sessionLen:400,
     position:null, pendingOrder:null, orderType:'market', journal:[], equityHistory:[],
     drawings:[], activeTool:'cursor', selectedDrawingId:null,
     draftTp:null, draftSl:null,
@@ -2599,7 +2602,7 @@
     const symbol = state.symbol, tf = state.tf;
     const isRestore = Object.prototype.hasOwnProperty.call(opts, 'restoreEndTimeMs');
     const desired = Math.max(MIN_REPLAY, parseInt(els.sessionLenInput.value,10) || DEFAULT_REPLAY_TAIL);
-    const totalBars = opts.restoreBarCount || Math.min(FETCH_BAR_CAP, Math.ceil(desired/(1-MIN_WARMUP_FRACTION)));
+    const totalBars = opts.restoreBarCount || Math.min(FETCH_BAR_CAP, desired + Math.max(MIN_HISTORY_BARS, Math.ceil(desired*MIN_WARMUP_FRACTION/(1-MIN_WARMUP_FRACTION))));
 
     let bars = null, fetchEndTimeMs = null;
     if(!isForexSymbol(symbol) && liveAllowed() && (!isRestore || opts.restoreEndTimeMs!=null)){
@@ -4926,7 +4929,9 @@
     state.sessionSplit = sessionSplit;
     state.cursor = cursor;
     state.replayClockMs = (save.replayClockMs != null && isFinite(save.replayClockMs)) ? save.replayClockMs : null;
-    state.sessionLen = save.sessionLen || DEFAULT_REPLAY_TAIL;
+    // 300 war der alte Standardwert; solche Sessions bekommen fuer die naechste neue
+    // Session den neuen Standard (die gespeicherte Session selbst bleibt unveraendert).
+    state.sessionLen = (save.sessionLen && save.sessionLen !== 300) ? save.sessionLen : DEFAULT_REPLAY_TAIL;
     els.sessionLenInput.value = state.sessionLen;
     state.startingBalance = save.startingBalance!=null ? save.startingBalance : 10000;
     els.startCapital.value = state.startingBalance;
