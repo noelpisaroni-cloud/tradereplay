@@ -563,6 +563,32 @@
   .cloud-chip[data-state="err"] .cdot{ background:var(--down); }
   .cloud-chip[data-state="err"]{ color:var(--down); }
   @media (max-width:760px){ .cloud-chip .cl{ display:none; } .cloud-chip{ width:34px; padding:0; } }
+  /* ---------- Lern-Funktionen: Kerze zurueck, Teilschliessen, Rueckblick, Legende, Hinweise ---------- */
+  #indMenu{ max-height:min(72vh, 620px); overflow-y:auto; }
+  .ind-legend{ display:flex; flex-wrap:wrap; gap:3px 10px; font-size:11.5px; color:var(--ink-soft); text-shadow:0 1px 3px rgba(0,0,0,.9), 0 0 8px rgba(0,0,0,.6); max-width:min(560px, calc(100vw - 120px)); }
+  .ind-legend[hidden]{ display:none; }
+  .ind-legend span{ display:inline-flex; align-items:center; gap:5px; white-space:nowrap; }
+  .ind-legend i{ width:9px; height:2px; border-radius:1px; display:inline-block; }
+  .ind-legend b{ color:var(--ink); font-weight:600; }
+  #stepBackBtn.is-blocked{ opacity:.45; }
+  .partial-row{ display:flex; align-items:center; justify-content:space-between; gap:8px; padding:4px 0; font-size:13px; }
+  .partial-row .k{ color:var(--ink-soft); }
+  .partial-btns{ display:flex; gap:4px; }
+  .part-btn{ height:26px; padding:0 9px; border-radius:7px; border:1px solid var(--line); background:var(--panel-alt); color:var(--ink); font-size:12px; font-weight:600; }
+  .part-btn:hover{ border-color:var(--accent); }
+  .review-bar{ display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin:0 12px 8px; padding:9px 12px; border-radius:10px; background:var(--accent-soft); border:1px solid var(--accent); color:var(--ink); font-size:12.5px; }
+  .review-bar[hidden]{ display:none; }
+  .review-info{ display:flex; flex-wrap:wrap; gap:4px 12px; align-items:center; min-width:0; }
+  .review-info b{ font-weight:700; }
+  .review-info .rv-note{ color:var(--ink-soft); font-style:italic; }
+  .review-exit{ background:var(--accent) !important; border-color:var(--accent) !important; color:#fff !important; }
+  body.review-mode .order-col, body.review-mode .replay-bar, body.review-mode .session-bar,
+  body.review-mode #tfTabs, body.review-mode #symbolSelect, body.review-mode .draw-toolbar-v,
+  body.review-mode #compBtn, body.review-mode .quick-trade{ opacity:.4; pointer-events:none; }
+  .review-btn{ height:26px !important; padding:0 10px !important; font-size:12px !important; }
+  #historyBody td.note-cell{ max-width:220px; overflow:hidden; text-overflow:ellipsis; }
+  .app-toast{ position:fixed; left:50%; transform:translateX(-50%); bottom:calc(20px + env(safe-area-inset-bottom, 0px)); z-index:9500; max-width:min(480px, calc(100vw - 32px)); padding:11px 16px; border-radius:10px; background:var(--panel); color:var(--ink); border:1px solid var(--line-strong, var(--line)); box-shadow:0 12px 32px -10px rgba(0,0,0,.6); font-size:13px; line-height:1.45; text-align:center; }
+  .app-toast[hidden]{ display:none; }
   /* ---------- Start-Anzeige ---------- */
   .boot-banner{ position:fixed; left:50%; top:42%; transform:translate(-50%,-50%); z-index:9000; width:min(440px,88vw);
     background:rgba(14,17,23,.96); border:1px solid var(--line); border-radius:14px; padding:18px 20px; color:var(--ink);
@@ -957,12 +983,25 @@
                 <span class="lbl">Indikatoren</span><span class="badge" id="indBadge" hidden>0</span>
               </button>
               <div class="menu-pop right" id="indMenu" hidden>
-                <div class="menu-title">Indikatoren</div>
-                <label class="menu-item"><input type="checkbox" id="ma20Toggle"><span>MA 20</span></label>
+                <div class="menu-title">Gleitende Durchschnitte</div>
+                <label class="menu-item"><input type="checkbox" id="ma20Toggle"><span>MA 20<small>Einfacher Durchschnitt, 20 Kerzen</small></span></label>
                 <label class="menu-item"><input type="checkbox" id="ma50Toggle"><span>MA 50</span></label>
-                <label class="menu-item"><input type="checkbox" id="bbToggle"><span>Bollinger-Bänder</span></label>
-                <label class="menu-item"><input type="checkbox" id="rsiToggle"><span>RSI</span></label>
+                <label class="menu-item"><input type="checkbox" data-xind="ema9"><span>EMA 9<small>Exponentiell, reagiert schneller</small></span></label>
+                <label class="menu-item"><input type="checkbox" data-xind="ema21"><span>EMA 21</span></label>
+                <label class="menu-item"><input type="checkbox" data-xind="ema50"><span>EMA 50</span></label>
+                <label class="menu-item"><input type="checkbox" data-xind="ema200"><span>EMA 200<small>Langfristiger Trend</small></span></label>
+                <div class="menu-sep"></div>
+                <div class="menu-title">Trend &amp; Volatilität</div>
+                <label class="menu-item"><input type="checkbox" data-xind="vwap"><span>VWAP<small>Volumengewichteter Tagesdurchschnitt (Forex: zeitgewichtet)</small></span></label>
+                <label class="menu-item"><input type="checkbox" data-xind="supertrend"><span>Supertrend<small>10 / 3 – grün = Aufwärts-, rot = Abwärtstrend</small></span></label>
+                <label class="menu-item"><input type="checkbox" id="bbToggle"><span>Bollinger-Bänder<small>20 / 2</small></span></label>
                 <label class="menu-item"><input type="checkbox" id="volumeToggle"><span>Volumen</span></label>
+                <div class="menu-sep"></div>
+                <div class="menu-title">Oszillatoren (unter dem Chart)</div>
+                <label class="menu-item"><input type="checkbox" id="rsiToggle"><span>RSI<small>14</small></span></label>
+                <label class="menu-item"><input type="checkbox" data-xind="macd"><span>MACD<small>12 / 26 / 9</small></span></label>
+                <label class="menu-item"><input type="checkbox" data-xind="stoch"><span>Stochastik<small>14 / 3 / 3</small></span></label>
+                <label class="menu-item"><input type="checkbox" data-xind="atr"><span>ATR<small>Durchschnittliche Schwankung, 14</small></span></label>
                 <div class="menu-sep"></div>
                 <div class="menu-title">Marktzeiten &amp; Ebenen</div>
                 <label class="menu-item"><input type="checkbox" id="sessionsToggle"><span>Sessions<small>Asia / London / New York</small></span></label>
@@ -984,6 +1023,10 @@
               <span class="lbl">Vollbild</span>
             </button>
           </div>
+        </div>
+        <div class="review-bar" id="reviewBar" hidden>
+          <div class="review-info" id="reviewInfo"></div>
+          <button class="btn review-exit" id="reviewExitBtn" title="Esc">Zurück zur Session</button>
         </div>
         <div class="chart-body">
           <div class="draw-toolbar-v" id="drawToolbar">
@@ -1009,6 +1052,7 @@
               <svg id="drawOverlay"></svg>
               <div class="chart-overlay-tl">
                 <div class="ohlc-line" id="ohlcLine"></div>
+                <div class="ind-legend" id="indLegend" hidden></div>
                 <div class="quick-trade">
                   <button class="qt-sell" id="qtSellBtn"><span class="qt-label">Verkaufen</span><span class="qt-price" id="qtSellPrice">&ndash;</span></button>
                   <button class="qt-buy" id="qtBuyBtn"><span class="qt-label">Kaufen</span><span class="qt-price" id="qtBuyPrice">&ndash;</span></button>
@@ -1043,6 +1087,7 @@
               <button data-range="all" class="active">Alles</button>
             </div>
             <div class="replay-bar">
+              <button id="stepBackBtn" title="Eine Kerze zurück (Pfeil links)">⏮ Zurück</button>
               <button class="play" id="playPauseBtn" title="Leertaste">▶ Play</button>
               <button id="stepBtn" title="Pfeil rechts">Nächste Kerze ⏭</button>
               <select id="speedSelect" title="Abspielgeschwindigkeit">
@@ -1095,6 +1140,9 @@
         <div class="stat-line"><span class="k">Einstieg</span><span class="v" id="posEntry">–</span></div>
         <div class="stat-line"><span class="k">Aktuell</span><span class="v" id="posCurrent">–</span></div>
         <div class="stat-line"><span class="k">Menge</span><span class="v" id="posQty">–</span></div>
+        <div class="partial-row" id="partialRow"><span class="k">Teilweise schließen</span>
+          <div class="partial-btns"><button class="part-btn" data-partial="0.25" title="25 % der Position zum aktuellen Kurs schließen">25 %</button><button class="part-btn" data-partial="0.5" title="Die Hälfte der Position schließen">50 %</button><button class="part-btn" data-partial="0.75" title="75 % der Position schließen">75 %</button></div>
+        </div>
         <div class="stat-line tpsl-row"><span class="k">Take-Profit</span><span class="v" id="posTp">–</span><button class="mini-btn" id="tpToggleBtn">+</button></div>
         <div class="stat-line tpsl-row"><span class="k">Stop-Loss</span><span class="v" id="posSl">–</span><button class="mini-btn" id="slToggleBtn">+</button></div>
         <div class="stat-line" id="posLiqRow" hidden><span class="k">Liquidation</span><span class="v down-txt" id="posLiq">–</span></div>
@@ -1212,6 +1260,7 @@
       <button data-tab="stats">Statistik</button>
       <button data-tab="analysis">Analyse</button>
       <button data-tab="strategies">Strategien</button>
+      <button data-tab="history">Alle Trades</button>
       <button class="panel-collapse-btn" id="tabsCollapseBtn" title="Journal/Statistik ein-/ausblenden">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
@@ -1219,7 +1268,7 @@
     <div class="tab-body" id="journalTab">
       <div class="table-wrap">
         <table>
-          <thead><tr><th>#</th><th>Richtung</th><th>Einstieg</th><th>Ausstieg</th><th>Kurs ein</th><th>Kurs aus</th><th>Größe</th><th>Hebel</th><th>Grund</th><th>Strategie</th><th>Score</th><th>PnL</th></tr></thead>
+          <thead><tr><th>#</th><th>Richtung</th><th>Einstieg</th><th>Ausstieg</th><th>Kurs ein</th><th>Kurs aus</th><th>Größe</th><th>Hebel</th><th>Grund</th><th>Strategie</th><th>Score</th><th>PnL</th><th></th></tr></thead>
           <tbody id="journalBody"></tbody>
         </table>
       </div>
@@ -1259,6 +1308,20 @@
         </table>
       </div>
     </div>
+    <div class="tab-body" id="historyTab" hidden>
+      <div class="strat-filter-row">
+        <label>Instrument <select id="histFilterSymbol" class="full"><option value="all">Alle</option></select></label>
+        <label>Zeitrahmen <select id="histFilterTf" class="full"><option value="all">Alle</option></select></label>
+        <span class="strat-filter-note" id="histNote"></span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Geschlossen</th><th>Markt</th><th>Richtung</th><th>Einstieg</th><th>Ausstieg</th><th>Grund</th><th>Strategie</th><th>Notiz</th><th>PnL</th><th></th></tr></thead>
+          <tbody id="historyBody"></tbody>
+        </table>
+      </div>
+      <button class="btn" id="historyMoreBtn" hidden style="margin-top:10px">Ältere Trades anzeigen</button>
+    </div>
   </section>
 
   <footer>
@@ -1267,6 +1330,8 @@
     <a id="footerHelpLink">Mehr Infos &amp; Hilfe</a>
   </footer>
 </div>
+
+<div class="app-toast" id="appToast" role="status" aria-live="polite" hidden></div>
 
 <div class="modal-backdrop" id="helpModalBackdrop" hidden>
   <div class="modal-panel help-panel">
@@ -1285,8 +1350,14 @@
         <li><b>Im Chart</b>: TP/SL schon <b>vor</b> dem Einstieg per Klick auf den Chart planen. Die Linien (geplant oder in einer offenen Position) lassen sich jederzeit per Drag verschieben.</li>
         <li><b>Größe in € oder in % Risiko:</b> Mit dem kleinen Schalter &bdquo;€ / %&ldquo; neben &bdquo;Größe&ldquo; kannst du statt eines festen Betrags das Risiko pro Trade in % deines Kontos wählen &ndash; die Positionsgröße wird dann automatisch aus deinem Stop-Loss berechnet (inklusive Gebühren und Slippage).</li>
         <li>Gebühr und Slippage sind pro Markt voreingestellt (Forex: typische Spreads, Krypto: 0,05 %); eigene Werte stellst du unter &bdquo;Konto &amp; Kosten&ldquo; ein.</li>
+        <li><b>Teilweise schließen</b>: Bei offener Position schließt du mit 25&nbsp;%, 50&nbsp;% oder 75&nbsp;% einen Teil zum aktuellen Kurs. Der Rest läuft mit denselben TP/SL weiter; jeder Teil steht einzeln im Journal.</li>
         <li>Bei Hebel &gt; 1x wird bei zu hohen Verlusten <b>zwangsliquidiert</b> (isolierte Marge) &ndash; du kannst nie mehr als deine Marge verlieren. Die Liquidations-Linie erscheint im Chart.</li>
       </ul>
+      <h4>Zurück &amp; Rückblick</h4>
+      <p><b>⏮ Zurück</b> (oder <kbd>←</kbd>) geht eine Kerze zurück, solange keine Position oder Order offen ist – aber nie hinter deinen zuletzt geschlossenen Trade, damit Kontostand und Journal stimmen.</p>
+      <p>Jeder geschlossene Trade speichert deine Zeichnungen sowie TP und SL. Mit <b>Ansehen</b> im Journal oder im Reiter <b>Alle Trades</b> siehst du ihn wieder im Chart – samt dem, was danach passierte. <b>Zurück zur Session</b> (oder <kbd>Esc</kbd>) bringt dich genau dorthin zurück, wo du warst.</p>
+      <h4>Indikatoren</h4>
+      <p>Unter <b>Indikatoren</b> gibt es gleitende Durchschnitte (MA, EMA 9/21/50/200), VWAP, Supertrend, Bollinger-Bänder und Volumen im Chart sowie RSI, MACD, Stochastik und ATR als eigene Bereiche darunter. Oben links im Chart stehen die aktiven Indikatoren mit ihrem aktuellen Wert. Deine Auswahl wird pro Session gespeichert.</p>
       <h4>Zeitrahmen &amp; Sessions</h4>
       <p>Du kannst jederzeit den Zeitrahmen wechseln &ndash; Position, Kontostand und Zeichnungen bleiben erhalten, es geht am selben Zeitpunkt weiter. Pro Markt und Zeitrahmen gibt es 5 Session-Pl&auml;tze (die Kreise unter dem Chart).</p>
       <p>Mit <b>2. Chart</b> (oben rechts im Chart) siehst du einen zweiten Zeitrahmen daneben &ndash; z. B. 1h f&uuml;r die Richtung und 5m f&uuml;r den Einstieg. Er l&auml;uft im selben Replay mit, zeigt die gerade entstehende Kerze und spiegelt Einstieg/TP/SL als Linien.</p>
@@ -1295,7 +1366,7 @@
       <h4>Auswertung</h4>
       <p>Im Reiter <b>Analyse</b> (unter dem Chart) siehst du, in welcher Session, zu welcher Uhrzeit und an welchem Wochentag du Geld verdienst oder verlierst &ndash; &uuml;ber alle deine Sessions hinweg.</p>
       <h4>Tastatur</h4>
-      <p><kbd>Leertaste</kbd> Play/Pause &nbsp; <kbd>→</kbd> n&auml;chste Kerze &nbsp; <kbd>B</kbd> Kaufen &nbsp; <kbd>S</kbd> Verkaufen &nbsp; <kbd>X</kbd> Position schlie&szlig;en &nbsp; <kbd>Alt</kbd>+<kbd>R</kbd> Ansicht zur&uuml;cksetzen</p>
+      <p><kbd>Leertaste</kbd> Play/Pause &nbsp; <kbd>→</kbd> n&auml;chste Kerze &nbsp; <kbd>←</kbd> Kerze zur&uuml;ck &nbsp; <kbd>B</kbd> Kaufen &nbsp; <kbd>S</kbd> Verkaufen &nbsp; <kbd>X</kbd> Position schlie&szlig;en &nbsp; <kbd>Alt</kbd>+<kbd>R</kbd> Ansicht zur&uuml;cksetzen</p>
       <h4>Speichern</h4>
       <p>Dein Fortschritt (Position, Order, Journal, Zeichnungen) wird automatisch lokal gespeichert und bleibt beim Schlie&szlig;en erhalten, bis du eine neue Session startest.</p>
       <h4>Daten &amp; Hinweise</h4>
@@ -1339,7 +1410,7 @@
       </div>
       <div class="backup-section">
         <div class="section-title">Backup</div>
-        <div class="footnote-sm">Sichert deine Strategien und die komplette Trade-Historie (&uuml;ber alle Sessions hinweg) als Datei. Die aktuell laufende Session (offene Position, Kontostand) ist nicht enthalten &ndash; die wird ohnehin bei jeder neuen Session zur&uuml;ckgesetzt. Deine Daten liegen sonst nur im Speicher dieses Browsers und k&ouml;nnten z.B. beim L&ouml;schen der Browserdaten verloren gehen.</div>
+        <div class="footnote-sm">Sichert <b>alles</b> als Datei: alle Sessions (mit Position, Kontostand, Journal, Zeichnungen und Indikatoren), die komplette Trade-Historie mit Rückblick, deine Strategien und Einstellungen. Beim Import wird zusammengeführt – pro Session gewinnt der neuere Stand, nichts wird gelöscht.</div>
         <div class="backup-actions">
           <button class="btn" id="exportBackupBtn"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>Backup exportieren</button>
           <label class="btn" id="importBackupLabel"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V4M7 9l5-5 5 5M5 20h14"/></svg>Backup importieren<input type="file" id="importBackupInput" accept="application/json" hidden></label>
@@ -3065,6 +3136,95 @@
     return out;
   }
 
+  // ---------- weitere Indikatoren (Vorbild: TradingView) ----------
+  // Jeder Wert bei Kerze i nutzt nur Kerzen 0..i — das Replay kann dadurch nie in die
+  // Zukunft schauen (angezeigt wird ohnehin nur bis zur aktuellen Kerze).
+  function emaArr(vals, period){
+    const out = new Array(vals.length).fill(null);
+    const k = 2/(period+1); let n = 0, sum = 0, prev = null;
+    for(let i=0;i<vals.length;i++){
+      const v = vals[i]; if(v==null || !isFinite(v)) continue;
+      if(prev==null){ sum += v; n++; if(n===period){ prev = sum/period; out[i] = prev; } }
+      else { prev = v*k + prev*(1-k); out[i] = prev; }
+    }
+    return out;
+  }
+  function rmaArr(vals, period){
+    const out = new Array(vals.length).fill(null);
+    let n = 0, sum = 0, prev = null;
+    for(let i=0;i<vals.length;i++){
+      const v = vals[i]; if(v==null || !isFinite(v)) continue;
+      if(prev==null){ sum += v; n++; if(n===period){ prev = sum/period; out[i] = prev; } }
+      else { prev = (prev*(period-1) + v)/period; out[i] = prev; }
+    }
+    return out;
+  }
+  function smaArr(vals, period){
+    const out = new Array(vals.length).fill(null);
+    let sum = 0, cnt = 0;
+    for(let i=0;i<vals.length;i++){
+      const v = vals[i];
+      if(v==null || !isFinite(v)){ sum = 0; cnt = 0; continue; }
+      sum += v; cnt++;
+      if(cnt > period){ sum -= vals[i-period]; cnt = period; }
+      if(cnt === period) out[i] = sum/period;
+    }
+    return out;
+  }
+  const closesOf = bars => bars.map(b => b.close);
+  function trueRanges(bars){
+    return bars.map((b,i) => i===0 ? b.high-b.low : Math.max(b.high-b.low, Math.abs(b.high-bars[i-1].close), Math.abs(b.low-bars[i-1].close)));
+  }
+  function emaInd(bars, period){ return { v: emaArr(closesOf(bars), period) }; }
+  function atrInd(bars, period){ return { v: rmaArr(trueRanges(bars), period) }; }
+  // VWAP setzt jeden Tag (UTC) neu an. Forex-Daten haben kein Volumen — dort zaehlt
+  // jede Kerze gleich (zeitgewichteter Tagesdurchschnitt).
+  function vwapInd(bars){
+    const out = new Array(bars.length).fill(null);
+    let day = null, pv = 0, vol = 0;
+    for(let i=0;i<bars.length;i++){
+      const b = bars[i], d = Math.floor(b.time/86400);
+      if(d !== day){ day = d; pv = 0; vol = 0; }
+      const w = b.volume > 0 ? b.volume : 1;
+      pv += (b.high+b.low+b.close)/3 * w; vol += w;
+      out[i] = pv/vol;
+    }
+    return { v: out };
+  }
+  // Supertrend wie bei TradingView (ATR nach Wilder): unter dem Kurs im Aufwaertstrend, darueber im Abwaertstrend.
+  function supertrendInd(bars, period, mult){
+    const atr = rmaArr(trueRanges(bars), period);
+    const up = new Array(bars.length).fill(null), down = new Array(bars.length).fill(null);
+    let up1 = null, dn1 = null, trend = 1;
+    for(let i=0;i<bars.length;i++){
+      if(atr[i]==null) continue;
+      const b = bars[i], hl2 = (b.high+b.low)/2, pc = i>0 ? bars[i-1].close : b.close;
+      let upv = hl2 - mult*atr[i]; if(up1!=null && pc > up1) upv = Math.max(upv, up1);
+      let dnv = hl2 + mult*atr[i]; if(dn1!=null && pc < dn1) dnv = Math.min(dnv, dn1);
+      if(trend===-1 && dn1!=null && b.close > dn1) trend = 1;
+      else if(trend===1 && up1!=null && b.close < up1) trend = -1;
+      if(trend===1) up[i] = upv; else down[i] = dnv;
+      up1 = upv; dn1 = dnv;
+    }
+    return { up, down };
+  }
+  function macdInd(bars, fast, slow, sig){
+    const c = closesOf(bars), ef = emaArr(c, fast), es = emaArr(c, slow);
+    const m = c.map((_,i) => ef[i]!=null && es[i]!=null ? ef[i]-es[i] : null);
+    const sg = emaArr(m, sig);
+    return { macd:m, signal:sg, hist: m.map((v,i) => v!=null && sg[i]!=null ? v-sg[i] : null) };
+  }
+  function stochInd(bars, kLen, kSmooth, dLen){
+    const raw = new Array(bars.length).fill(null);
+    for(let i=kLen-1;i<bars.length;i++){
+      let hh = -Infinity, ll = Infinity;
+      for(let j=i-kLen+1;j<=i;j++){ if(bars[j].high > hh) hh = bars[j].high; if(bars[j].low < ll) ll = bars[j].low; }
+      raw[i] = hh>ll ? (bars[i].close-ll)/(hh-ll)*100 : 50;
+    }
+    const k = smaArr(raw, kSmooth);
+    return { k, d: smaArr(k, dLen) };
+  }
+
   function toCandlePoint(bar){ return { time:bar.time, open:bar.open, high:bar.high, low:bar.low, close:bar.close }; }
   function toVolumePoint(bar){ return { time:bar.time, value:bar.volume, color: bar.close>=bar.open ? 'rgba(79,165,139,0.28)' : 'rgba(207,103,98,0.28)' }; }
 
@@ -3320,7 +3480,9 @@
         bbLowerSeries.setData(sliceIndicator(state.bbFull.lower));
       }
       if(rsiSeries) rsiSeries.setData(sliceIndicator(state.rsiFull));
+      for(const id in xSeries) setXData(id);
     }
+    renderIndLegend();
   }
   function createBollingerSeries(){
     bbBasisSeries = chart.addLineSeries({ color:'#E0A438', lineWidth:1, lineStyle:LightweightCharts.LineStyle.Dashed, priceLineVisible:false, lastValueVisible:false });
@@ -3336,8 +3498,6 @@
   // bottom of the SAME chart by shrinking the price and volume scales' margins
   // (only while RSI is on; DEFAULT_*_MARGINS restore the untouched layout after).
   function enableRsiPane(){
-    chart.priceScale('right').applyOptions({ scaleMargins:{ top:0.05, bottom:0.32 } });
-    volumeSeries.priceScale().applyOptions({ scaleMargins:{ top:0.70, bottom:0.16 } });
     // autoscaleInfoProvider overrides what "auto" means for this series — feeding
     // it a fixed 0-100 range keeps the RSI pane stable without disabling autoScale
     // outright (which would leave the scale with no range logic to fall back on).
@@ -3345,12 +3505,109 @@
       color:'#B39DDB', lineWidth:1.5, priceScaleId:'rsi', priceLineVisible:false, lastValueVisible:false,
       autoscaleInfoProvider: () => ({ priceRange: { minValue:0, maxValue:100 } })
     });
-    chart.priceScale('rsi').applyOptions({ scaleMargins:{ top:0.86, bottom:0 }, borderVisible:false });
+    layoutPanes();
   }
   function disableRsiPane(){
     if(rsiSeries){ chart.removeSeries(rsiSeries); rsiSeries=null; }
-    chart.priceScale('right').applyOptions({ scaleMargins: DEFAULT_RIGHT_MARGINS });
-    volumeSeries.priceScale().applyOptions({ scaleMargins: DEFAULT_VOLUME_MARGINS });
+    layoutPanes();
+  }
+  // Oszillatoren (RSI, MACD, Stochastik, ATR) bekommen je einen eigenen Streifen unter dem
+  // Kursbereich — lightweight-charts v4 kennt keine echten Panes, darum wird der Platz ueber die
+  // scaleMargins der Preisskalen aufgeteilt (unterster Streifen = erster Eintrag).
+  function layoutPanes(){
+    const panes = [];
+    if(rsiSeries) panes.push('rsi');
+    XIND.forEach(x => { if(x.pane && xSeries[x.id]) panes.push('x_'+x.id); });
+    const n = panes.length;
+    if(!n){
+      chart.priceScale('right').applyOptions({ scaleMargins: DEFAULT_RIGHT_MARGINS });
+      volumeSeries.priceScale().applyOptions({ scaleMargins: DEFAULT_VOLUME_MARGINS });
+      return;
+    }
+    const H = n<=2 ? 0.14 : 0.36/n;
+    chart.priceScale('right').applyOptions({ scaleMargins:{ top:0.05, bottom:0.18 + n*H } });
+    volumeSeries.priceScale().applyOptions({ scaleMargins:{ top:Math.max(0.3, 1 - n*H - 0.14), bottom:n*H + 0.02 } });
+    panes.forEach((id, k) => chart.priceScale(id).applyOptions({ scaleMargins:{ top:1 - (k+1)*H + 0.015, bottom:k*H + 0.005 }, borderVisible:false }));
+  }
+
+  // ---------- Indikator-Register (zusaetzlich zu MA/BB/RSI) ----------
+  const XIND = [
+    { id:'ema9',   label:'EMA 9',   calc:d => emaInd(d, 9),   lines:[{ key:'v', color:'#42A5F5' }] },
+    { id:'ema21',  label:'EMA 21',  calc:d => emaInd(d, 21),  lines:[{ key:'v', color:'#EC407A' }] },
+    { id:'ema50',  label:'EMA 50',  calc:d => emaInd(d, 50),  lines:[{ key:'v', color:'#9CCC65' }] },
+    { id:'ema200', label:'EMA 200', calc:d => emaInd(d, 200), lines:[{ key:'v', color:'#FF7043', width:2 }] },
+    { id:'vwap',   label:'VWAP',    calc:vwapInd,             lines:[{ key:'v', color:'#AB47BC', width:2, dotted:true }] },
+    { id:'supertrend', label:'Supertrend', calc:d => supertrendInd(d, 10, 3), lines:[{ key:'up', color:'#26A69A', width:2 }, { key:'down', color:'#EF5350', width:2 }] },
+    { id:'macd',  label:'MACD',  pane:true, calc:d => macdInd(d, 12, 26, 9), lines:[{ key:'hist', type:'hist' }, { key:'macd', color:'#2962FF' }, { key:'signal', color:'#FF6D00' }] },
+    { id:'stoch', label:'Stoch', pane:true, range:[0, 100], calc:d => stochInd(d, 14, 3, 3), lines:[{ key:'k', color:'#2962FF' }, { key:'d', color:'#FF6D00' }] },
+    { id:'atr',   label:'ATR',   pane:true, calc:d => atrInd(d, 14), lines:[{ key:'v', color:'#E57373' }] },
+  ];
+  const XIND_BY_ID = Object.fromEntries(XIND.map(x => [x.id, x]));
+  const xSeries = {};   // id -> [{ key, type, color, series }]
+  function xData(id){
+    if(state.xFullFor !== state.data){ state.xFull = {}; state.xFullFor = state.data; }
+    if(!state.xFull[id]) state.xFull[id] = XIND_BY_ID[id].calc(state.data);
+    return state.xFull[id];
+  }
+  function xPoint(type, time, v){
+    if(v==null) return { time };
+    if(type==='hist') return { time, value:v, color: v>=0 ? 'rgba(38,166,154,0.65)' : 'rgba(239,83,80,0.65)' };
+    return { time, value:v };
+  }
+  function addXInd(id){
+    const x = XIND_BY_ID[id];
+    if(!x || xSeries[id]) return;
+    const scaleId = x.pane ? 'x_'+id : 'right';
+    xSeries[id] = x.lines.map(l => {
+      const opts = { priceScaleId:scaleId, priceLineVisible:false, lastValueVisible:false };
+      if(x.range) opts.autoscaleInfoProvider = () => ({ priceRange:{ minValue:x.range[0], maxValue:x.range[1] } });
+      const series = l.type==='hist' ? chart.addHistogramSeries(opts)
+        : chart.addLineSeries({ ...opts, color:l.color, lineWidth:l.width || 1.5, crosshairMarkerVisible:false,
+            lineStyle: l.dotted ? LightweightCharts.LineStyle.Dotted : LightweightCharts.LineStyle.Solid });
+      return { key:l.key, type:l.type || 'line', color:l.color, series };
+    });
+    layoutPanes();
+    setXData(id);
+  }
+  function removeXInd(id){
+    (xSeries[id] || []).forEach(l => { try{ chart.removeSeries(l.series); }catch(e){} });
+    delete xSeries[id];
+    layoutPanes();
+  }
+  function setXData(id){
+    const d = xData(id);
+    xSeries[id].forEach(l => {
+      const arr = d[l.key], out = [];
+      for(let i=state.sessionStart;i<=state.cursor;i++) out.push(xPoint(l.type, state.data[i].time, arr[i]));
+      l.series.setData(out);
+    });
+  }
+  function stepXInd(idx){
+    for(const id in xSeries){
+      const d = xData(id);
+      xSeries[id].forEach(l => l.series.update(xPoint(l.type, state.data[idx].time, d[l.key][idx])));
+    }
+  }
+  // Legende wie bei TradingView: aktive Indikatoren mit Farbe und Wert der aktuellen Kerze.
+  function renderIndLegend(){
+    const el = document.getElementById('indLegend');
+    if(!el) return;
+    const i = state.cursor, items = [];
+    const num = (v, osc) => v==null || !isFinite(v) ? '–' : (osc ? v.toFixed(2) : v.toLocaleString('de-DE', { minimumFractionDigits:decimalsFor(v), maximumFractionDigits:decimalsFor(v) }));
+    if(state.data.length){
+      if(ma20Series) items.push(['MA 20', '#E0A438', num(state.smaFull[20][i])]);
+      if(ma50Series) items.push(['MA 50', '#2962FF', num(state.smaFull[50][i])]);
+      if(bbBasisSeries) items.push(['BB 20', '#E0A438', num(state.bbFull.basis[i])]);
+      if(rsiSeries) items.push(['RSI 14', '#B39DDB', num(state.rsiFull[i], true)]);
+      XIND.forEach(x => {
+        if(!xSeries[x.id]) return;
+        const d = xData(x.id);
+        const line = x.lines.find(l => l.type!=='hist' && d[l.key][i]!=null) || x.lines.find(l => l.type!=='hist');
+        items.push([x.label, line.color, num(d[line.key][i], x.pane)]);
+      });
+    }
+    el.hidden = !items.length;
+    el.innerHTML = items.map(([n, c, v]) => `<span><i style="background:${c}"></i>${n} <b>${v}</b></span>`).join('');
   }
   function sliceIndicator(arr){
     const out = [];
@@ -3375,7 +3632,7 @@
 
   // ---------- replay stepping ----------
   function stepForward(){
-    if(state.ended) return false;
+    if(state.ended || state.reviewing) return false;
     const nextIdx = state.cursor+1;
     if(nextIdx >= state.data.length){ endSession(); return false; }
     state.cursor = nextIdx;
@@ -3391,6 +3648,8 @@
       bbLowerSeries.update({time:bar.time, value:state.bbFull.lower[state.cursor]});
     }
     if(rsiSeries && state.rsiFull[state.cursor]!=null) rsiSeries.update({time:bar.time, value:state.rsiFull[state.cursor]});
+    stepXInd(state.cursor);
+    renderIndLegend();
     if(state.pendingOrder) checkPendingOrderAgainstBar(bar);
     if(state.position) checkPositionAgainstBar(bar);
     state.equityHistory.push({ i: state.cursor, equity: computeEquity() });
@@ -3405,7 +3664,7 @@
 
   const SPEED_MS = {}; // filled from select options
   function play(){
-    if(state.playing || state.ended) return;
+    if(state.playing || state.ended || state.reviewing) return;
     state.playing = true;
     els.playPauseBtn.textContent = '⏸ Pause';
     state.timer = setInterval(()=>{ if(!stepForward()) pause(); }, state.speedMs);
@@ -3418,6 +3677,7 @@
   function updateStepControls(){
     els.stepBtn.disabled = state.ended;
     els.playPauseBtn.disabled = state.ended;
+    updateStepBackBtn();
   }
 
   // ---------- strategies & checklists ----------
@@ -3446,11 +3706,21 @@
       state.tradeHistory = raw ? JSON.parse(raw) : [];
     }catch(e){ state.tradeHistory = []; }
   }
+  // Der Browser-Speicher fasst nur wenige MB: Zeichnungen fuer den Rueckblick behalten nur die
+  // neuesten Trades. Wird es trotzdem zu viel, werden sie schrittweise bei aelteren Trades weggelassen,
+  // statt dass die ganze Historie nicht mehr gespeichert werden kann.
+  const REVIEW_DRAWINGS_KEEP = 400;
+  function stripReviewDrawings(t){
+    if(t && t.review && Array.isArray(t.review.drawings) && t.review.drawings.length) t.review = { ...t.review, drawings:[], drawingsDropped:true };
+  }
   function saveTradeHistory(){
-    try{
-      if(state.tradeHistory.length > HISTORY_MAX) state.tradeHistory = state.tradeHistory.slice(-HISTORY_MAX);
-      localStorage.setItem(HISTORY_KEY, JSON.stringify(state.tradeHistory));
-    }catch(e){}
+    if(state.tradeHistory.length > HISTORY_MAX) state.tradeHistory = state.tradeHistory.slice(-HISTORY_MAX);
+    for(let i=0;i<state.tradeHistory.length-REVIEW_DRAWINGS_KEEP;i++) stripReviewDrawings(state.tradeHistory[i]);
+    let keep = REVIEW_DRAWINGS_KEEP;
+    for(let attempt=0;attempt<7;attempt++){
+      try{ localStorage.setItem(HISTORY_KEY, JSON.stringify(state.tradeHistory)); break; }
+      catch(e){ keep = Math.floor(keep/2); for(let i=0;i<state.tradeHistory.length-keep;i++) stripReviewDrawings(state.tradeHistory[i]); }
+    }
     cloudMarkHist();
   }
 
@@ -3488,11 +3758,26 @@
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   }
+  // Alle uebrigen TradeReplay-Einstellungen (Design, Kosten, Groessen-Modus, Formularwerte …).
+  function collectPrefs(){
+    const skip = new Set([HISTORY_KEY, STRAT_KEY, SESSIONS_KEY, 'tradereplay_nocloud_v1', 'tradereplay_hist_rev_v1', 'tradereplay_strat_at_v1']);
+    const out = {};
+    try{
+      for(let i=0;i<localStorage.length;i++){
+        const k = localStorage.key(i);
+        if(k && k.indexOf('tradereplay_')===0 && !skip.has(k)) out[k] = localStorage.getItem(k);
+      }
+    }catch(e){}
+    return out;
+  }
   function exportBackup(){
+    try{ saveState(); }catch(e){}
     const payload = {
-      v:1, exportedAt: new Date().toISOString(),
+      v:2, app:'TradeReplay', exportedAt: new Date().toISOString(),
       strategies: state.strategies,
-      tradeHistory: state.tradeHistory
+      tradeHistory: state.tradeHistory,
+      sessions: loadSessionGroups(),
+      prefs: collectPrefs()
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type:'application/json' });
     saveFile(`tradereplay-backup-${new Date().toISOString().slice(0,10)}.json`, blob);
@@ -3506,24 +3791,53 @@
     (data.tradeHistory||[]).forEach(t => {
       if(t && !existingClosedAt.has(t.closedAt)){ state.tradeHistory.push(t); addedTrades++; }
     });
+    // Sessions: pro Platz gewinnt der neuere Stand (savedAt) — nichts Neueres wird ueberschrieben.
+    let addedSessions = 0, currentChanged = false;
+    if(data.sessions && typeof data.sessions === 'object'){
+      const groups = loadSessionGroups();
+      Object.keys(data.sessions).forEach(key => {
+        const inc = data.sessions[key];
+        if(!Array.isArray(inc)) return;
+        if(!Array.isArray(groups[key])) groups[key] = [];
+        inc.forEach((p, slot) => {
+          if(!p || typeof p !== 'object' || slot >= SESSION_SLOTS) return;
+          const cur = groups[key][slot];
+          // Ein unbenutzter Platz (noch nichts gespielt) wird immer ersetzt, sonst gewinnt der neuere Stand.
+          if(!cur || (!sessNonPristine(cur) && sessNonPristine(p)) || (p.savedAt || 0) > (cur.savedAt || 0)){
+            groups[key][slot] = p; addedSessions++;
+            cloudMarkSession(key, slot);
+            if(key === slotGroupKey(state.symbol, state.tf) && slot === state.activeSlot) currentChanged = true;
+          }
+        });
+      });
+      if(addedSessions) saveSessionGroups(groups);
+    }
+    if(data.prefs && typeof data.prefs === 'object'){
+      const skip = new Set([HISTORY_KEY, STRAT_KEY, SESSIONS_KEY]);
+      Object.keys(data.prefs).forEach(k => { if(k.indexOf('tradereplay_')===0 && !skip.has(k) && typeof data.prefs[k] === 'string') lsSet(k, data.prefs[k]); });
+    }
     saveStrategies();
     saveTradeHistory();
     renderActiveStrategySelect();
     renderStrategyList();
-    alert(`Import abgeschlossen: ${addedStrats} neue Strategie(n), ${addedTrades} neue(r) Trade(s) hinzugefügt.`);
+    showToast(`Import abgeschlossen: ${addedStrats} Strategie(n), ${addedTrades} Trade(s) und ${addedSessions} Session(s) übernommen.`, 6500);
+    if(currentChanged && !datasetLoadBusy && !state.reviewing){
+      const p = (loadSessionGroups()[slotGroupKey(state.symbol, state.tf)] || [])[state.activeSlot];
+      if(p){ datasetLoadBusy = true; applySessionPayload(p).finally(() => { datasetLoadBusy = false; renderSessionSlotsUI(); }); }
+    } else renderSessionSlotsUI();
   }
   function importBackupFile(file){
     const reader = new FileReader();
     reader.onload = () => {
       let data;
-      try{ data = JSON.parse(reader.result); }catch(e){ alert('Ungültige Backup-Datei (kein gültiges JSON).'); return; }
+      try{ data = JSON.parse(reader.result); }catch(e){ showToast('Ungültige Backup-Datei (kein gültiges JSON).'); return; }
       if(!data || !Array.isArray(data.strategies) || !Array.isArray(data.tradeHistory)){
-        alert('Diese Datei sieht nicht wie ein TradeReplay-Backup aus.');
+        showToast('Diese Datei sieht nicht wie ein TradeReplay-Backup aus.');
         return;
       }
       importBackupData(data);
     };
-    reader.onerror = () => alert('Datei konnte nicht gelesen werden.');
+    reader.onerror = () => showToast('Datei konnte nicht gelesen werden.');
     reader.readAsText(file);
   }
 
@@ -3744,7 +4058,7 @@
   }
 
   function openPosition(side){
-    if(state.position || state.pendingOrder || state.ended) return;
+    if(state.position || state.pendingOrder || state.ended || state.reviewing) return;
     const bar = currentBar();
     const price = bar.close;
     if(sizeMode === 'risk'){
@@ -3812,7 +4126,7 @@
   // the assumed entry, since — unlike a market order — that entry price is exact.
   let pendingOrderLine = null;
   function placeLimitOrder(side){
-    if(state.position || state.pendingOrder || state.ended) return;
+    if(state.position || state.pendingOrder || state.ended || state.reviewing) return;
     const limitPrice = parseFloat(els.limitPriceInput.value);
     if(!limitPrice || limitPrice<=0){ alert('Bitte einen gültigen Limit-Preis eingeben.'); return; }
     if(sizeMode === 'risk'){
@@ -3960,9 +4274,10 @@
     if(reason) closePosition(price, bar.time, reason);
   }
 
-  function closePosition(exitPrice, exitTime, reason){
-    const pos = state.position;
-    if(!pos) return;
+  // Bucht einen Ausstieg (ganze Position oder ein Teil davon): Gewinn/Verlust, Gebuehren,
+  // Journal und Trade-Historie — inklusive Rueckblick-Daten (TP/SL, Zeichnungen).
+  let lastClosedAt = 0;
+  function realizeClose(pos, exitPrice, exitTime, reason, frac){
     const exitNotional = pos.qty*exitPrice;
     const exitFee = exitNotional*state.feePct/100;
     const rawPnl = (exitPrice-pos.entryPrice)*pos.qty*(pos.side==='long'?1:-1);
@@ -3986,12 +4301,23 @@
       pnlPct: pos.margin>0 ? netPnl/pos.margin*100 : 0,
       strategyId: pos.strategyId||null, strategyName: pos.strategyName||null, checklist,
       rrRatio, riskPct, positionPct, rMultiple, score, grade, feedback,
-      note: (pos.note||els.posNoteInput.value||'').trim()
+      note: (pos.note||els.posNoteInput.value||'').trim(),
+      symbol:state.symbol, tf:state.tf, partialFrac: frac || null,
+      review: buildReviewSnapshot(pos)
     };
+    let closedAt = Date.now();
+    if(closedAt <= lastClosedAt) closedAt = lastClosedAt + 1;
+    lastClosedAt = closedAt;
     state.journal.push(tradeRecord);
-    state.tradeHistory.push({ ...tradeRecord, symbol:state.symbol, tf:state.tf, closedAt:Date.now() });
+    state.tradeHistory.push({ ...tradeRecord, closedAt });
     saveTradeHistory();
+    return netPnl;
+  }
 
+  function closePosition(exitPrice, exitTime, reason){
+    const pos = state.position;
+    if(!pos) return;
+    const netPnl = realizeClose(pos, exitPrice, exitTime, reason);
     removePositionLines();
     addExitMarker(exitTime, netPnl, reason);
     state.position = null;
@@ -4000,7 +4326,38 @@
     renderJournal();
     renderStats();
     renderDrawings();
+    refreshHistoryTabIfOpen();
     saveState();
+  }
+
+  // Teilweise schliessen: frac (z. B. 0.5) der Position zum aktuellen Schlusskurs; der Rest
+  // laeuft mit denselben TP/SL weiter. Marge, Gebuehr und Groesse werden anteilig aufgeteilt.
+  function closePartial(frac){
+    const pos = state.position;
+    if(!pos || state.reviewing || !(frac > 0)) return;
+    const bar = currentBar();
+    if(frac >= 0.999 || pos.notional*(1-frac) < 1){ closePosition(bar.close, bar.time, 'manual'); return; }
+    const part = { ...pos, qty:pos.qty*frac, notional:pos.notional*frac, margin:pos.margin*frac, entryFee:pos.entryFee*frac };
+    const net = realizeClose(part, bar.close, bar.time, 'partial', frac);
+    pos.qty *= (1-frac); pos.notional *= (1-frac); pos.margin *= (1-frac); pos.entryFee *= (1-frac);
+    pos.partials = (pos.partials || []).concat([{ time:bar.time, price:bar.close, frac, pnl:net }]);
+    addExitMarker(bar.time, net, 'partial');
+    updateAccountUI();
+    updatePositionUI();
+    renderJournal();
+    renderStats();
+    renderDrawings();
+    refreshHistoryTabIfOpen();
+    saveState();
+    showToast(Math.round(frac*100) + ' % geschlossen: ' + usdSigned(net));
+  }
+  const REVIEW_MAX_DRAWINGS = 60;
+  function buildReviewSnapshot(pos){
+    let drawings = [];
+    try{ drawings = JSON.parse(JSON.stringify(state.drawings.slice(-REVIEW_MAX_DRAWINGS))); }catch(e){ drawings = []; }
+    if(JSON.stringify(drawings).length > 30000) drawings = [];
+    return { v:1, tp: pos.tpPrice ?? null, sl: pos.slPrice ?? null, liq: pos.liqPrice ?? null, drawings,
+      partials: (pos.partials || []).map(p => ({ time:p.time, price:p.price, frac:p.frac })) };
   }
 
   function drawPositionLines(){
@@ -4020,7 +4377,7 @@
     markers.push({ time, position: side==='long'?'belowBar':'aboveBar', color: side==='long'?'#26A69A':'#EF5350', shape: side==='long'?'arrowUp':'arrowDown', text: side==='long'?'Long':'Short' });
     candleSeries.setMarkers(markers);
   }
-  const REASON_LABEL = { tp:'Take-Profit', sl:'Stop-Loss', manual:'Manuell', end:'Session-Ende', liquidation:'Liquidation' };
+  const REASON_LABEL = { tp:'Take-Profit', sl:'Stop-Loss', manual:'Manuell', end:'Session-Ende', liquidation:'Liquidation', partial:'Teilweise' };
   function addExitMarker(time, pnl, reason){
     const color = pnl>=0 ? '#26A69A' : '#EF5350';
     markers.push({ time, position:'inBar', color, shape:'circle', text: (REASON_LABEL[reason]||reason) });
@@ -4030,6 +4387,7 @@
   // ---------- UI rendering ----------
   function updateAccountUI(){
     const eq = computeEquity();
+    updateStepBackBtn();
     els.balanceOut.textContent = usd(state.balance, 0);
     els.equityOut.textContent = usd(eq, 0);
     els.equityOut.className = eq >= state.balance ? 'eq-up' : (eq < state.balance ? 'eq-down' : '');
@@ -4089,7 +4447,7 @@
     els.posPnl.className = 'pos-pnl ' + (unreal>=0?'up-txt':'down-txt');
     els.posEntry.textContent = usd(pos.entryPrice);
     els.posCurrent.textContent = usd(bar.close);
-    els.posQty.textContent = usd(pos.notional,0) + ' @ ' + pos.leverage + 'x';
+    els.posQty.textContent = usd(pos.notional,0) + ' @ ' + pos.leverage + 'x' + (pos.partials && pos.partials.length ? ' (Rest)' : '');
     els.posTp.textContent = pos.tpPrice!=null ? usd(pos.tpPrice) + ' (' + pos.tpPct.toFixed(2) + '%)' : '– aus –';
     els.posSl.textContent = pos.slPrice!=null ? usd(pos.slPrice) + ' (' + pos.slPct.toFixed(2) + '%)' : '– aus –';
     els.posLiqRow.hidden = pos.liqPrice==null;
@@ -4169,7 +4527,7 @@
   function renderJournal(){
     const body = els.journalBody;
     if(!state.journal.length){
-      body.innerHTML = '<tr><td colspan="12"><div class="empty">Noch keine geschlossenen Trades in dieser Session.</div></td></tr>';
+      body.innerHTML = '<tr><td colspan="13"><div class="empty">Noch keine geschlossenen Trades in dieser Session.</div></td></tr>';
       return;
     }
     body.innerHTML = state.journal.map((t,idx) => `
@@ -4186,6 +4544,7 @@
         <td>${t.strategyName ? escapeHtml(t.strategyName) : '<span class="chip manual">–</span>'}</td>
         <td>${scoreBadgeHtml(t.score, t.grade, t.feedback)}${t.note ? ` <span title="${escapeHtml(t.note)}" style="cursor:help;">📝</span>` : ''}</td>
         <td class="num ${t.pnl>=0?'up-txt':'down-txt'}">${usdSigned(t.pnl)}</td>
+        <td><button class="btn review-btn" data-rv-journal="${idx}" title="Trade im Chart ansehen – mit deinen Zeichnungen">Ansehen</button></td>
       </tr>`).reverse().join('');
   }
 
@@ -5077,6 +5436,8 @@
       document.getElementById('statsTab').hidden = btn.dataset.tab!=='stats';
       document.getElementById('strategiesTab').hidden = btn.dataset.tab!=='strategies';
       document.getElementById('analysisTab').hidden = btn.dataset.tab!=='analysis';
+      document.getElementById('historyTab').hidden = btn.dataset.tab!=='history';
+      if(btn.dataset.tab==='history'){ histShown = HIST_PAGE; renderHistoryTab(); }
       if(btn.dataset.tab==='analysis') renderAnalysis();
       if(btn.dataset.tab==='stats') drawEquitySpark();
       if(btn.dataset.tab==='strategies') renderStrategyDashboard();
@@ -5086,11 +5447,17 @@
   // ---------- Menues, Hilfe-Fenster, Indikator-Badge (Theme v2) ----------
   const IND_TOGGLE_IDS = ['ma20Toggle','ma50Toggle','bbToggle','rsiToggle','volumeToggle','sessionsToggle','asiaHlToggle','pdhlToggle','weeklyOpenToggle'];
   function renderIndBadge(){
-    const n = IND_TOGGLE_IDS.filter(id => els[id] && els[id].checked).length;
+    const n = IND_TOGGLE_IDS.filter(id => els[id] && els[id].checked).length + document.querySelectorAll('#indMenu input[data-xind]:checked').length;
+    renderIndLegend();
     const b = document.getElementById('indBadge');
     b.textContent = String(n); b.hidden = n === 0;
   }
-  IND_TOGGLE_IDS.forEach(id => els[id].addEventListener('change', renderIndBadge));
+  IND_TOGGLE_IDS.forEach(id => els[id].addEventListener('change', () => { renderIndBadge(); saveState(); }));
+  document.querySelectorAll('#indMenu input[data-xind]').forEach(inp => inp.addEventListener('change', () => {
+    inp.checked ? addXInd(inp.dataset.xind) : removeXInd(inp.dataset.xind);
+    renderIndBadge();
+    saveState();
+  }));
   (function setupUiV2(){
     const helpBackdrop = document.getElementById('helpModalBackdrop');
     const closeMenus = () => {
@@ -5162,12 +5529,13 @@
 
   document.addEventListener('keydown', (e)=>{
     if(e.code==='Escape' && chartCardEl.classList.contains('chart-fullscreen')){ setChartFullscreen(false); return; }
+    if(state.reviewing){ if(e.code==='Escape'){ e.preventDefault(); exitReview(); } return; }
     if(e.altKey && (e.code==='KeyR' || e.key==='r' || e.key==='R')){ e.preventDefault(); resetChartView(); return; }
     if(e.target.tagName==='INPUT' || e.target.tagName==='SELECT') return;
     if((e.code==='Delete' || e.code==='Backspace') && state.selectedDrawingId){ e.preventDefault(); deleteDrawing(state.selectedDrawingId); return; }
     if(e.code==='Space'){ e.preventDefault(); state.playing ? pause() : play(); }
     else if(e.code==='ArrowRight'){ e.preventDefault(); state.selectedDrawingId ? nudgeSelectedDrawingTime(1, e.shiftKey) : stepForward(); }
-    else if(e.code==='ArrowLeft' && state.selectedDrawingId){ e.preventDefault(); nudgeSelectedDrawingTime(-1, e.shiftKey); }
+    else if(e.code==='ArrowLeft'){ e.preventDefault(); state.selectedDrawingId ? nudgeSelectedDrawingTime(-1, e.shiftKey) : stepBack(); }
     else if(e.code==='ArrowUp' && state.selectedDrawingId){ e.preventDefault(); nudgeSelectedDrawing(1, e.shiftKey); }
     else if(e.code==='ArrowDown' && state.selectedDrawingId){ e.preventDefault(); nudgeSelectedDrawing(-1, e.shiftKey); }
     // Trading hotkeys — openPosition/placeLimitOrder already no-op if a position
@@ -5175,6 +5543,234 @@
     else if(e.key==='b' || e.key==='B'){ e.preventDefault(); state.orderType==='limit' ? placeLimitOrder('long') : openPosition('long'); }
     else if(e.key==='s' || e.key==='S'){ e.preventDefault(); state.orderType==='limit' ? placeLimitOrder('short') : openPosition('short'); }
     else if(e.key==='x' || e.key==='X'){ e.preventDefault(); if(state.position){ const bar=currentBar(); closePosition(bar.close, bar.time, 'manual'); } }
+  });
+
+  // ---------- kurze Hinweise (alert() erscheint in der Claude-App nicht) ----------
+  let toastTimer = null;
+  function showToast(msg, ms){
+    const t = document.getElementById('appToast');
+    if(!t) return;
+    t.textContent = msg; t.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { t.hidden = true; }, ms || 3800);
+  }
+
+  // ---------- Kerze zurueck ----------
+  // Geht nur ohne offene Position/Order und nie hinter den zuletzt abgeschlossenen Trade
+  // zurueck — so bleiben Kontostand, Journal und Trade-Historie immer stimmig.
+  const stepBackBtn = document.getElementById('stepBackBtn');
+  function barIndexAtOrBefore(t){
+    let lo = 0, hi = state.data.length-1, ans = -1;
+    while(lo <= hi){ const mid = (lo+hi) >> 1; if(state.data[mid].time <= t){ ans = mid; lo = mid+1; } else hi = mid-1; }
+    return ans;
+  }
+  function stepBackFloor(){
+    let floor = state.sessionSplit;
+    const last = state.journal[state.journal.length-1];
+    if(last && last.exitTime != null){ const idx = barIndexAtOrBefore(last.exitTime); if(idx > floor) floor = idx; }
+    return floor;
+  }
+  function canStepBack(){
+    return !state.reviewing && !state.position && !state.pendingOrder && state.data.length > 0 && state.cursor > stepBackFloor();
+  }
+  function updateStepBackBtn(){ const btn = document.getElementById('stepBackBtn'); if(btn) btn.classList.toggle('is-blocked', !canStepBack()); }
+  function stepBack(){
+    if(state.reviewing || !state.data.length) return;
+    if(state.position || state.pendingOrder){ showToast('Zurück geht nur ohne offene Position oder Order. Schließe sie zuerst.'); return; }
+    if(state.cursor <= stepBackFloor()){
+      showToast(state.cursor > state.sessionSplit ? 'Weiter zurück geht nicht: Hier hast du deinen letzten Trade geschlossen.' : 'Du bist schon am Replay-Start.');
+      return;
+    }
+    pause();
+    state.cursor--;
+    const bar = state.data[state.cursor];
+    state.replayClockMs = bar.time*1000 + (TF_MS[state.tf] || 900000);
+    state.equityHistory = state.equityHistory.filter(e => e.i <= state.cursor);
+    if(!state.equityHistory.length) state.equityHistory.push({ i:state.cursor, equity:computeEquity() });
+    if(state.ended){ state.ended = false; els.endBanner.classList.remove('show'); }
+    const slice = state.data.slice(state.sessionStart, state.cursor+1);
+    candleSeries.setData(slice.map(toCandlePoint));
+    volumeSeries.setData(slice.map(toVolumePoint));
+    candleSeries.setMarkers(markers);
+    renderIndicators(true);
+    updateAccountUI();
+    updatePositionUI();
+    updateProgressUI();
+    updateStepControls();
+    refreshCompanion(true);
+    renderDrawings();
+    saveState();
+  }
+  if(stepBackBtn) stepBackBtn.addEventListener('click', stepBack);
+  document.getElementById('partialRow').addEventListener('click', e => {
+    const b = e.target.closest('[data-partial]');
+    if(b) closePartial(parseFloat(b.dataset.partial));
+  });
+
+  // ---------- Trade-Rueckblick ----------
+  // Zeigt einen abgeschlossenen Trade im Hauptchart: Kerzen rund um Ein- und Ausstieg (auch was
+  // danach kam), die damaligen Zeichnungen sowie Einstieg, Ausstieg, TP und SL. Die laufende Session
+  // wird vorher gesichert und danach exakt wiederhergestellt. Solange der Rueckblick offen ist,
+  // speichert die App nichts (state.reviewing) und datasetLoadBusy sperrt Markt-/Session-Wechsel.
+  const reviewBarEl = document.getElementById('reviewBar'), reviewInfoEl = document.getElementById('reviewInfo');
+  let reviewLines = [];
+  function fmtTimeY(tsSeconds){
+    return new Date(tsSeconds*1000).toLocaleString('de-DE', { day:'2-digit', month:'2-digit', year:'2-digit', hour:'2-digit', minute:'2-digit', timeZone:'UTC' });
+  }
+  async function reviewBarsFor(t){
+    const sym = t.symbol || state.symbol, tf = t.tf || state.tf;
+    if(!SYMBOL_NAME[sym] || !TF_NAME[tf] || t.entryTime == null || t.exitTime == null) return null;
+    const barSec = Math.round((TF_MS[tf] || 900000)/1000);
+    let raw = null;
+    try{ await ensureBundledData(sym, tf); raw = window.OHLC && window.OHLC[sym+'_'+tf]; }catch(e){ raw = null; }
+    const covered = raw && raw.length && (+raw[0][0])/1000 <= t.entryTime && (+raw[raw.length-1][0])/1000 >= t.exitTime;
+    if(!covered && !isForexSymbol(sym) && liveAllowed()){
+      try{ raw = await fetchHistoryEndingAt(sym, tf, 400, (t.exitTime + 60*barSec)*1000); }catch(e){ raw = null; }
+    }
+    if(!raw || !raw.length) return null;
+    const idxAt = ts => { let lo = 0, hi = raw.length-1, ans = -1; while(lo <= hi){ const mid = (lo+hi) >> 1; if((+raw[mid][0])/1000 <= ts){ ans = mid; lo = mid+1; } else hi = mid-1; } return ans; };
+    const iE = idxAt(t.entryTime), iX = idxAt(t.exitTime);
+    if(iE < 0 || iX < 0) return null;
+    const from = Math.max(0, iE-250), to = Math.min(raw.length-1, iX+40);
+    return { sym, tf, bars: raw.slice(from, to+1).map(toBarObject), entryIdx: iE-from, exitIdx: iX-from };
+  }
+  async function enterReview(t){
+    if(!t) return;
+    if(state.reviewing) await exitReview();
+    if(datasetLoadBusy){ showToast('Einen Moment – die App lädt noch.'); return; }
+    pause();
+    saveState();
+    datasetLoadBusy = true;
+    let got = null;
+    try{ got = await reviewBarsFor(t); }catch(e){ got = null; }
+    if(!got || got.bars.length < 2){ datasetLoadBusy = false; showToast('Für diesen Trade sind keine Kursdaten mehr vorhanden.'); return; }
+    state.reviewBackup = { symbol:state.symbol, tf:state.tf, slot:state.activeSlot, payload:buildSessionPayload(), compOn:!!comp.on, compTf:comp.tf };
+    state.reviewing = true;
+    document.body.classList.add('review-mode');
+    if(comp.on) setCompanion(false);
+    removePositionLines(); removePendingOrderLine(); clearDrafts();
+    state.position = null; state.pendingOrder = null;
+    state.symbol = got.sym; state.tf = got.tf;
+    state.data = got.bars; state.sessionStart = 0; state.sessionSplit = 0; state.cursor = got.bars.length-1; state.ended = false;
+    state.barSeconds = state.data[1].time - state.data[0].time;
+    state.smaFull = { 20: sma(state.data, 20), 50: sma(state.data, 50) };
+    state.bbFull = bollinger(state.data, 20, 2);
+    state.rsiFull = rsi(state.data, 14);
+    const prec = decimalsFor(state.data[state.data.length-1].close);
+    candleSeries.applyOptions({ priceFormat:{ type:'price', precision:prec, minMove:Math.pow(10,-prec) } });
+    const rv = t.review || {};
+    state.drawings = Array.isArray(rv.drawings) ? JSON.parse(JSON.stringify(rv.drawings)) : [];
+    state.selectedDrawingId = null;
+    setActiveTool('cursor');
+    els.endBanner.classList.remove('show');
+    const eT = state.data[got.entryIdx].time, xT = state.data[got.exitIdx].time;
+    const isLong = t.side === 'long';
+    markers = [
+      { time:eT, position: isLong ? 'belowBar' : 'aboveBar', color: isLong ? '#26A69A' : '#EF5350', shape: isLong ? 'arrowUp' : 'arrowDown', text: isLong ? 'Long' : 'Short' },
+      { time:xT, position:'inBar', color: t.pnl >= 0 ? '#26A69A' : '#EF5350', shape:'circle', text: REASON_LABEL[t.reason] || t.reason }
+    ];
+    (rv.partials || []).forEach(p => { const i = barIndexAtOrBefore(p.time); if(i >= 0 && state.data[i].time !== xT) markers.push({ time:state.data[i].time, position:'inBar', color:'#E0A438', shape:'circle', text:'Teilweise' }); });
+    markers.sort((a, b) => a.time - b.time);
+    renderInitialChart();
+    candleSeries.setMarkers(markers);
+    renderIndicators(true);
+    const mk = (price, color, style, title, w) => price!=null && isFinite(price) ? reviewLines.push(candleSeries.createPriceLine({ price, color, lineWidth:w || 1, lineStyle:style, axisLabelVisible:true, title })) : 0;
+    const LS = LightweightCharts.LineStyle;
+    mk(t.entryPrice, THEME.text, LS.Dotted, 'Einstieg');
+    mk(t.exitPrice, t.pnl >= 0 ? '#26A69A' : '#EF5350', LS.Solid, 'Ausstieg');
+    mk(rv.tp, '#26A69A', LS.Dashed, 'TP', 2);
+    mk(rv.sl, '#EF5350', LS.Dashed, 'SL', 2);
+    updatePositionUI(); updatePendingOrderUI(); updateAccountUI(); updateStepControls();
+    els.chartTitle.textContent = 'Rückblick · ' + SYMBOL_NAME[got.sym] + ' · ' + TF_NAME[got.tf];
+    const parts = [
+      `<b>${isLong ? 'Long' : 'Short'}</b>`,
+      `${fmtTimeY(t.entryTime)} → ${fmtTimeY(t.exitTime)} UTC`,
+      `<span class="${t.pnl >= 0 ? 'up-txt' : 'down-txt'}"><b>${usdSigned(t.pnl)}</b></span>`,
+      escapeHtml(REASON_LABEL[t.reason] || t.reason || '')
+    ];
+    if(t.strategyName) parts.push(escapeHtml(t.strategyName));
+    if(t.note) parts.push(`<span class="rv-note">„${escapeHtml(t.note)}“</span>`);
+    if(!t.review) parts.push('<span class="rv-note">Für ältere Trades wurden keine Zeichnungen gespeichert.</span>');
+    else if(rv.drawingsDropped) parts.push('<span class="rv-note">Zeichnungen wurden aus Platzgründen nicht mehr aufbewahrt.</span>');
+    reviewInfoEl.innerHTML = parts.join('<span aria-hidden="true">·</span>');
+    reviewBarEl.hidden = false;
+    const showTrade = () => {
+      chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, got.entryIdx-70), to: got.exitIdx+30 });
+      needsRefit = false;
+      renderDrawings();
+    };
+    requestAnimationFrame(() => requestAnimationFrame(showTrade));
+    try{ chartCardEl.scrollIntoView({ block:'start', behavior:'smooth' }); }catch(e){}
+  }
+  async function exitReview(){
+    if(!state.reviewing) return;
+    const b = state.reviewBackup;
+    reviewLines.forEach(l => { try{ candleSeries.removePriceLine(l); }catch(e){} });
+    reviewLines = [];
+    reviewBarEl.hidden = true;
+    document.body.classList.remove('review-mode');
+    state.symbol = b.symbol; state.tf = b.tf; state.activeSlot = b.slot;
+    document.getElementById('symbolSelect').value = state.symbol;
+    setActive(document.getElementById('tfTabs'), state.tf, 'tf');
+    els.chartTitle.textContent = SYMBOL_NAME[state.symbol] + ' · ' + TF_NAME[state.tf];
+    try{ await applySessionPayload(b.payload); }
+    finally{ state.reviewing = false; state.reviewBackup = null; datasetLoadBusy = false; }
+    renderSessionSlotsUI();
+    updateStepControls();
+    if(b.compOn) setCompanion(true, b.compTf);
+  }
+  document.getElementById('reviewExitBtn').addEventListener('click', exitReview);
+  els.journalBody.addEventListener('click', e => {
+    const b = e.target.closest('[data-rv-journal]');
+    if(b) enterReview(state.journal[+b.dataset.rvJournal]);
+  });
+
+  // ---------- Reiter "Alle Trades": jeder Trade aus allen Sessions, mit Rueckblick ----------
+  const HIST_PAGE = 100;
+  let histShown = HIST_PAGE;
+  const histFilterSymbolEl = document.getElementById('histFilterSymbol'), histFilterTfEl = document.getElementById('histFilterTf');
+  function fillFilterSelect(sel, values, nameOf){
+    const keep = sel.value;
+    sel.innerHTML = '<option value="all">Alle</option>' + values.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(nameOf(v))}</option>`).join('');
+    sel.value = values.includes(keep) ? keep : 'all';
+  }
+  function renderHistoryTab(){
+    const all = state.tradeHistory;
+    fillFilterSelect(histFilterSymbolEl, [...new Set(all.map(t => t.symbol).filter(Boolean))].sort(), v => SYMBOL_NAME[v] || v);
+    fillFilterSelect(histFilterTfEl, Object.keys(TF_NAME).filter(tf => all.some(t => t.tf === tf)), v => TF_NAME[v] || v);
+    const fs = histFilterSymbolEl.value, ft = histFilterTfEl.value;
+    const list = all.filter(t => (fs === 'all' || t.symbol === fs) && (ft === 'all' || t.tf === ft)).slice().reverse();
+    const pnl = list.reduce((a, t) => a + (t.pnl || 0), 0);
+    document.getElementById('histNote').textContent = list.length ? `${list.length} Trade(s) · Summe ${usdSigned(pnl)}` : '';
+    const body = document.getElementById('historyBody');
+    if(!list.length){
+      body.innerHTML = '<tr><td colspan="10"><div class="empty">Noch keine Trades. Jeder Trade, den du schließt, erscheint hier – über alle Sessions und Märkte hinweg.</div></td></tr>';
+    } else {
+      body.innerHTML = list.slice(0, histShown).map(t => `
+        <tr>
+          <td class="num">${t.closedAt ? new Date(t.closedAt).toLocaleString('de-DE', { day:'2-digit', month:'2-digit', year:'2-digit', hour:'2-digit', minute:'2-digit' }) : '–'}</td>
+          <td>${escapeHtml(SYMBOL_NAME[t.symbol] || t.symbol || '–')} · ${escapeHtml(TF_NAME[t.tf] || t.tf || '')}</td>
+          <td><span class="chip ${t.side}">${t.side === 'long' ? 'Long' : 'Short'}</span></td>
+          <td class="num">${t.entryTime != null ? fmtTimeY(t.entryTime) : '–'} · ${t.entryPrice != null ? usd(t.entryPrice) : ''}</td>
+          <td class="num">${t.exitTime != null ? fmtTimeY(t.exitTime) : '–'} · ${t.exitPrice != null ? usd(t.exitPrice) : ''}</td>
+          <td><span class="chip ${t.reason==='tp'?'tp':(t.reason==='sl'||t.reason==='liquidation')?'sl':'manual'}">${REASON_LABEL[t.reason] || t.reason || '–'}</span></td>
+          <td>${t.strategyName ? escapeHtml(t.strategyName) : '–'}</td>
+          <td class="note-cell" title="${escapeHtml(t.note || '')}">${escapeHtml(t.note || '')}</td>
+          <td class="num ${(t.pnl || 0) >= 0 ? 'up-txt' : 'down-txt'}">${usdSigned(t.pnl || 0)}</td>
+          <td><button class="btn review-btn" data-rv-key="${escapeHtml(histKey(t))}">Ansehen</button></td>
+        </tr>`).join('');
+    }
+    document.getElementById('historyMoreBtn').hidden = list.length <= histShown;
+  }
+  function refreshHistoryTabIfOpen(){ if(!document.getElementById('historyTab').hidden) renderHistoryTab(); }
+  histFilterSymbolEl.addEventListener('change', () => { histShown = HIST_PAGE; renderHistoryTab(); });
+  histFilterTfEl.addEventListener('change', () => { histShown = HIST_PAGE; renderHistoryTab(); });
+  document.getElementById('historyMoreBtn').addEventListener('click', () => { histShown += HIST_PAGE; renderHistoryTab(); });
+  document.getElementById('historyBody').addEventListener('click', e => {
+    const b = e.target.closest('[data-rv-key]');
+    if(!b) return;
+    const t = state.tradeHistory.find(x => histKey(x) === b.dataset.rvKey);
+    if(t) enterReview(t);
   });
 
   // ---------- persistence (localStorage) ----------
@@ -5194,6 +5790,7 @@
     try{ localStorage.setItem(SESSIONS_KEY, JSON.stringify(groups)); }catch(e){ /* storage full/unavailable — practice just won't persist */ }
   }
   function persistLastView(){
+    if(state.reviewing) return;
     try{ localStorage.setItem(LAST_VIEW_KEY, JSON.stringify({ symbol:state.symbol, tf:state.tf, slot:state.activeSlot, at:Date.now() })); }catch(e){}
     cloudMarkView();
   }
@@ -5211,12 +5808,13 @@
       bb: !!els.bbToggle.checked, rsi: !!els.rsiToggle.checked,
       sessions: !!els.sessionsToggle.checked, asiaHl: !!els.asiaHlToggle.checked,
       pdhl: !!els.pdhlToggle.checked, weeklyOpen: !!els.weeklyOpenToggle.checked,
+      xind: Object.keys(xSeries), volume: !!els.volumeToggle.checked,
       fetchEndTimeMs: state.fetchEndTimeMs, bundleOffset: state.bundleOffset, dataLen: state.data.length
     };
   }
 
   function saveState(){
-    if(!state.data.length) return;
+    if(!state.data.length || state.reviewing) return;
     const groups = loadSessionGroups();
     const key = slotGroupKey(state.symbol, state.tf);
     if(!Array.isArray(groups[key])) groups[key] = [];
@@ -5302,6 +5900,13 @@
     if(save.ma50){ els.ma50Toggle.checked = true; els.ma50Toggle.dispatchEvent(new Event('change')); }
     if(save.bb){ els.bbToggle.checked = true; els.bbToggle.dispatchEvent(new Event('change')); }
     if(save.rsi){ els.rsiToggle.checked = true; els.rsiToggle.dispatchEvent(new Event('change')); }
+    Object.keys(xSeries).forEach(removeXInd);
+    document.querySelectorAll('#indMenu input[data-xind]').forEach(inp => { inp.checked = false; });
+    (Array.isArray(save.xind) ? save.xind : []).forEach(id => {
+      const inp = document.querySelector(`#indMenu input[data-xind="${id}"]`);
+      if(inp && XIND_BY_ID[id]){ inp.checked = true; addXInd(id); }
+    });
+    if(typeof save.volume === 'boolean'){ els.volumeToggle.checked = save.volume; volumeSeries.applyOptions({ visible: save.volume }); }
     els.sessionsToggle.checked = !!save.sessions;
     els.asiaHlToggle.checked = !!save.asiaHl;
     els.pdhlToggle.checked = !!save.pdhl;
@@ -5845,6 +6450,28 @@
   }
 
   // ---------- boot ----------
+  // Formularwerte (Groesse, Hebel, TP/SL, Tempo) merken — nach jedem Start ist alles wie zuletzt.
+  const PREFS_KEY = 'tradereplay_prefs_v1';
+  (function prefsWire(){
+    let prefs = {};
+    try{ prefs = JSON.parse(lsGet(PREFS_KEY) || '{}') || {}; }catch(e){ prefs = {}; }
+    ['qtyInput','leverageSelect','tpPct','slPct','tpEnabled','slEnabled','speedSelect'].forEach(id => {
+      const el = document.getElementById(id);
+      if(!el) return;
+      const v = prefs[id];
+      if(v !== undefined){
+        if(el.type === 'checkbox') el.checked = !!v;
+        else if(el.tagName !== 'SELECT' || [...el.options].some(o => o.value === String(v))) el.value = String(v);
+      }
+      const store = () => { prefs[id] = el.type === 'checkbox' ? el.checked : el.value; lsSet(PREFS_KEY, JSON.stringify(prefs)); };
+      el.addEventListener('change', store);
+      el.addEventListener('input', store);
+    });
+    els.tpPct.disabled = !els.tpEnabled.checked;
+    els.slPct.disabled = !els.slEnabled.checked;
+    state.speedMs = parseInt(els.speedSelect.value, 10) || state.speedMs;
+  })();
+
   loadStrategies();
   loadTradeHistory();
   (async () => {
