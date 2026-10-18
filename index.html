@@ -1069,7 +1069,7 @@
                   <button class="btn icon" id="sessionSettingsBtn" data-menu-btn="sessionMenu" aria-haspopup="true" aria-expanded="false" title="Session-Einstellungen"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
                   <div class="menu-pop right up" id="sessionMenu" hidden>
                     <div class="menu-title">Session-Einstellungen</div>
-                    <label class="menu-field"><span>Kerzen pro Session</span><input type="number" id="sessionLenInput" min="150" max="3500" step="50" value="400"></label>
+                    <label class="menu-field"><span>Kerzen pro Session</span><input type="number" id="sessionLenInput" min="150" max="3500" step="50" value="1000"></label>
                     <p class="menu-note">So viele Kerzen kannst du pro Session durchhandeln (mehr = längere Session, mehr Historie bleibt verdeckt).</p>
                     <div class="menu-sep"></div>
                     <label class="menu-item"><input type="checkbox" id="allTfToggle" checked><span>Alle Zeitrahmen nutzbar</span></label>
@@ -1355,10 +1355,12 @@
   "use strict";
 
   const MIN_REPLAY = 150;
-  const DEFAULT_REPLAY_TAIL = 400;
-  // Vorgeschichte vor dem Replay-Start: mindestens so viele Kerzen, damit man die
-  // uebergeordnete Struktur (Hochs/Tiefs, Zonen) der letzten Wochen sieht.
-  const MIN_HISTORY_BARS = 3000;
+  const DEFAULT_REPLAY_TAIL = 1000;
+  // Moeglichst viele Kerzen pro Session (zum Lernen): mit Live-Daten so viel
+  // Vorgeschichte, mit eingebauten Daten bis zu 75 % der vorhandenen Historie —
+  // das letzte Viertel bleibt Spielraum, damit jede neue Zufalls-Session woanders landet.
+  const LIVE_HISTORY_BARS = 8000;
+  const BUNDLE_WINDOW_SHARE = 0.75;
   const MIN_WARMUP_FRACTION = 0.7;
   const SYMBOL_NAME = {
     BTCUSDT:'BTC/USDT', ETHUSDT:'ETH/USDT', BNBUSDT:'BNB/USDT', SOLUSDT:'SOL/USDT', XRPUSDT:'XRP/USDT',
@@ -1396,7 +1398,7 @@
   const state = {
     symbol:'BTCUSDT', tf:'15m', data:[], sessionStart:0, cursor:0, replayClockMs:null,
     playing:false, timer:null, speedMs:700, ended:false,
-    startingBalance:10000, balance:10000, feePct:0.05, slippagePct:0.05, sessionLen:400,
+    startingBalance:10000, balance:10000, feePct:0.05, slippagePct:0.05, sessionLen:1000, replayCapBars:null,
     position:null, pendingOrder:null, orderType:'market', journal:[], equityHistory:[],
     drawings:[], activeTool:'cursor', selectedDrawingId:null,
     draftTp:null, draftSl:null,
@@ -2897,7 +2899,8 @@
     const symbol = state.symbol, tf = state.tf;
     const isRestore = Object.prototype.hasOwnProperty.call(opts, 'restoreEndTimeMs');
     const desired = Math.max(MIN_REPLAY, parseInt(els.sessionLenInput.value,10) || DEFAULT_REPLAY_TAIL);
-    const totalBars = opts.restoreBarCount || Math.min(FETCH_BAR_CAP, desired + Math.max(MIN_HISTORY_BARS, Math.ceil(desired*MIN_WARMUP_FRACTION/(1-MIN_WARMUP_FRACTION))));
+    const totalBars = opts.restoreBarCount || Math.min(FETCH_BAR_CAP, desired + LIVE_HISTORY_BARS);
+    state.replayCapBars = null;
 
     let bars = null, fetchEndTimeMs = null;
     if(!isForexSymbol(symbol) && liveAllowed() && (!isRestore || opts.restoreEndTimeMs!=null)){
@@ -2957,16 +2960,31 @@
       showDataLoading(false);
       const raw = window.OHLC && window.OHLC[symbol+'_'+tf];
       if(raw && raw.length){
+        const winBars = (isRestore && opts.restoreBarCount) ? opts.restoreBarCount
+          : Math.max(Math.min(raw.length, desired + 300), Math.min(FETCH_BAR_CAP, Math.floor(raw.length*BUNDLE_WINDOW_SHARE)));
+        // "Alle Zeitrahmen nutzbar": der Replay-Teil muss in den Zeitraum passen, in dem auch
+        // 1m/5m Daten haben — sonst waere der Zeitrahmenwechsel waehrend der Session gesperrt.
+        let commonStart = els.allTfToggle.checked ? commonHistoryStartMs(symbol) : 0;
+        if(commonStart && !isRestore){
+          // Gezaehlt in echten Kerzen ab dem gemeinsamen Start (Forex hat am Wochenende keine).
+          let first = 0, hiIdx = raw.length;
+          while(first < hiIdx){ const mid = (first + hiIdx) >> 1; if(+raw[mid][0] >= commonStart) hiIdx = mid; else first = mid + 1; }
+          const cap = Math.floor(0.75 * (raw.length - first));
+          if(cap >= MIN_REPLAY && cap < desired) state.replayCapBars = cap;
+          // Passt nicht einmal eine Mindest-Session in diesen Zeitraum (4h, 1T), ist der Wechsel
+          // auf 1m ohnehin unmoeglich — dann lieber frei aus der ganzen Historie waehlen.
+          else if(cap < MIN_REPLAY) commonStart = 0;
+        }
+        const tail = state.replayCapBars || desired;
         let offset;
         if(isRestore){
-          offset = Math.min(Math.max(0, opts.restoreBundleOffset|0), Math.max(0, raw.length-totalBars));
-        } else if(opts.randomizeWindow && raw.length>totalBars){
-          offset = pickActiveWindowOffset(symbol+'_'+tf, raw, totalBars, desired,
-            els.allTfToggle.checked ? commonHistoryStartMs(symbol) : 0);
+          offset = Math.min(Math.max(0, opts.restoreBundleOffset|0), Math.max(0, raw.length-winBars));
+        } else if(opts.randomizeWindow && raw.length>winBars){
+          offset = pickActiveWindowOffset(symbol+'_'+tf, raw, winBars, tail, commonStart);
         } else {
-          offset = Math.max(0, raw.length-totalBars);
+          offset = Math.max(0, raw.length-winBars);
         }
-        bars = raw.slice(offset, offset+totalBars);
+        bars = raw.slice(offset, offset+winBars);
         state.bundleOffset = offset;
       }
     } else {
@@ -3070,7 +3088,7 @@
   // desired session directly controls both the default split and — as a target
   // that "Neue Zufalls-Session" then varies ±25% around — the randomized one.
   function pickSessionSplit(len, useDefault){
-    const desired = Math.max(MIN_REPLAY, state.sessionLen || DEFAULT_REPLAY_TAIL);
+    const desired = Math.max(MIN_REPLAY, Math.min(state.sessionLen || DEFAULT_REPLAY_TAIL, state.replayCapBars || Infinity));
     const maxReplay = Math.max(MIN_REPLAY, len - 1 - Math.ceil(len*MIN_WARMUP_FRACTION));
     if(useDefault){
       const replay = Math.min(desired, maxReplay);
@@ -5244,9 +5262,9 @@
     state.sessionSplit = sessionSplit;
     state.cursor = cursor;
     state.replayClockMs = (save.replayClockMs != null && isFinite(save.replayClockMs)) ? save.replayClockMs : null;
-    // 300 war der alte Standardwert; solche Sessions bekommen fuer die naechste neue
-    // Session den neuen Standard (die gespeicherte Session selbst bleibt unveraendert).
-    state.sessionLen = (save.sessionLen && save.sessionLen !== 300) ? save.sessionLen : DEFAULT_REPLAY_TAIL;
+    // 300 und 400 waren fruehere Standardwerte; solche Sessions bekommen fuer die naechste
+    // neue Session den neuen Standard (die gespeicherte Session selbst bleibt unveraendert).
+    state.sessionLen = (save.sessionLen && save.sessionLen !== 300 && save.sessionLen !== 400) ? save.sessionLen : DEFAULT_REPLAY_TAIL;
     els.sessionLenInput.value = state.sessionLen;
     state.startingBalance = save.startingBalance!=null ? save.startingBalance : 10000;
     els.startCapital.value = state.startingBalance;
