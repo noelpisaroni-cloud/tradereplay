@@ -592,6 +592,7 @@
     background:var(--panel); border:1px solid var(--line); color:var(--ink-soft); font-size:11.5px; line-height:1.4; text-align:center;
     box-shadow:0 8px 20px -10px rgba(0,0,0,.6); }
   .draw-hint-row b{ color:var(--ink); }
+  .draw-btn.armed{ color:var(--down) !important; background:var(--down-soft) !important; }
   .app-toast{ position:fixed; left:50%; transform:translateX(-50%); bottom:calc(20px + env(safe-area-inset-bottom, 0px)); z-index:9500; max-width:min(480px, calc(100vw - 32px)); padding:11px 16px; border-radius:10px; background:var(--panel); color:var(--ink); border:1px solid var(--line-strong, var(--line)); box-shadow:0 12px 32px -10px rgba(0,0,0,.6); font-size:13px; line-height:1.45; text-align:center; }
   .app-toast[hidden]{ display:none; }
   /* ---------- Start-Anzeige ---------- */
@@ -1312,8 +1313,10 @@
     border: cssVar('--chart-axis'), up: cssVar('--chart-up'), down: cssVar('--chart-down'),
     cross: cssVar('--chart-cross'), label: cssVar('--line')
   };
+  // Manche Geraete melden eine Sprache wie "en-US@posix", an der die Chart-Bibliothek abstuerzt.
+  const CHART_LOCALE = (() => { try{ const l = String(navigator.language || 'de-DE').split('@')[0]; new Intl.DateTimeFormat(l); return l; }catch(e){ return 'de-DE'; } })();
   const chart = LightweightCharts.createChart(container, {
-    width: container.clientWidth, height: 440,
+    width: container.clientWidth, height: 440, localization: { locale: CHART_LOCALE },
     layout: { background:{color:THEME.chartBg}, textColor:THEME.text, fontFamily:"'IBM Plex Mono',monospace" },
     grid: { vertLines:{color:THEME.grid}, horzLines:{color:THEME.grid} },
     rightPriceScale: { borderColor:THEME.border },
@@ -1330,6 +1333,42 @@
     wickUpColor:THEME.up, wickDownColor:THEME.down,
     priceLineVisible:true, priceLineWidth:1, priceLineStyle:LightweightCharts.LineStyle.Dotted
   });
+  // TP/SL immer im Bild: die automatische Preisskala bezieht Einstieg, TP und SL der offenen
+  // Position, geplante Linien, eine wartende Limit-Order und im Rueckblick die Trade-Linien mit
+  // ein. Vorher lag z.B. ein TP von 1 % auf kleinen Zeitrahmen weit ueber dem Chart und war
+  // gar nicht zu sehen. Waehrend man eine Linie zieht, bleibt die Skala stehen (sonst
+  // wuerde die Linie unter dem Finger wegrutschen).
+  const scaleExtras = { review: [], freeze: null, last: null };
+  function liveBarVisible(){
+    // Nur wenn die aktuelle Kerze im Bild ist — beim Zurueckscrollen in alte Kerzen soll der
+    // Chart nicht wegen eines weit entfernten TP zusammengestaucht werden.
+    try{ const r = chart.timeScale().getVisibleLogicalRange(); if(!r) return true; const last = state.cursor - state.sessionStart; return r.to >= last - 3 && r.from <= last + 1; }catch(e){ return true; }
+  }
+  function extraScalePrices(){
+    const out = [];
+    if(state.reviewing) return scaleExtras.review.filter(p => p!=null && isFinite(p) && p>0);
+    if(!liveBarVisible()) return out;
+    const pos = state.position;
+    if(pos) out.push(pos.entryPrice, pos.tpPrice, pos.slPrice);
+    else out.push(state.draftTp, state.draftSl);
+    const o = state.pendingOrder;
+    if(o) out.push(o.limitPrice, o.tpPrice, o.slPrice);
+    return out.filter(p => p!=null && isFinite(p) && p>0);
+  }
+  function candleAutoscale(original){
+    if(scaleExtras.freeze) return scaleExtras.freeze;
+    const res = original();
+    if(!res || !res.priceRange) return res;
+    let minValue = res.priceRange.minValue, maxValue = res.priceRange.maxValue;
+    for(const p of extraScalePrices()){ if(p<minValue) minValue = p; if(p>maxValue) maxValue = p; }
+    scaleExtras.last = { ...res, priceRange:{ minValue, maxValue } };
+    return scaleExtras.last;
+  }
+  candleSeries.applyOptions({ autoscaleInfoProvider: candleAutoscale });
+  function freezePriceScale(on){
+    scaleExtras.freeze = on ? scaleExtras.last : null;
+    if(!on) candleSeries.applyOptions({ autoscaleInfoProvider: candleAutoscale });
+  }
   const volumeSeries = chart.addHistogramSeries({
     priceFormat:{ type:'volume' }, priceScaleId:''
   });
@@ -1360,6 +1399,16 @@
     drawingsRafPending = true;
     requestAnimationFrame(()=>{ drawingsRafPending = false; renderDrawings(); });
   }
+  // Die Bibliothek meldet keine Aenderung der Preisskala (Autoskala nach neuer TP-Linie,
+  // Ziehen an der Preisachse ...). Ein billiger Abgleich alle 200 ms haelt die Zeichnungen
+  // trotzdem exakt an ihrem Preis.
+  let lastScaleSig = '';
+  setInterval(()=>{
+    if(document.hidden || !state.data.length) return;
+    let sig = '';
+    try{ const h = container.clientHeight; sig = candleSeries.coordinateToPrice(10) + '|' + candleSeries.coordinateToPrice(h-40) + '|' + h; }catch(e){ return; }
+    if(sig !== lastScaleSig){ lastScaleSig = sig; scheduleRenderDrawings(); }
+  }, 200);
 
   new ResizeObserver(entries=>{
     const { width:w, height:h } = entries[0].contentRect;
@@ -1450,6 +1499,12 @@
   };
   let drawStart = null;
   let drawStartXY = null, drawAwaitSecond = false;
+  // Finger brauchen groessere Greifbereiche als die Maus (iPad, Handy).
+  const TOUCH_UI = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+  // Rueckgaengig-Stapel fuer Zeichnungen: vor jeder Aenderung (neu, loeschen, alle loeschen,
+  // verschieben, Text aendern) wird der Stand gemerkt — "Rueckgaengig" holt ihn zurueck.
+  const drawUndo = [];
+  function pushDrawUndo(){ try{ drawUndo.push(JSON.stringify(state.drawings)); if(drawUndo.length > 80) drawUndo.shift(); }catch(e){} }
 
   function setActiveTool(tool){
     state.activeTool = tool;
@@ -1692,21 +1747,31 @@
   }
 
   function addDrawing(d){
+    pushDrawUndo();
     d.id = 'd' + Date.now() + Math.floor(Math.random()*1000);
     state.drawings.push(d);
     renderDrawings();
     saveState();
   }
   function undoDrawing(){
-    const removed = state.drawings.pop();
-    if(removed && state.selectedDrawingId===removed.id) state.selectedDrawingId=null;
+    if(drawUndo.length){
+      try{ state.drawings = JSON.parse(drawUndo.pop()); }catch(e){}
+    } else if(!state.drawings.pop()){
+      showToast('Nichts zum Rückgängigmachen.');
+      return;
+    }
+    if(state.selectedDrawingId && !state.drawings.some(d => d.id === state.selectedDrawingId)) deselectDrawing();
     renderDrawings();
     saveState();
   }
-  function clearDrawings(){ state.drawings = []; state.selectedDrawingId = null; renderDrawings(); saveState(); }
+  function clearDrawings(){ pushDrawUndo(); state.drawings = []; state.selectedDrawingId = null; renderDrawings(); saveState(); }
+  // Neue Kursdaten (neue Session, anderer Platz): Zeichnungen leeren, OHNE zu speichern und
+  // ohne Rueckgaengig-Eintrag — die gespeicherte Session bleibt unangetastet.
+  function resetDrawingsForNewData(){ state.drawings = []; state.selectedDrawingId = null; drawUndo.length = 0; renderDrawings(); }
   function deleteDrawing(id){
     const idx = state.drawings.findIndex(d=>d.id===id);
     if(idx===-1) return;
+    pushDrawUndo();
     state.drawings.splice(idx,1);
     if(state.selectedDrawingId===id){
       state.selectedDrawingId=null;
@@ -1719,7 +1784,9 @@
   }
   function selectDrawing(id){
     state.selectedDrawingId = id;
-    els.drawHint.innerHTML = 'Ausgew&auml;hlt &ndash; <b>&uarr;&darr;&larr;&rarr;</b> zum Verschieben (Preis/Zeit, + <b>Shift</b> = gr&ouml;&szlig;erer Schritt), <b>Entf</b>/<b>R&uuml;cktaste</b> oder auf &times; klicken zum L&ouml;schen.';
+    els.drawHint.innerHTML = TOUCH_UI
+      ? 'Ausgew&auml;hlt &ndash; ziehen zum Verschieben, Ecken/Punkte ziehen zum Anpassen, rotes &times; zum L&ouml;schen.'
+      : 'Ausgew&auml;hlt &ndash; ziehen zum Verschieben, <b>&uarr;&darr;&larr;&rarr;</b> f&uuml;r kleine Schritte (+ <b>Shift</b> = gr&ouml;&szlig;er), <b>Entf</b> oder rotes &times; zum L&ouml;schen, <b>Strg/Cmd+Z</b> r&uuml;ckg&auml;ngig.';
     els.drawHintRow.hidden = false;
     renderDrawings();
   }
@@ -1744,6 +1811,7 @@
     if(!state.selectedDrawingId) return;
     const d = state.drawings.find(dd=>dd.id===state.selectedDrawingId);
     if(!d) return;
+    pushDrawUndo();
     const refPrice = d.entryPrice ?? (d.p1 && d.p1.price) ?? (state.data.length ? currentBar().close : 1);
     const step = priceStepFor(refPrice) * (big ? 10 : 1) * direction;
     if(d.type==='posbox'){
@@ -1838,30 +1906,77 @@
   }
   // Finds the topmost drawing under a plain click (any type), so it can be
   // individually selected and deleted instead of only "undo last"/"clear all".
-  function findDrawingHit(x,y){
-    const HIT = 7;
+  // Zwei Durchgaenge: zuerst Linien, Punkte, Raender und Text (genau getroffen), erst danach die
+  // Flaechen von Rechteck, Box, Fibonacci und Messen — so laesst sich eine Linie innerhalb einer
+  // grossen Zone auswaehlen, statt immer nur die Zone zu erwischen.
+  // Abstand (px) vom Punkt zur sichtbaren Linie/Kante einer Zeichnung, Infinity = kein Treffer.
+  function drawingLineDist(d, x, y, HIT){
+    if(d.type==='hline'){
+      const ly = yFromPriceRobust(d.p1.price);
+      return ly!=null ? Math.abs(y-ly) : Infinity;
+    }
+    if(d.type==='trendline'){
+      const x1=xFromTimeRobust(d.p1.time), y1=yFromPriceRobust(d.p1.price), x2=xFromTimeRobust(d.p2.time), y2=yFromPriceRobust(d.p2.price);
+      return (x1!=null&&y1!=null&&x2!=null&&y2!=null) ? distToSegment(x,y,x1,y1,x2,y2) : Infinity;
+    }
+    if(d.type==='ray'){
+      const x1=xFromTimeRobust(d.p1.time), ly=yFromPriceRobust(d.p1.price);
+      return (x1!=null && ly!=null && x>=x1-HIT) ? Math.abs(y-ly) : Infinity;
+    }
+    if(d.type==='vline'){
+      const x1=xFromTimeRobust(d.p1.time);
+      return x1!=null ? Math.abs(x-x1) : Infinity;
+    }
+    if(d.type==='text'){
+      const bb = getDrawingBBox(d);
+      if(!bb) return Infinity;
+      const dx = Math.max(bb.x-x, 0, x-(bb.x+bb.w)), dy = Math.max(bb.y-y, 0, y-(bb.y+bb.h));
+      return Math.max(dx, dy);
+    }
+    if(d.type==='rect' || d.type==='posbox'){
+      const bb = getDrawingBBox(d);
+      if(!bb) return Infinity;
+      const inX = x>=bb.x-HIT && x<=bb.x+bb.w+HIT, inY = y>=bb.y-HIT && y<=bb.y+bb.h+HIT;
+      let best = Infinity;
+      if(inX) best = Math.min(best, Math.abs(y-bb.y), Math.abs(y-(bb.y+bb.h)));
+      if(inY) best = Math.min(best, Math.abs(x-bb.x), Math.abs(x-(bb.x+bb.w)));
+      if(d.type==='posbox' && inX){ const ye = yFromPriceRobust(d.entryPrice); if(ye!=null) best = Math.min(best, Math.abs(y-ye)); }
+      return best;
+    }
+    return Infinity;
+  }
+  function closestLineHit(x, y){
+    const HIT = TOUCH_UI ? 16 : 7;
+    let best = null;
     for(let i=state.drawings.length-1;i>=0;i--){
       const d = state.drawings[i];
-      if(d.type==='hline'){
-        const ly = yFromPriceRobust(d.p1.price);
-        if(ly!=null && Math.abs(y-ly)<=HIT) return d.id;
-      } else if(d.type==='trendline'){
-        const x1=xFromTimeRobust(d.p1.time), y1=yFromPriceRobust(d.p1.price), x2=xFromTimeRobust(d.p2.time), y2=yFromPriceRobust(d.p2.price);
-        if(x1!=null&&y1!=null&&x2!=null&&y2!=null && distToSegment(x,y,x1,y1,x2,y2)<=HIT) return d.id;
-      } else {
-        const bb = getDrawingBBox(d);
-        if(bb && x>=bb.x-4 && x<=bb.x+bb.w+4 && y>=bb.y-4 && y<=bb.y+bb.h+4) return d.id;
-      }
+      const dist = drawingLineDist(d, x, y, HIT);
+      if(dist<=HIT && (!best || dist<best.dist)) best = { id:d.id, dist };
+    }
+    return best;
+  }
+  function findDrawingHit(x,y){
+    const HIT = TOUCH_UI ? 16 : 7;
+    // 1. Durchgang: Linien und Kanten — die NAECHSTE gewinnt (kreuzen sich z.B. ein Strahl und
+    // eine senkrechte Linie, wird die gewaehlt, auf die man wirklich getippt hat).
+    const near = closestLineHit(x, y);
+    if(near) return near.id;
+    for(let i=state.drawings.length-1;i>=0;i--){
+      const d = state.drawings[i];
+      if(d.type==='hline' || d.type==='trendline' || d.type==='ray' || d.type==='vline' || d.type==='text') continue;
+      const bb = getDrawingBBox(d);
+      if(bb && x>=bb.x-4 && x<=bb.x+bb.w+4 && y>=bb.y-4 && y<=bb.y+bb.h+4) return d.id;
     }
     return null;
   }
   // Hit-tests hline/trendline/rect/fib for dragging (posbox has its own,
   // finer-grained findPosboxHit): endpoint handles resize, the body moves the
   // whole shape, and a plain hline just has one draggable line (price only).
-  function findGenericDrawingHit(x,y){
-    const HIT = 8;
-    for(let i=state.drawings.length-1;i>=0;i--){
-      const d = state.drawings[i];
+  function findGenericDrawingHit(x,y,only){
+    const HIT = TOUCH_UI ? 16 : 8;
+    const list = only ? [only] : state.drawings;
+    for(let i=list.length-1;i>=0;i--){
+      const d = list[i];
       if(d.type==='hline'){
         const ly = yFromPriceRobust(d.p1.price);
         if(ly!=null && Math.abs(y-ly)<=HIT) return { id:d.id, mode:'line' };
@@ -1934,17 +2049,24 @@
 
     // Delete "×" badge — individually clickable even while the overlay itself
     // ignores pointer events (cursor tool active, so chart pan/zoom still works).
-    const bx = bb.x+bb.w+pad, by = bb.y-pad;
+    // Immer im sichtbaren Chartbereich halten — bei waagrechten Linien lag das ✕ sonst
+    // rechts ueber der Preisachse, bei senkrechten Linien oberhalb des Charts (unsichtbar).
+    const badgeR = TOUCH_UI ? 13 : 9;
+    const plotW = (chart.timeScale().width && chart.timeScale().width()) || container.clientWidth;
+    const plotH = container.clientHeight - ((chart.timeScale().height && chart.timeScale().height()) || 0);
+    const bx = Math.max(badgeR+3, Math.min(bb.x+bb.w+pad, plotW-badgeR-3));
+    const by = Math.max(badgeR+3, Math.min(bb.y-pad, plotH-badgeR-3));
     const g = document.createElementNS(NS_SVG,'g');
     g.setAttribute('style','pointer-events:auto;cursor:pointer;');
     g.appendChild(Object.assign(document.createElementNS(NS_SVG,'circle'), {}));
     const circle = g.lastChild;
-    circle.setAttribute('cx',bx); circle.setAttribute('cy',by); circle.setAttribute('r',9);
+    circle.setAttribute('cx',bx); circle.setAttribute('cy',by); circle.setAttribute('r', badgeR);
     circle.setAttribute('fill','#EF5350'); circle.setAttribute('stroke','#131722'); circle.setAttribute('stroke-width','1.5');
     g.appendChild(svgLine(bx-3.5,by-3.5,bx+3.5,by+3.5,{ stroke:'#fff','stroke-width':1.6,'stroke-linecap':'round' }));
     g.appendChild(svgLine(bx-3.5,by+3.5,bx+3.5,by-3.5,{ stroke:'#fff','stroke-width':1.6,'stroke-linecap':'round' }));
     g.addEventListener('mousedown', e=>{ e.stopPropagation(); e.preventDefault(); });
     g.addEventListener('click', e=>{ e.stopPropagation(); deleteDrawing(d.id); });
+    g.addEventListener('touchstart', e=>{ e.stopPropagation(); if(e.cancelable) e.preventDefault(); deleteDrawing(d.id); }, { passive:false });
     svg.appendChild(g);
 
     // 'rect' gets full bounding-box resize handles (4 corners + 4 edge
@@ -2087,8 +2209,12 @@
     // Long: target above entry, stop below. Short: target below entry, stop above —
     // renderPosbox/openPnl already infer direction purely from tp-vs-entry, so this
     // is just which default shape the box starts in, not a separate drawing type.
-    const tpPrice = isShort ? pt.price*0.99 : pt.price*1.01;
-    const slPrice = isShort ? pt.price*1.01 : pt.price*0.99;
+    // Abstand relativ zum sichtbaren Kursbereich statt fest 1 % — sonst bedeckte die Box auf
+    // kleinen Zeitrahmen fast den ganzen Chart.
+    const vb = visibleBoundsForClamp();
+    const dist = vb && vb.pMax > vb.pMin ? (vb.pMax - vb.pMin) * 0.12 : pt.price * 0.01;
+    const tpPrice = isShort ? pt.price - dist : pt.price + dist;
+    const slPrice = isShort ? pt.price + dist : pt.price - dist;
     return { type:'posbox', t1, t2, entryPrice: pt.price, tpPrice, slPrice, qty: notional/pt.price };
   }
 
@@ -2388,7 +2514,23 @@
     btn.addEventListener('click', ()=> setActiveTool(btn.dataset.tool));
   });
   els.undoDrawBtn.addEventListener('click', undoDrawing);
-  els.clearDrawBtn.addEventListener('click', ()=>{ if(state.drawings.length) clearDrawings(); });
+  // Alle loeschen nur nach zweitem Tippen (liegt direkt unter "Rueckgaengig" — auf dem iPad
+  // war es zu leicht, aus Versehen alles zu loeschen).
+  let clearArmedUntil = 0;
+  els.clearDrawBtn.addEventListener('click', ()=>{
+    if(!state.drawings.length){ showToast('Keine Zeichnungen zum Löschen.'); return; }
+    if(Date.now() > clearArmedUntil){
+      clearArmedUntil = Date.now() + 4000;
+      els.clearDrawBtn.classList.add('armed');
+      setTimeout(() => els.clearDrawBtn.classList.remove('armed'), 4000);
+      showToast(`Nochmal tippen, um alle ${state.drawings.length} Zeichnungen zu löschen.`, 4000);
+      return;
+    }
+    clearArmedUntil = 0;
+    els.clearDrawBtn.classList.remove('armed');
+    clearDrawings();
+    showToast('Alle Zeichnungen gelöscht – „Rückgängig“ holt sie zurück.');
+  });
 
   // Zwei-Punkt-Werkzeuge (Rechteck, Trendlinie, Fibonacci, Messen): entweder ziehen (druecken,
   // bewegen, loslassen) oder wie bei TradingView zwei Punkte nacheinander antippen/klicken. Ein
@@ -2688,7 +2830,16 @@
   // fixed past range are immutable, so re-fetching the same window is reliable) —
   // restoreEndTimeMs of null means that session was already running on bundled
   // fallback data, so skip straight to the fallback instead of fetching "now".
+  // Waehrend neue Kursdaten geladen werden, darf nichts gespeichert werden: frueher schrieb
+  // clearDrawings() hier mitten im Laden einen halbfertigen Stand (neue Kerzen, leere Zeichnungen,
+  // teils das Journal einer anderen Session) in den Speicher und in die Cloud — dadurch
+  // verschwanden Zeichnungen spaeter "ploetzlich", auch auf dem anderen Geraet.
   async function loadDataset(opts){
+    state.loadingData = (state.loadingData || 0) + 1;
+    try{ return await loadDatasetInner(opts); }
+    finally{ state.loadingData--; }
+  }
+  async function loadDatasetInner(opts){
     opts = opts || {};
     const symbol = state.symbol, tf = state.tf;
     const isRestore = Object.prototype.hasOwnProperty.call(opts, 'restoreEndTimeMs');
@@ -2799,7 +2950,7 @@
     state.barSeconds = state.data[1].time - state.data[0].time;
     const prec = decimalsFor(state.data[state.data.length-1].close);
     candleSeries.applyOptions({ priceFormat:{ type:'price', precision:prec, minMove: Math.pow(10,-prec) } });
-    clearDrawings();
+    resetDrawingsForNewData();
     clearDrafts();
     return true;
   }
@@ -4578,7 +4729,7 @@
     if(comp.chart) return;
     const el = document.getElementById('compContainer');
     comp.chart = LightweightCharts.createChart(el, {
-      width: el.clientWidth || 320, height: el.clientHeight || 320,
+      width: el.clientWidth || 320, height: el.clientHeight || 320, localization: { locale: CHART_LOCALE },
       layout: { background:{ color:THEME.chartBg }, textColor:THEME.text, fontFamily:"'IBM Plex Mono',monospace" },
       grid: { vertLines:{ color:THEME.grid }, horzLines:{ color:THEME.grid } },
       rightPriceScale: { borderColor:THEME.border },
@@ -4873,7 +5024,7 @@
 
   // ---------- drag TP/SL lines on chart ----------
   (function setupLineDragging(){
-    const DRAG_PX = 7;
+    const DRAG_PX = TOUCH_UI ? 14 : 7;
     let dragging = null; // 'tp' | 'sl' | 'draftTp' | 'draftSl' | {kind:'posbox', id, mode} | null
     let moveGrab = null;
 
@@ -4904,8 +5055,8 @@
     // Hit-tests a posbox's edges/corners/entry-line/body — mirrors a typical
     // diagram editor: edges resize, the dashed entry line moves just the entry,
     // the body drags the whole box.
-    function findPosboxHit(x,y){
-      for(const d of state.drawings){
+    function findPosboxHit(x,y,only){
+      for(const d of (only ? [only] : state.drawings.slice().reverse())){
         if(d.type!=='posbox') continue;
         const x1=xFromTimeRobust(d.t1), x2=xFromTimeRobust(d.t2);
         const yTp=yFromPriceRobust(d.tpPrice), yEntry=yFromPriceRobust(d.entryPrice), ySl=yFromPriceRobust(d.slPrice);
@@ -4923,7 +5074,9 @@
         if(inXStrict && Math.abs(y-yEntry)<=DRAG_PX) return { id:d.id, mode:'entry' };
         if(Math.abs(x-rx)<=DRAG_PX && inYLoose) return { id:d.id, mode:'left' };
         if(Math.abs(x-(rx+rw))<=DRAG_PX && inYLoose) return { id:d.id, mode:'right' };
-        if(inXStrict && y>=top && y<=bottom) return { id:d.id, mode:'move' };
+        // Innenflaeche verschiebt nur die ausgewaehlte Box — sonst blockierte eine grosse Box
+        // das Ziehen von TP/SL-Linien und das Verschieben des Charts darunter.
+        if(state.selectedDrawingId===d.id && inXStrict && y>=top && y<=bottom) return { id:d.id, mode:'move' };
       }
       return null;
     }
@@ -4932,8 +5085,11 @@
 
     function xyFromEvent(e){
       const rect = container.getBoundingClientRect();
-      const clientX = (e.touches && e.touches[0]) ? e.touches[0].clientX : e.clientX;
-      const clientY = (e.touches && e.touches[0]) ? e.touches[0].clientY : e.clientY;
+      // Beim Loslassen (touchend) ist "touches" leer — die Position steht dann in changedTouches.
+      // Ohne das liess sich auf dem iPad keine Zeichnung auswaehlen.
+      const t = (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0]);
+      const clientX = t ? t.clientX : e.clientX;
+      const clientY = t ? t.clientY : e.clientY;
       return { x: clientX-rect.left, y: clientY-rect.top };
     }
     function yFromEvent(e){ return xyFromEvent(e).y; }
@@ -4950,8 +5106,30 @@
       if(state.activeTool!=='cursor') return;
       const pt = xyFromEvent(e);
       mouseDownXY = pt;
-      const pbHit = findPosboxHit(pt.x, pt.y);
+      // Vorrang: 1. die ausgewaehlte Zeichnung, 2. TP/SL-Linien der Position bzw. geplante Linien,
+      // 3. Box-Linien/-Raender, 4. alle anderen Zeichnungen. Frueher gewannen Zeichnungen immer —
+      // lag eine Box oder Zone ueber der TP/SL-Linie, liess sich TP/SL nicht mehr ziehen.
+      // Liegt eine andere Linie deutlich naeher am Finger als die ausgewaehlte Zeichnung
+      // (z.B. Strahl kreuzt senkrechte Linie), gewinnt die naehere.
+      const sel = state.selectedDrawingId ? state.drawings.find(d => d.id === state.selectedDrawingId) : null;
+      const closest = closestLineHit(pt.x, pt.y);
+      const selDist = sel ? drawingLineDist(sel, pt.x, pt.y, TOUCH_UI ? 16 : 7) : Infinity;
+      const preferOther = !!(sel && closest && closest.id!==sel.id && closest.dist + 2 < selDist);
+      let pbHit = null, genHit = null;
+      const hitOn = d => { if(d.type==='posbox') pbHit = findPosboxHit(pt.x, pt.y, d); else genHit = findGenericDrawingHit(pt.x, pt.y, d); };
+      if(sel && !preferOther) hitOn(sel);
+      if(!pbHit && !genHit){
+        const near = findNear(pt.y);
+        if(near){ dragging = near; freezePriceScale(true); setChartInteractive(false); if(e.cancelable) e.preventDefault(); return; }
+        const cd = closest && state.drawings.find(d => d.id === closest.id);
+        if(cd) hitOn(cd);
+        if(!pbHit && !genHit){
+          pbHit = findPosboxHit(pt.x, pt.y);
+          if(!pbHit) genHit = findGenericDrawingHit(pt.x, pt.y);
+        }
+      }
       if(pbHit){
+        pushDrawUndo();
         dragging = { kind:'posbox', id:pbHit.id, mode:pbHit.mode };
         if(pbHit.mode==='move'){
           const d = state.drawings.find(dd=>dd.id===pbHit.id);
@@ -4959,11 +5137,11 @@
           moveGrab = { time:t, price:p, t1:d.t1, t2:d.t2, entry:d.entryPrice, tp:d.tpPrice, sl:d.slPrice };
         }
         setChartInteractive(false);
-        e.preventDefault();
+        if(e.cancelable) e.preventDefault();
         return;
       }
-      const genHit = findGenericDrawingHit(pt.x, pt.y);
       if(genHit){
+        pushDrawUndo();
         dragging = { kind:'generic', id:genHit.id, mode:genHit.mode };
         if(genHit.mode==='move'){
           const d = state.drawings.find(dd=>dd.id===genHit.id);
@@ -4971,11 +5149,8 @@
           moveGrab = { time:t, price:p, p1:{ time:d.p1.time, price:d.p1.price }, p2: d.p2 ? { time:d.p2.time, price:d.p2.price } : null };
         }
         setChartInteractive(false);
-        e.preventDefault();
-        return;
+        if(e.cancelable) e.preventDefault();
       }
-      const hit = findNear(pt.y);
-      if(hit){ dragging = hit; setChartInteractive(false); e.preventDefault(); }
     }
     function onMove(e){
       // Safety net: if our state still thinks a drag is active but the mouse
@@ -4986,6 +5161,7 @@
       // move until the next unrelated click happened to land on it again.
       if(dragging && e.type==='mousemove' && e.buttons===0){
         setChartInteractive(true);
+        if(scaleExtras.freeze) freezePriceScale(false);
         dragging = null; moveGrab = null; mouseDownXY = null;
         container.style.cursor = '';
         return;
@@ -5097,6 +5273,7 @@
         }
       }
       if(dragging && typeof dragging==='object') saveState();
+      if(scaleExtras.freeze) freezePriceScale(false);
       dragging = null; moveGrab = null; mouseDownXY = null;
     }
 
@@ -5110,7 +5287,7 @@
     // Alt-tabbing away, an OS dialog stealing focus, or a browser drag-and-drop
     // gesture all end the gesture without ever firing mouseup/touchend — catch
     // those too, so a shape can never end up permanently "stuck" to the cursor.
-    window.addEventListener('blur', ()=>{ if(dragging){ setChartInteractive(true); dragging=null; moveGrab=null; mouseDownXY=null; container.style.cursor=''; saveState(); } });
+    window.addEventListener('blur', ()=>{ if(scaleExtras.freeze) freezePriceScale(false); if(dragging){ setChartInteractive(true); dragging=null; moveGrab=null; mouseDownXY=null; container.style.cursor=''; saveState(); } });
 
     container.addEventListener('dblclick', e=>{
       if(state.activeTool!=='cursor') return;
@@ -5235,6 +5412,7 @@
     if(state.reviewing){ if(e.code==='Escape'){ e.preventDefault(); exitReview(); } return; }
     if(e.altKey && (e.code==='KeyR' || e.key==='r' || e.key==='R')){ e.preventDefault(); resetChartView(); return; }
     if(e.target.tagName==='INPUT' || e.target.tagName==='SELECT' || e.target.tagName==='TEXTAREA') return;
+    if((e.ctrlKey || e.metaKey) && (e.key==='z' || e.key==='Z') && !e.shiftKey){ e.preventDefault(); undoDrawing(); return; }
     if((e.code==='Delete' || e.code==='Backspace') && state.selectedDrawingId){ e.preventDefault(); deleteDrawing(state.selectedDrawingId); return; }
     if(e.code==='Space'){ e.preventDefault(); state.playing ? pause() : play(); }
     else if(e.code==='ArrowRight'){ e.preventDefault(); state.selectedDrawingId ? nudgeSelectedDrawingTime(1, e.shiftKey) : stepForward(); }
@@ -5288,7 +5466,7 @@
   function editTextDrawing(d){
     if(state.reviewing) return;
     openTextEditor(xFromTimeRobust(d.p1.time), yFromPriceRobust(d.p1.price), d.text || '',
-      txt => { if(txt){ d.text = txt; renderDrawings(); saveState(); } else deleteDrawing(d.id); },
+      txt => { if(txt){ if(txt !== d.text){ pushDrawUndo(); d.text = txt; } renderDrawings(); saveState(); } else deleteDrawing(d.id); },
       () => deleteDrawing(d.id));
   }
   ['mousedown', 'touchstart', 'click', 'dblclick', 'wheel'].forEach(ev => textEditorEl.addEventListener(ev, e => e.stopPropagation(), { passive: ev !== 'wheel' && ev !== 'touchstart' ? undefined : true }));
@@ -5439,6 +5617,7 @@
     renderInitialChart();
     candleSeries.setMarkers(markers);
     renderIndicators(true);
+    scaleExtras.review = [t.entryPrice, t.exitPrice, rv.tp, rv.sl];
     const mk = (price, color, style, title, w) => price!=null && isFinite(price) ? reviewLines.push(candleSeries.createPriceLine({ price, color, lineWidth:w || 1, lineStyle:style, axisLabelVisible:true, title })) : 0;
     const LS = LightweightCharts.LineStyle;
     mk(t.entryPrice, THEME.text, LS.Dotted, 'Einstieg');
@@ -5472,6 +5651,7 @@
     const b = state.reviewBackup;
     reviewLines.forEach(l => { try{ candleSeries.removePriceLine(l); }catch(e){} });
     reviewLines = [];
+    scaleExtras.review = [];
     reviewBarEl.hidden = true;
     document.body.classList.remove('review-mode');
     state.symbol = b.symbol; state.tf = b.tf; state.activeSlot = b.slot;
@@ -5584,7 +5764,7 @@
   }
 
   function saveState(){
-    if(!state.data.length || state.reviewing) return;
+    if(!state.data.length || state.reviewing || state.loadingData) return;
     const groups = loadSessionGroups();
     const key = slotGroupKey(state.symbol, state.tf);
     if(!Array.isArray(groups[key])) groups[key] = [];
