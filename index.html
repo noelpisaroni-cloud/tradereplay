@@ -1499,7 +1499,7 @@
     playing:false, timer:null, speedMs:700, ended:false,
     startingBalance:10000, balance:10000, feePct:0.05, slippagePct:0.05, sessionLen:1000, replayCapBars:null,
     position:null, pendingOrder:null, orderType:'market', journal:[], equityHistory:[],
-    drawings:[], activeTool:'cursor', selectedDrawingId:null,
+    drawings:[], drawTomb:[], activeTool:'cursor', selectedDrawingId:null,
     draftTp:null, draftSl:null,
     strategies:[], tradeHistory:[], activeStrategyId:'', activeChecklist:{}, editingStrategyId:null,
     activeSlot:0
@@ -1799,6 +1799,9 @@
   // Rueckgaengig-Stapel fuer Zeichnungen: vor jeder Aenderung (neu, loeschen, alle loeschen,
   // verschieben, Text aendern) wird der Stand gemerkt — "Rueckgaengig" holt ihn zurueck.
   const drawUndo = [];
+  // savedAt des Session-Platzes, den DIESES Fenster zuletzt geladen/geschrieben hat. Steht im Speicher
+  // ein anderer Wert, hat inzwischen ein anderes Fenster (oder die Cloud) gespeichert.
+  const slotSeen = {};
   function pushDrawUndo(){ try{ drawUndo.push(JSON.stringify(state.drawings)); if(drawUndo.length > 80) drawUndo.shift(); }catch(e){} }
 
   function setActiveTool(tool){
@@ -2051,23 +2054,50 @@
   function undoDrawing(){
     if(drawUndo.length){
       try{ state.drawings = JSON.parse(drawUndo.pop()); }catch(e){}
-    } else if(!state.drawings.pop()){
-      showToast('Nichts zum Rückgängigmachen.');
-      return;
+    } else {
+      const last = state.drawings.pop();
+      if(!last){ showToast('Nichts zum Rückgängigmachen.'); return; }
+      tombDrawings([last.id]);
     }
+    // Wieder hergestellte Zeichnungen sind nicht mehr "geloescht"; durch Rueckgaengig entfernte schon.
+    const now = new Set(state.drawings.map(d => d.id));
+    state.drawTomb = state.drawTomb.filter(id => !now.has(id));
     if(state.selectedDrawingId && !state.drawings.some(d => d.id === state.selectedDrawingId)) deselectDrawing();
     renderDrawings();
     saveState();
   }
-  function clearDrawings(){ pushDrawUndo(); state.drawings = []; state.selectedDrawingId = null; renderDrawings(); saveState(); }
+  function clearDrawings(){ pushDrawUndo(); tombDrawings(state.drawings.map(d => d.id)); state.drawings = []; state.selectedDrawingId = null; renderDrawings(); saveState(); }
+  // Merkt sich geloeschte Zeichnungen ("Grabsteine"), damit sie beim Zusammenfuehren mit dem Stand
+  // eines anderen Fensters/Geraets nicht zurueckkommen.
+  function tombDrawings(ids){
+    const t = new Set(state.drawTomb); ids.forEach(id => id && t.add(id));
+    state.drawTomb = [...t].slice(-400);
+  }
+  // Zeichnungen zweier Staende derselben Session zusammenfuehren: nichts geht verloren, was nicht
+  // ausdruecklich geloescht wurde. Bei gleicher Zeichnung gewinnt die Fassung von "mine".
+  function sameSessionWindow(a, b){
+    return !!(a && b) && a.symbol === b.symbol && a.tf === b.tf && (a.sessionSplit|0) === (b.sessionSplit|0)
+      && (a.dataLen|0) === (b.dataLen|0) && (a.bundleOffset ?? null) === (b.bundleOffset ?? null) && (a.fetchEndTimeMs ?? null) === (b.fetchEndTimeMs ?? null);
+  }
+  function mergeDrawingSets(mine, other){
+    if(!other || !Array.isArray(other.drawings) || !sameSessionWindow(mine, other)) return null;
+    const tomb = new Set([...(Array.isArray(mine.drawTomb) ? mine.drawTomb : []), ...(Array.isArray(other.drawTomb) ? other.drawTomb : [])]);
+    const mineD = Array.isArray(mine.drawings) ? mine.drawings : [];
+    const out = mineD.filter(d => d && !tomb.has(d.id));
+    const have = new Set(out.map(d => d.id));
+    let added = 0;
+    other.drawings.forEach(d => { if(d && d.id && !have.has(d.id) && !tomb.has(d.id)){ out.push(d); have.add(d.id); added++; } });
+    return { drawings: out, drawTomb: [...tomb].slice(-400), added, removed: mineD.length - (out.length - added) };
+  }
   // Neue Kursdaten (neue Session, anderer Platz): Zeichnungen leeren, OHNE zu speichern und
   // ohne Rueckgaengig-Eintrag — die gespeicherte Session bleibt unangetastet.
-  function resetDrawingsForNewData(){ state.drawings = []; state.selectedDrawingId = null; drawUndo.length = 0; renderDrawings(); }
+  function resetDrawingsForNewData(){ state.drawings = []; state.drawTomb = []; state.selectedDrawingId = null; drawUndo.length = 0; renderDrawings(); }
   function deleteDrawing(id){
     const idx = state.drawings.findIndex(d=>d.id===id);
     if(idx===-1) return;
     pushDrawUndo();
     state.drawings.splice(idx,1);
+    tombDrawings([id]);
     if(state.selectedDrawingId===id){
       state.selectedDrawingId=null;
       const hint = TOOL_HINTS[state.activeTool] || '';
@@ -2770,7 +2800,8 @@
     while(svg.firstChild) svg.removeChild(svg.firstChild);
     renderSessionsAndLevels(svg);
     renderRiskRewardZone(svg);
-    state.drawings.forEach(d => renderOne(svg, d));
+    // Jede Zeichnung in eine eigene Gruppe — so laesst sich pruefen, dass wirklich jede gezeichnet wird.
+    state.drawings.forEach(d => { const g = document.createElementNS(NS_SVG,'g'); g.setAttribute('data-did', d.id); svg.appendChild(g); renderOne(g, d); });
     if(state.selectedDrawingId){
       const sel = state.drawings.find(dd=>dd.id===state.selectedDrawingId);
       if(sel) renderSelection(svg, sel); else state.selectedDrawingId=null;
@@ -6067,7 +6098,7 @@
       feePct:state.feePct, slippagePct:state.slippagePct, ended:state.ended,
       position:state.position, pendingOrder:state.pendingOrder,
       journal:state.journal.map(j => j.review ? { ...j, review:undefined } : j), equityHistory:state.equityHistory,
-      drawings:state.drawings, draftTp:state.draftTp, draftSl:state.draftSl,
+      drawings:state.drawings, drawTomb:state.drawTomb, draftTp:state.draftTp, draftSl:state.draftSl,
       activeStrategyId:state.activeStrategyId, activeChecklist:state.activeChecklist,
       markers, ma20: !!els.ma20Toggle.checked, ma50: !!els.ma50Toggle.checked,
       bb: !!els.bbToggle.checked, rsi: !!els.rsiToggle.checked,
@@ -6078,14 +6109,28 @@
     };
   }
 
+  function adoptForeignDrawings(prev){
+    const mg = mergeDrawingSets(buildSessionPayload(), prev);
+    if(!mg) return false;
+    state.drawTomb = mg.drawTomb;
+    if(!mg.added && !mg.removed) return false;
+    state.drawings = mg.drawings;
+    if(state.selectedDrawingId && !state.drawings.some(d => d.id === state.selectedDrawingId)) state.selectedDrawingId = null;
+    renderDrawings();
+    return true;
+  }
   function saveState(){
     if(!state.data.length || state.reviewing || state.loadingData) return;
     const groups = loadSessionGroups();
     const key = slotGroupKey(state.symbol, state.tf);
     if(!Array.isArray(groups[key])) groups[key] = [];
+    const id = sessId(key, state.activeSlot);
+    const prev = groups[key][state.activeSlot];
+    if(prev && prev.savedAt !== slotSeen[id]) adoptForeignDrawings(prev);
     const payload = buildSessionPayload();
-    payload.savedAt = cloudStampFor(groups[key][state.activeSlot], payload);
+    payload.savedAt = cloudStampFor(prev, payload);
     groups[key][state.activeSlot] = payload;
+    slotSeen[id] = payload.savedAt;
     saveSessionGroups(groups);
     cloudMarkSession(key, state.activeSlot);
     renderSessionSlotsUI();
@@ -6141,6 +6186,8 @@
     state.journal = Array.isArray(save.journal) ? save.journal : [];
     state.equityHistory = (Array.isArray(save.equityHistory) && save.equityHistory.length) ? save.equityHistory : [{ i:cursor, equity:state.balance }];
     state.drawings = Array.isArray(save.drawings) ? save.drawings : [];
+    state.drawTomb = Array.isArray(save.drawTomb) ? save.drawTomb.slice(-400) : [];
+    slotSeen[sessId(slotGroupKey(state.symbol, state.tf), state.activeSlot)] = save.savedAt;
     state.position = save.position || null;
     state.pendingOrder = save.pendingOrder || null;
     state.activeStrategyId = save.activeStrategyId || '';
@@ -6264,7 +6311,7 @@
   // (nie etwas verloren), Strategien: neuere Liste gewinnt.
   var cloudAutoGen = false;
   var CLOUD = { db:null, on:false, running:false, again:false, timer:null, fails:0, needFull:false,
-    dirty:{}, histDirty:false, stratDirty:false, viewDirty:false, pulledKeys:{}, chunkJson:{}, big:{}, lastOkAt:0 };
+    dirty:{}, histDirty:false, stratDirty:false, viewDirty:false, pulledKeys:{}, chunkJson:{}, big:{}, lastOkAt:0, mergedFrom:{} };
   const HIST_REV_KEY = 'tradereplay_hist_rev_v1';
   const STRAT_AT_KEY = 'tradereplay_strat_at_v1';
   const CLOUD_CHUNK_CHARS = 90000;
@@ -6435,7 +6482,7 @@
   // durch einen neueren Cloud-Stand ersetzt wurde (dann muss die Anzeige neu geladen werden).
   async function cloudApplyMetas(metas, onlyKey){
     const groups = loadSessionGroups();
-    const fetchIds = [];
+    const fetchIds = [], mergeIds = [];
     Object.keys(metas).forEach(id => {
       const m = metas[id];
       if(onlyKey && m.k !== onlyKey) return;
@@ -6447,7 +6494,11 @@
         if(!p) return;
         const id = sessId(k, slot), m = metas[id];
         if(!m){ if(sessWorthUploading(p)) CLOUD.dirty[id] = { k, slot }; }
-        else if(!sessCloudWins(p, m) && (p.savedAt || 2) > (m.savedAt || 0)) CLOUD.dirty[id] = { k, slot };
+        else if(!sessCloudWins(p, m) && (p.savedAt || 2) > (m.savedAt || 0)){
+          CLOUD.dirty[id] = { k, slot };
+          // Das andere Geraet hat inzwischen auch gespeichert: seine Zeichnungen vor dem Hochladen uebernehmen
+          if((m.savedAt || 0) > 2 && m.np && CLOUD.mergedFrom[id] !== m.savedAt) mergeIds.push(id);
+        }
       });
     });
     let reapply = false;
@@ -6459,11 +6510,35 @@
       if(!p) continue;
       // waehrend des Wartens kann lokal weitergespielt worden sein: nochmal pruefen, dann synchron schreiben
       const g = loadSessionGroups();
-      if(!sessCloudWins((g[m.k] || [])[m.slot], m)) continue;
+      const local = (g[m.k] || [])[m.slot];
+      if(!sessCloudWins(local, m)) continue;
+      // Zeichnungen, die nur hier existieren, gehen nicht verloren — sie kommen in den neueren Stand
+      const mg = local ? mergeDrawingSets(p, local) : null;
+      if(mg){
+        p.drawTomb = mg.drawTomb;
+        if(mg.added || mg.removed) p.drawings = mg.drawings;
+        if(mg.added){ p.savedAt = Date.now(); CLOUD.dirty[id] = { k:m.k, slot:m.slot }; }
+      }
       if(!Array.isArray(g[m.k])) g[m.k] = [];
       g[m.k][m.slot] = p;
       saveSessionGroups(g);
       if(m.k === slotGroupKey(state.symbol, state.tf) && m.slot === state.activeSlot && state.data.length) reapply = true;
+    }
+    for(const id of mergeIds){
+      const m = metas[id];
+      const d = await CLOUD.db.doc('sess/' + id).get();
+      if(!d.exists) continue;
+      const cp = cloudDecodeSession(d.data());
+      CLOUD.mergedFrom[id] = m.savedAt;
+      if(!cp) continue;
+      if(m.k === slotGroupKey(state.symbol, state.tf) && m.slot === state.activeSlot && state.data.length && !state.reviewing && !state.loadingData){
+        if(adoptForeignDrawings(cp)) saveState();
+        continue;
+      }
+      const g = loadSessionGroups();
+      const lp = (g[m.k] || [])[m.slot];
+      const mg = lp ? mergeDrawingSets(lp, cp) : null;
+      if(mg && (mg.added || mg.removed)){ lp.drawings = mg.drawings; lp.drawTomb = mg.drawTomb; lp.savedAt = Date.now(); saveSessionGroups(g); CLOUD.dirty[id] = { k:m.k, slot:m.slot }; }
     }
     if(fetchIds.length) renderSessionSlotsUI();
     if(Object.keys(CLOUD.dirty).length) cloudSchedule(1500);
@@ -6643,6 +6718,17 @@
       cloudChip('ok', 'Neuerer Stand von deinem anderen Gerät geladen', 'Aktualisiert');
     }finally{ datasetLoadBusy = false; }
   }
+
+  // Zweites Fenster/Tab mit TradeReplay auf demselben Geraet: dessen Zeichnungen sofort uebernehmen,
+  // statt sie beim naechsten Speichern zu ueberschreiben.
+  window.addEventListener('storage', e => {
+    if(e.key !== 'tradereplay_sessions_v1' || !state.data.length || state.reviewing || state.loadingData) return;
+    const key = slotGroupKey(state.symbol, state.tf), id = sessId(key, state.activeSlot);
+    const p = (loadSessionGroups()[key] || [])[state.activeSlot];
+    if(!p || p.savedAt === slotSeen[id]) return;
+    adoptForeignDrawings(p);
+    slotSeen[id] = p.savedAt;
+  });
 
   (function cloudWire(){
     const chip = document.getElementById('cloudChip');
