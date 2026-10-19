@@ -18,11 +18,13 @@
   })();
 </script>
 <script>
-  // Design-Wahl (Dunkel / Hell / Klassisch und Kerzenfarben). Steht bewusst vor dem
+  // Design-Wahl (Dunkel / Hell / Klassisch, Kerzenfarben und Layout). Steht bewusst vor dem
   // Stylesheet: der Chart liest seine Farben beim Start einmal aus den CSS-Variablen.
   (function(){
-    var d = 'dunkel', c = 'gedaempft';
-    try{ d = localStorage.getItem('tradereplay_design_v1') || d; c = localStorage.getItem('tradereplay_candles_v1') || c; }catch(e){}
+    var d = 'dunkel', c = 'gedaempft', l = 'pro';
+    try{ d = localStorage.getItem('tradereplay_design_v1') || d; c = localStorage.getItem('tradereplay_candles_v1') || c; l = localStorage.getItem('tradereplay_layout_v1') || l; }catch(e){}
+    if(['pro','karten'].indexOf(l) < 0) l = 'pro';
+    document.documentElement.setAttribute('data-layout', l);
     if(['dunkel','hell','klassisch'].indexOf(d) < 0) d = 'dunkel';
     if(['gedaempft','kraeftig'].indexOf(c) < 0) c = 'gedaempft';
     document.documentElement.setAttribute('data-design', d);
@@ -888,6 +890,149 @@
   /* ---------- Kerzenfarben ---------- */
   html[data-candles="kraeftig"]{ --chart-up:#26a69a; --chart-down:#ef5350; }
   html[data-design="hell"][data-candles="kraeftig"]{ --chart-up:#089981; --chart-down:#f23645; }
+
+  /* =====================================================================
+     Layout "Wie FX Replay" (data-layout="pro", Standard). Nur die Anordnung aendert sich:
+     Chart fuellt den Bildschirm, die Abspiel-Leiste schwebt im Chart, Zeitbereich + Uhr
+     darunter, Kaufen/Verkaufen-Leiste ganz unten, Order-Feld rechts, Journal & Co. als
+     aufklappbare Leiste. Zurueck zum alten Aufbau: Design-Menue -> Layout "Karten".
+     ===================================================================== */
+  .pro-tradebar, .pro-clock, .rb-grip, .fs-exit{ display:none; }
+  .chart-card.chart-fullscreen .fs-exit{ display:inline-flex; position:absolute; top:10px; right:12px; z-index:20; align-items:center; gap:6px;
+    height:32px; padding:0 12px; border-radius:8px; border:1px solid var(--line-strong, var(--line)); background:var(--panel); color:var(--ink); font-size:12.5px; font-weight:600; }
+  html[data-layout="pro"][data-design="dunkel"]{
+    --bg:#0b0d12; --panel:#0e1117; --panel-alt:#171b23; --panel-hover:#20252f;
+    --line:#1e222b; --line-strong:#2c313c;
+  }
+  html[data-layout="pro"] .chart-head{ display:none; }
+  html[data-layout="pro"] .quick-trade{ display:none; }
+  /* Legende oben links: Markt · Zeitrahmen · Preis, darunter O H L C */
+  html[data-layout="pro"] .chart-overlay-tl{ top:6px; left:8px; gap:3px; max-width:calc(100% - 90px); }
+  html[data-layout="pro"] .chart-overlay-tl .chart-title-group{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  html[data-layout="pro"] .chart-overlay-tl #chartTitle{ margin:0; font-size:13.5px; font-weight:600; color:var(--ink); }
+  html[data-layout="pro"] .chart-overlay-tl .price-now{ font-size:13.5px; font-weight:600; }
+  html[data-layout="pro"] .chart-overlay-tl #chartTitle, html[data-layout="pro"] .chart-overlay-tl .price-now{ text-shadow:0 1px 3px rgba(0,0,0,.9), 0 0 8px rgba(0,0,0,.6); }
+  html[data-layout="pro"][data-design="hell"] .chart-overlay-tl #chartTitle, html[data-layout="pro"][data-design="hell"] .chart-overlay-tl .price-now{ text-shadow:0 0 6px #fff, 0 0 2px #fff; }
+  html[data-layout="pro"] .chart-overlay-tl .src-tag{ font-size:10.5px; padding:1px 7px; }
+  /* Chart-Werkzeuge (Indikatoren, 2. Chart, Reset, Vollbild) sitzen in der oberen Leiste */
+  html[data-layout="pro"] .topbar .chart-tools{ margin-left:2px; padding-left:8px; gap:2px; border-left:1px solid var(--line); }
+  html[data-layout="pro"] .topbar #tfTabs{ background:transparent; border-color:transparent; padding:0; gap:1px; }
+  html[data-layout="pro"] .topbar #tfTabs button{ padding:0 9px; }
+  /* Abspiel-Leiste schwebt im Chart (Platz setzt das Skript, per Griff verschiebbar) */
+  html[data-layout="pro"] .replay-bar{ position:absolute; z-index:8; left:50%; top:10px; transform:translateX(-50%); width:max-content; max-width:calc(100% - 16px);
+    margin:0; padding:5px 8px 5px 4px; gap:6px; flex-wrap:nowrap; border:1px solid var(--line-strong, var(--line)); border-radius:10px;
+    background:var(--panel); box-shadow:0 12px 30px -12px rgba(0,0,0,.75); }
+  html[data-layout="pro"] .replay-bar.placed{ transform:none; }
+  html[data-layout="pro"] .replay-bar .rb-lbl{ display:none; }
+  html[data-layout="pro"] .replay-bar button, html[data-layout="pro"] .replay-bar select{ height:30px; font-size:13px; }
+  html[data-layout="pro"] .replay-bar button{ min-width:34px; padding:0 9px; }
+  html[data-layout="pro"] .replay-bar button.play{ min-width:44px; padding:0 12px; }
+  html[data-layout="pro"] .replay-bar select{ padding-left:9px; }
+  html[data-layout="pro"] .replay-bar .progress-wrap{ flex:0 0 auto; width:168px; min-width:0; gap:3px; }
+  html[data-layout="pro"] .replay-bar .progress-label{ font-size:10.5px; flex-wrap:nowrap; white-space:nowrap; }
+  html[data-layout="pro"] .replay-bar #progressTime{ display:none; }
+  html[data-layout="pro"] .rb-grip{ display:block; flex:none; width:14px; height:24px; cursor:grab; touch-action:none; opacity:.85;
+    background:radial-gradient(circle, var(--ink-faint) 1.3px, transparent 1.7px) 0 0 / 7px 6px; }
+  html[data-layout="pro"] .rb-grip:active{ cursor:grabbing; }
+  html[data-layout="pro"] .draw-hint-row{ top:auto; bottom:44px; }
+  /* Zeitbereich + Uhr */
+  html[data-layout="pro"] .range-bar{ align-items:center; }
+  html[data-layout="pro"] .pro-clock{ display:inline-flex; align-items:center; margin-left:auto; padding:0 6px 0 14px; font-size:11.5px; color:var(--ink-soft); font-variant-numeric:tabular-nums; white-space:nowrap; }
+  /* Kaufen/Verkaufen-Leiste */
+  html[data-layout="pro"] .pro-tradebar{ display:flex; align-items:center; gap:8px; padding:7px 12px; background:var(--panel); border-top:1px solid var(--line); }
+  .ptb-sell, .ptb-buy{ height:38px; min-width:118px; padding:0 12px; border:none; border-radius:8px; color:#fff; display:flex; flex-direction:column; align-items:center; justify-content:center; line-height:1.15; font-weight:700; }
+  .ptb-sell{ background:var(--down); } .ptb-buy{ background:var(--up); }
+  .ptb-sell:hover:not(:disabled), .ptb-buy:hover:not(:disabled){ filter:brightness(1.1); }
+  .ptb-sell:disabled, .ptb-buy:disabled{ opacity:.35; cursor:not-allowed; }
+  .ptb-k{ font-size:11px; font-weight:600; opacity:.92; } .ptb-p{ font-size:12.5px; font-variant-numeric:tabular-nums; }
+  .ptb-qty{ position:relative; flex:0 0 112px; }
+  .ptb-qty input{ width:100%; height:38px !important; padding:0 8px 0 22px !important; text-align:center; font-size:13.5px; }
+  .ptb-unit{ position:absolute; left:9px; top:50%; transform:translateY(-50%); color:var(--ink-faint); font-size:12.5px; pointer-events:none; }
+  .ptb-pos{ display:flex; align-items:center; gap:10px; margin-left:6px; padding-left:12px; border-left:1px solid var(--line); min-width:0; }
+  .ptb-pos[hidden]{ display:none; }
+  .ptb-pnl{ font-weight:600; font-variant-numeric:tabular-nums; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .ptb-close{ height:32px; padding:0 13px; border-radius:8px; border:1px solid var(--down); background:transparent; color:var(--down); font-weight:600; font-size:12.5px; white-space:nowrap; }
+  .ptb-close:hover{ background:var(--down-soft); }
+  .ptb-spacer{ flex:1; }
+  .ptb-acct{ display:flex; align-items:center; gap:18px; padding-right:4px; }
+  .ptb-acct > div{ display:flex; flex-direction:column; line-height:1.15; }
+  .ptb-acct .k{ font-size:10.5px; color:var(--ink-faint); }
+  .ptb-acct b{ font-size:13.5px; font-weight:600; font-variant-numeric:tabular-nums; }
+  .ptb-acct .eq-up{ color:var(--up); } .ptb-acct .eq-down{ color:var(--down); }
+  html[data-layout="pro"] .tabs-panel .panel-collapse-btn.collapsed svg{ transform:rotate(180deg); }
+
+  @media (min-width:1000px){
+    html[data-layout="pro"] body{ overflow:hidden; }
+    html[data-layout="pro"] .app{ max-width:none; margin:0; padding:0; height:100vh; height:100dvh; display:flex; flex-direction:column; }
+    html[data-layout="pro"] .topbar{ position:relative; top:auto; flex:none; flex-wrap:nowrap; margin:0; padding:6px 12px; gap:8px; }
+    html[data-layout="pro"] .topbar .balance-badge{ display:none; }
+    html[data-layout="pro"] .topbar .symbol-select{ min-width:0; width:220px; }
+    html[data-layout="pro"] .main-grid{ flex:1 1 auto; min-height:0; align-items:stretch; }
+    html[data-layout="pro"] .chart-col{ display:flex; flex-direction:column; min-height:0; min-width:0; }
+    html[data-layout="pro"] .chart-card{ flex:1 1 auto; min-height:0; display:flex; flex-direction:column; border:none; border-radius:0; }
+    html[data-layout="pro"] .chart-body{ flex:1 1 auto; min-height:0; padding:0; gap:0; }
+    html[data-layout="pro"] .draw-toolbar-v{ width:46px; padding:6px 0; border-right:1px solid var(--line); overflow-y:auto; overflow-x:hidden; scrollbar-width:none; }
+    html[data-layout="pro"] .chart-main{ display:grid; grid-template-columns:auto minmax(0,1fr); grid-template-rows:minmax(0,1fr) auto; min-height:0; }
+    html[data-layout="pro"] .chart-row{ grid-column:1 / -1; grid-row:1; min-height:0; }
+    html[data-layout="pro"] #chartContainer{ height:auto !important; min-height:0; }
+    html[data-layout="pro"] .resize-handle-h, html[data-layout="pro"] .resize-corner{ display:none; }
+    html[data-layout="pro"] .range-bar{ grid-column:1; grid-row:2; padding:4px 8px; border-top:1px solid var(--line); }
+    html[data-layout="pro"] .session-bar{ grid-column:2; grid-row:2; padding:4px 12px; margin:0; border-top:1px solid var(--line); justify-content:flex-end; gap:12px; flex-wrap:nowrap; }
+    html[data-layout="pro"] .session-bar .btn{ height:28px; padding:0 10px; font-size:12px; }
+    html[data-layout="pro"] .session-bar .btn.icon{ width:28px; padding:0; }
+    html[data-layout="pro"] .slot-pills button{ width:24px; height:24px; font-size:11.5px; }
+    html[data-layout="pro"] .order-col{ align-self:stretch; min-height:0; overflow-y:auto; gap:0; width:300px; background:var(--panel); border-left:1px solid var(--line); }
+    html[data-layout="pro"] .order-col > .panel{ border:none; border-radius:0; border-bottom:1px solid var(--line); background:transparent; }
+    html[data-layout="pro"] .col-resize-handle{ width:6px; margin-right:-6px; position:relative; z-index:3; }
+    html[data-layout="pro"] .col-resize-handle::after{ height:36px; }
+    html[data-layout="pro"] .tabs-panel{ flex:none; display:flex; flex-direction:column; max-height:40vh; margin:0; border-radius:0; border-left:none; border-right:none; border-bottom:none; }
+    html[data-layout="pro"] .tabs-panel .tab-heads{ flex:none; padding:0 8px; }
+    html[data-layout="pro"] .tabs-panel .tab-heads button:not(.panel-collapse-btn){ padding:8px 12px; }
+    html[data-layout="pro"] .tabs-panel .tab-body{ flex:1 1 auto; min-height:0; overflow:auto; }
+    html[data-layout="pro"] .tabs-panel.collapsed .tab-heads{ border-bottom:none; }
+    html[data-layout="pro"] .tabs-panel.collapsed .tab-heads button.active{ border-bottom-color:transparent; }
+    html[data-layout="pro"] footer{ display:none; }
+    html[data-layout="pro"] .app-toast{ bottom:76px; }
+  }
+  @media (min-width:1000px){ html[data-layout="pro"] .topbar #indMenuBtn .lbl{ display:inline; } }
+  @media (min-width:1000px) and (max-width:1499px){
+    html[data-layout="pro"] .topbar .tool-btn:not(#indMenuBtn) .lbl{ display:none; }
+    html[data-layout="pro"] .topbar #manageStrategiesBtn .lbl{ display:none; }
+    html[data-layout="pro"] .topbar #manageStrategiesBtn{ width:var(--ctl, 34px); padding:0; }
+  }
+  @media (min-width:1000px) and (max-width:1199px){
+    html[data-layout="pro"] .brand span{ display:none; }
+    html[data-layout="pro"] .topbar .symbol-select{ width:180px; }
+    html[data-layout="pro"] .order-col{ width:280px; }
+    html[data-layout="pro"] .session-bar .session-label, html[data-layout="pro"] #restartSessionBtn{ display:none; }
+  }
+  @media (max-width:999.98px){
+    html[data-layout="pro"] body{ padding-bottom:calc(58px + env(safe-area-inset-bottom, 0px)); }
+    html[data-layout="pro"] .pro-tradebar{ position:fixed; left:0; right:0; bottom:0; z-index:70; gap:6px; padding:7px 10px calc(7px + env(safe-area-inset-bottom, 0px)); }
+    html[data-layout="pro"] .ptb-sell, html[data-layout="pro"] .ptb-buy{ flex:1 1 0; min-width:0; }
+    html[data-layout="pro"] .ptb-qty{ flex:0 0 100px; }
+    html[data-layout="pro"] .pro-tradebar.has-pos .ptb-sell, html[data-layout="pro"] .pro-tradebar.has-pos .ptb-buy, html[data-layout="pro"] .pro-tradebar.has-pos .ptb-qty{ display:none; }
+    html[data-layout="pro"] .pro-tradebar.has-pos .ptb-pos{ flex:1; margin:0; padding:0; border:none; justify-content:space-between; }
+    html[data-layout="pro"] .ptb-spacer, html[data-layout="pro"] .ptb-acct{ display:none; }
+    html[data-layout="pro"] #chartContainer{ height:60vh; min-height:320px; max-height:760px; }
+    html[data-layout="pro"] .app-toast{ bottom:calc(68px + env(safe-area-inset-bottom, 0px)); }
+    html[data-layout="pro"] .replay-bar .progress-wrap{ width:96px; }
+  }
+  @media (min-width:600px) and (max-width:999.98px){
+    html[data-layout="pro"] .topbar .balance-badge{ display:none; }
+    html[data-layout="pro"] .ptb-acct{ display:flex; }
+    html[data-layout="pro"] .ptb-sell, html[data-layout="pro"] .ptb-buy{ flex:0 1 150px; }
+    html[data-layout="pro"] .ptb-spacer{ display:block; }
+  }
+  @media (max-width:599.98px){
+    html[data-layout="pro"] .range-bar{ flex-wrap:wrap; row-gap:2px; }
+    html[data-layout="pro"] .tabs-panel .tab-heads{ overflow-x:auto; scrollbar-width:none; }
+    html[data-layout="pro"] .tabs-panel .tab-heads button{ flex:none; }
+    html[data-layout="pro"] .replay-bar .progress-label{ display:none; }
+    html[data-layout="pro"] .replay-bar .progress-wrap{ width:56px; }
+    html[data-layout="pro"] .replay-bar{ gap:4px; padding:4px 6px 4px 2px; }
+    html[data-layout="pro"] .replay-bar button{ padding:0 8px; }
+  }
 </style>
 
 <div class="app">
@@ -968,6 +1113,10 @@
     <div class="menu-wrap">
       <button class="icon-btn" id="designBtn" data-menu-btn="designMenu" aria-haspopup="true" aria-expanded="false" title="Design &amp; Kerzenfarben"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18c1.1 0 1.8-.8 1.8-1.7 0-.5-.2-.9-.5-1.2-.3-.3-.5-.7-.5-1.2 0-1 .8-1.7 1.8-1.7H17a4 4 0 0 0 4-4C21 6.6 17 3 12 3z"/><circle cx="7.5" cy="11" r="1.1" fill="currentColor" stroke="none"/><circle cx="10.5" cy="7.2" r="1.1" fill="currentColor" stroke="none"/><circle cx="15" cy="7.5" r="1.1" fill="currentColor" stroke="none"/></svg></button>
       <div class="menu-pop right" id="designMenu" hidden>
+        <div class="menu-title">Layout</div>
+        <label class="menu-item"><input type="radio" name="layoutChoice" id="layoutPro" value="pro"><span>Wie FX Replay<small>Chart über den ganzen Bildschirm, Kaufen/Verkaufen unten</small></span></label>
+        <label class="menu-item"><input type="radio" name="layoutChoice" id="layoutKarten" value="karten"><span>Karten<small>Der bisherige Aufbau mit Karten untereinander</small></span></label>
+        <div class="menu-sep"></div>
         <div class="menu-title">Design</div>
         <label class="menu-item"><input type="radio" name="designChoice" id="designDunkel" value="dunkel"><span>Dunkel<small>Neues Design, Chart und Panels aus einem Guss</small></span></label>
         <label class="menu-item"><input type="radio" name="designChoice" id="designHell" value="hell"><span>Hell<small>Helles Design für tagsüber</small></span></label>
@@ -1113,11 +1262,13 @@
               <button data-range="180">6M</button>
               <button data-range="365">1J</button>
               <button data-range="all" class="active">Alles</button>
+              <span class="pro-clock" id="proClock" title="Zeit der aktuellen Kerze"></span>
             </div>
-            <div class="replay-bar">
-              <button id="stepBackBtn" title="Eine Kerze zurück (Pfeil links)">⏮ Zurück</button>
-              <button class="play" id="playPauseBtn" title="Leertaste">▶ Play</button>
-              <button id="stepBtn" title="Pfeil rechts">Nächste Kerze ⏭</button>
+            <div class="replay-bar" id="replayBar">
+              <span class="rb-grip" id="replayGrip" title="Leiste verschieben (doppelt antippen = zurück an den Standardplatz)"></span>
+              <button id="stepBackBtn" title="Eine Kerze zurück (Pfeil links)">⏮<span class="rb-lbl"> Zurück</span></button>
+              <button class="play" id="playPauseBtn" title="Leertaste">▶<span class="rb-lbl"> Play</span></button>
+              <button id="stepBtn" title="Nächste Kerze (Pfeil rechts)"><span class="rb-lbl">Nächste Kerze </span>⏭</button>
               <select id="speedSelect" title="Abspielgeschwindigkeit">
                 <option value="1400">0.5x</option>
                 <option value="700" selected>1x</option>
@@ -1153,6 +1304,7 @@
             </div>
           </div>
         </div>
+        <button class="fs-exit" id="fsExitBtn" title="Vollbild beenden (Esc)">✕ Vollbild beenden</button>
         <div class="resize-corner" id="chartCornerHandle" title="Chart-Karte in beide Richtungen ziehen">
           <svg width="16" height="16" viewBox="0 0 16 16"><g stroke="currentColor" stroke-width="1.4"><line x1="14" y1="3" x2="3" y2="14"/><line x1="14" y1="8" x2="8" y2="14"/><line x1="14" y1="13" x2="13" y2="14"/></g></svg>
         </div>
@@ -1351,6 +1503,22 @@
       <button class="btn" id="historyMoreBtn" hidden style="margin-top:10px">Ältere Trades anzeigen</button>
     </div>
   </section>
+
+  <div class="pro-tradebar" id="proTradeBar">
+    <button class="ptb-sell" id="ptbSell" title="Verkaufen / Short (Taste S) – mit TP/SL aus dem Order-Feld"><span class="ptb-k" id="ptbSellK">Verkaufen</span><span class="ptb-p" id="ptbSellP">–</span></button>
+    <label class="ptb-qty" title="Positionsgröße"><span class="ptb-unit" id="ptbUnit">€</span><input type="number" id="ptbQty" min="10" step="50" inputmode="decimal" aria-label="Positionsgröße"></label>
+    <button class="ptb-buy" id="ptbBuy" title="Kaufen / Long (Taste B) – mit TP/SL aus dem Order-Feld"><span class="ptb-k" id="ptbBuyK">Kaufen</span><span class="ptb-p" id="ptbBuyP">–</span></button>
+    <div class="ptb-pos" id="ptbPos" hidden>
+      <span class="pos-side" id="ptbSide">Long</span>
+      <span class="ptb-pnl" id="ptbPnl">–</span>
+      <button class="ptb-close" id="ptbClose" title="Position schließen (Taste X)">Schließen</button>
+    </div>
+    <div class="ptb-spacer"></div>
+    <div class="ptb-acct">
+      <div><span class="k">Konto</span><b id="ptbBal">–</b></div>
+      <div><span class="k">Equity</span><b id="ptbEq">–</b></div>
+    </div>
+  </div>
 
   <footer>
     <span><strong>Nur zu Lernzwecken</strong> &middot; keine Anlageberatung</span>
@@ -3866,13 +4034,13 @@
   function play(){
     if(state.playing || state.ended || state.reviewing) return;
     state.playing = true;
-    els.playPauseBtn.textContent = '⏸ Pause';
+    els.playPauseBtn.innerHTML = '⏸<span class="rb-lbl"> Pause</span>';
     state.timer = setInterval(()=>{ if(!stepForward()) pause(); }, state.speedMs);
   }
   function pause(){
     state.playing = false;
     clearInterval(state.timer);
-    els.playPauseBtn.textContent = '▶ Play';
+    els.playPauseBtn.innerHTML = '▶<span class="rb-lbl"> Play</span>';
   }
   function updateStepControls(){
     els.stepBtn.disabled = state.ended;
@@ -4623,6 +4791,7 @@
     updateOrderPreview();
     updateRiskPreview();
     updateOhlcLine();
+    syncProBar();
   }
 
   function updateOhlcLine(){
@@ -4636,7 +4805,7 @@
 
   function updatePositionUI(){
     const pos = state.position;
-    if(!pos){ els.positionPanel.hidden = true; return; }
+    if(!pos){ els.positionPanel.hidden = true; syncProBar(); return; }
     els.positionPanel.hidden = false;
     const bar = currentBar();
     const unreal = (bar.close-pos.entryPrice)*pos.qty*(pos.side==='long'?1:-1);
@@ -4663,6 +4832,7 @@
     els.tpToggleBtn.className = 'mini-btn' + (pos.tpPrice!=null ? ' remove' : '');
     els.slToggleBtn.textContent = pos.slPrice!=null ? '✕' : '+';
     els.slToggleBtn.className = 'mini-btn' + (pos.slPrice!=null ? ' remove' : '');
+    syncProBar();
   }
 
   function setLevel(kind, price){
@@ -5730,7 +5900,146 @@
     };
     pick('designChoice', 'tradereplay_design_v1', 'data-design');
     pick('candleChoice', 'tradereplay_candles_v1', 'data-candles');
+    pick('layoutChoice', 'tradereplay_layout_v1', 'data-layout');
   })();
+
+  // ---------- Layout "Wie FX Replay" ----------
+  // Ordnet nur vorhandene Elemente um (die IDs und damit alle Funktionen bleiben gleich) und
+  // spiegelt Order-Feld/Konto in die Kaufen/Verkaufen-Leiste unten.
+  const PRO_LAYOUT = document.documentElement.getAttribute('data-layout') === 'pro';
+  function syncProBar(){
+    // Wird schon waehrend des Starts aus updateAccountUI aufgerufen — deshalb das Attribut
+    // direkt lesen statt der (dann noch nicht angelegten) Konstante PRO_LAYOUT.
+    if(document.documentElement.getAttribute('data-layout') !== 'pro') return;
+    const $ = id => document.getElementById(id);
+    const bar = $('proTradeBar'); if(!bar) return;
+    const isLimit = state.orderType === 'limit';
+    $('ptbBuy').disabled = els.buyBtn.disabled; $('ptbSell').disabled = els.sellBtn.disabled;
+    $('ptbBuyK').textContent = isLimit ? 'Limit Kauf' : 'Kaufen';
+    $('ptbSellK').textContent = isLimit ? 'Limit Verkauf' : 'Verkaufen';
+    const lp = parseFloat(els.limitPriceInput.value);
+    const px = isLimit && lp > 0 ? usd(lp) : (state.data.length ? usd(currentBar().close) : '–');
+    $('ptbBuyP').textContent = px; $('ptbSellP').textContent = px;
+    const risk = sizeMode === 'risk';
+    const src = risk ? document.getElementById('riskPctInput') : els.qtyInput;
+    const q = $('ptbQty');
+    if(document.activeElement !== q) q.value = src.value;
+    q.disabled = els.qtyInput.disabled;
+    q.step = risk ? '0.1' : '50'; q.min = risk ? '0.1' : '10';
+    $('ptbUnit').textContent = risk ? '%' : '€';
+    q.closest('.ptb-qty').title = risk ? 'Risiko pro Trade in % vom Konto (Größe wird aus dem Stop-Loss berechnet)' : 'Positionsgröße in Euro';
+    const pos = state.position, po = state.pendingOrder;
+    bar.classList.toggle('has-pos', !!(pos || po));
+    $('ptbPos').hidden = !(pos || po);
+    if(pos){
+      $('ptbSide').textContent = pos.side === 'long' ? 'Long' : 'Short'; $('ptbSide').className = 'pos-side ' + pos.side;
+      $('ptbPnl').textContent = els.posPnl.textContent; $('ptbPnl').className = 'ptb-pnl ' + (els.posPnl.classList.contains('down-txt') ? 'down-txt' : 'up-txt');
+      $('ptbClose').textContent = 'Schließen'; $('ptbClose').title = 'Position schließen (Taste X)';
+    } else if(po){
+      $('ptbSide').textContent = po.side === 'long' ? 'Long' : 'Short'; $('ptbSide').className = 'pos-side ' + po.side;
+      $('ptbPnl').textContent = 'Limit wartet @ ' + usd(po.limitPrice); $('ptbPnl').className = 'ptb-pnl';
+      $('ptbClose').textContent = 'Abbrechen'; $('ptbClose').title = 'Limit-Order abbrechen';
+    }
+    $('ptbBal').textContent = els.balanceOut.textContent;
+    $('ptbEq').textContent = els.equityOut.textContent; $('ptbEq').className = els.equityOut.className;
+  }
+  (function setupProLayout(){
+    if(!PRO_LAYOUT) return;
+    const $ = id => document.getElementById(id);
+    // Chart-Werkzeuge in die obere Leiste, Titel + Preis als Legende oben links in den Chart
+    const tools = document.querySelector('.chart-head .chart-tools');
+    if(tools) document.getElementById('tfTabs').after(tools);
+    const title = document.querySelector('.chart-head .chart-title-group');
+    const tl = document.querySelector('.chart-overlay-tl');
+    if(title && tl) tl.prepend(title);
+
+    // Kaufen/Verkaufen-Leiste
+    $('ptbBuy').addEventListener('click', () => els.buyBtn.click());
+    $('ptbSell').addEventListener('click', () => els.sellBtn.click());
+    $('ptbClose').addEventListener('click', () => { if(state.position) els.closePosBtn.click(); else if(state.pendingOrder) els.cancelOrderBtn.click(); });
+    $('ptbQty').addEventListener('input', () => {
+      const src = sizeMode === 'risk' ? document.getElementById('riskPctInput') : els.qtyInput;
+      src.value = $('ptbQty').value;
+      src.dispatchEvent(new Event('input', { bubbles:true }));
+      src.dispatchEvent(new Event('change', { bubbles:true }));
+    });
+    $('ptbQty').addEventListener('blur', syncProBar);
+    [els.qtyInput, document.getElementById('riskPctInput'), els.limitPriceInput].forEach(el => el.addEventListener('input', syncProBar));
+    [document.getElementById('sizeModeToggle'), els.orderTypeToggle].forEach(el => el.addEventListener('click', () => setTimeout(syncProBar, 0)));
+
+    // Uhr unter dem Chart = Zeit der aktuellen Kerze
+    const clock = $('proClock');
+    const tick = () => { clock.textContent = els.progressTime.textContent; };
+    new MutationObserver(tick).observe(els.progressTime, { childList:true, characterData:true, subtree:true });
+    tick();
+
+    // Journal/Statistik startet eingeklappt (mehr Platz fuer den Chart); die Wahl wird gemerkt.
+    const TABS_KEY = 'tradereplay_tabs_open_v1';
+    const tabsPanel = els.tabsCollapseBtn.closest('.tabs-panel');
+    let open = false; try{ open = localStorage.getItem(TABS_KEY) === '1'; }catch(e){}
+    tabsPanel.classList.toggle('collapsed', !open); els.tabsCollapseBtn.classList.toggle('collapsed', !open);
+    els.tabsCollapseBtn.addEventListener('click', () => { try{ localStorage.setItem(TABS_KEY, tabsPanel.classList.contains('collapsed') ? '0' : '1'); }catch(e){} });
+    tabsPanel.querySelector('.tab-heads').addEventListener('click', e => {
+      if(e.target.closest('button[data-tab]') && tabsPanel.classList.contains('collapsed')) els.tabsCollapseBtn.click();
+    });
+
+    // Abspiel-Leiste: schwebt im Chart. Standardplatz oben in der Mitte (neben der Legende);
+    // ist dort kein Platz, unten ueber der Zeitachse. Per Griff verschiebbar, Platz wird gemerkt.
+    const bar = $('replayBar'), main = bar.parentElement, grip = $('replayGrip');
+    const POS_KEY = 'tradereplay_replaybar_v1';
+    let saved = null; try{ saved = JSON.parse(localStorage.getItem(POS_KEY) || 'null'); }catch(e){}
+    function place(){
+      if(!bar.offsetParent) return;
+      const mr = main.getBoundingClientRect(), cr = container.getBoundingClientRect();
+      if(!cr.width || !cr.height) return;
+      const bw = bar.offsetWidth, bh = bar.offsetHeight;
+      const ox = cr.left - mr.left, oy = cr.top - mr.top;
+      const plotW = (chart.timeScale().width && chart.timeScale().width()) || cr.width;
+      let x, y;
+      if(saved && isFinite(saved.fx) && isFinite(saved.fy)){
+        x = ox + saved.fx * cr.width - bw / 2; y = oy + saved.fy * cr.height;
+      } else {
+        const legendRight = tl ? tl.getBoundingClientRect().right - mr.left + 20 : ox;
+        const xTop = Math.max(ox + (plotW - bw) / 2, legendRight);
+        if(xTop + bw <= ox + plotW - 8){ x = xTop; y = oy + 8; }
+        else { x = ox + (plotW - bw) / 2; y = oy + cr.height - 30 - bh - 10; }
+      }
+      x = Math.max(4, Math.min(x, mr.width - bw - 4));
+      y = Math.max(oy + 2, Math.min(y, oy + cr.height - bh - 4));
+      bar.style.left = Math.round(x) + 'px'; bar.style.top = Math.round(y) + 'px';
+      bar.classList.add('placed');
+    }
+    new ResizeObserver(() => place()).observe(container);
+    window.addEventListener('resize', place);
+    if(document.fonts && document.fonts.ready) document.fonts.ready.then(place);
+    setTimeout(place, 300); setTimeout(place, 1500);
+    let drag = null;
+    grip.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      const r = bar.getBoundingClientRect();
+      drag = { dx: e.clientX - r.left, dy: e.clientY - r.top, id: e.pointerId };
+      try{ grip.setPointerCapture(e.pointerId); }catch(err){}
+    });
+    grip.addEventListener('pointermove', e => {
+      if(!drag) return;
+      const mr = main.getBoundingClientRect(), cr = container.getBoundingClientRect();
+      const bw = bar.offsetWidth, bh = bar.offsetHeight;
+      const x = e.clientX - mr.left - drag.dx, y = e.clientY - mr.top - drag.dy;
+      saved = { fx: (x + bw / 2 - (cr.left - mr.left)) / cr.width, fy: (y - (cr.top - mr.top)) / cr.height };
+      place();
+    });
+    const endDrag = () => { if(!drag) return; drag = null; try{ localStorage.setItem(POS_KEY, JSON.stringify(saved)); }catch(err){} };
+    grip.addEventListener('pointerup', endDrag); grip.addEventListener('pointercancel', endDrag);
+    grip.addEventListener('dblclick', () => { saved = null; try{ localStorage.removeItem(POS_KEY); }catch(err){} place(); });
+    syncProBar();
+  })();
+  // Auf schmalen Bildschirmen liegt das Order-Feld unter dem Chart: nach "Im Chart" planen
+  // den Chart wieder ins Bild holen, damit man direkt hineintippen kann.
+  [els.tpPlanBtn, els.slPlanBtn].forEach(btn => btn.addEventListener('click', () => {
+    if(state.activeTool !== 'planTp' && state.activeTool !== 'planSl') return;
+    const r = container.getBoundingClientRect();
+    if(r.top < 0 || r.bottom > window.innerHeight) container.scrollIntoView({ block:'center' });
+  }));
 
   els.resetViewBtn.addEventListener('click', resetChartView);
 
@@ -5752,6 +6061,7 @@
     });
   }
   els.fullscreenBtn.addEventListener('click', ()=> setChartFullscreen(!chartCardEl.classList.contains('chart-fullscreen')));
+  document.getElementById('fsExitBtn').addEventListener('click', ()=> setChartFullscreen(false));
 
   document.addEventListener('keydown', (e)=>{
     if(e.code==='Escape' && chartCardEl.classList.contains('chart-fullscreen')){ setChartFullscreen(false); return; }
