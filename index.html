@@ -1574,7 +1574,7 @@
     els.tpPlanActive.hidden = !hasTp;
     if(hasTp){
       const pct = state.data.length ? Math.abs(state.draftTp-currentBar().close)/currentBar().close*100 : null;
-      els.tpPlanText.textContent = '📍 ' + usd(state.draftTp) + (pct!=null ? ' (' + pct.toFixed(2) + '% entfernt)' : '');
+      els.tpPlanText.textContent = '📍 ' + px(state.draftTp) + (pct!=null ? ' (' + pct.toFixed(2) + '% entfernt)' : '');
       els.tpEnabled.checked = true;
     }
     const hasSl = state.draftSl!=null;
@@ -1582,7 +1582,7 @@
     els.slPlanActive.hidden = !hasSl;
     if(hasSl){
       const pct = state.data.length ? Math.abs(state.draftSl-currentBar().close)/currentBar().close*100 : null;
-      els.slPlanText.textContent = '📍 ' + usd(state.draftSl) + (pct!=null ? ' (' + pct.toFixed(2) + '% entfernt)' : '');
+      els.slPlanText.textContent = '📍 ' + px(state.draftSl) + (pct!=null ? ' (' + pct.toFixed(2) + '% entfernt)' : '');
       els.slEnabled.checked = true;
     }
   }
@@ -2212,7 +2212,7 @@
       const y = yFromPriceRobust(d.p1.price);
       if(y==null) return;
       svg.appendChild(svgLine(0,y,w,y,{ stroke:'#E0A438', 'stroke-width':1.5, 'stroke-dasharray':'4 3' }));
-      svg.appendChild(svgText(plotRightX()-6,y-5,usd(d.p1.price),{ fill:'#E0A438', 'text-anchor':'end' }));
+      svg.appendChild(svgText(plotRightX()-6,y-5,px(d.p1.price),{ fill:'#E0A438', 'text-anchor':'end' }));
     } else if(d.type==='trendline'){
       const x1=xFromTimeRobust(d.p1.time), y1=yFromPriceRobust(d.p1.price), x2=xFromTimeRobust(d.p2.time), y2=yFromPriceRobust(d.p2.price);
       if(x1==null||y1==null||x2==null||y2==null) return;
@@ -2236,7 +2236,7 @@
         const y = yFromPriceRobust(price);
         if(y==null) return;
         svg.appendChild(svgLine(lo,y,hi,y,{ stroke:'#E0A438', 'stroke-width':1, opacity:'0.75' }));
-        svg.appendChild(svgText(lo+4,y-4,(lvl*100).toFixed(1)+'% · '+usd(price),{ fill:'#E0A438' }));
+        svg.appendChild(svgText(lo+4,y-4,(lvl*100).toFixed(1)+'% · '+px(price),{ fill:'#E0A438' }));
       });
     } else if(d.type==='posbox'){
       renderPosbox(svg, d);
@@ -2245,7 +2245,7 @@
       if(x1==null||y==null) return;
       svg.appendChild(svgLine(x1,y,w,y,{ stroke:'#B39DDB', 'stroke-width':1.8 }));
       svg.appendChild(circleAt(svg,x1,y));
-      svg.appendChild(svgText(Math.max(x1+60, plotRightX()-6),y-5,usd(d.p1.price),{ fill:'#B39DDB', 'text-anchor':'end' }));
+      svg.appendChild(svgText(Math.max(x1+60, plotRightX()-6),y-5,px(d.p1.price),{ fill:'#B39DDB', 'text-anchor':'end' }));
     } else if(d.type==='vline'){
       const x1=xFromTimeRobust(d.p1.time);
       if(x1==null) return;
@@ -2278,7 +2278,7 @@
     const l1 = logicalFromTime(d.p1.time), l2 = logicalFromTime(d.p2.time);
     const bars = (l1 != null && l2 != null) ? Math.round(Math.abs(l2 - l1)) : 0;
     const cx = (x1+x2)/2, cy = Math.min(y1,y2)-16;
-    svg.appendChild(svgPill(cx, cy, [`${up?'+':''}${usd(diff)} (${pctSigned(pct)}) · ${bars} Kerzen`], up?'#123B33':'#401616', up?'#8FE3C8':'#FFB3AB', 0.9));
+    svg.appendChild(svgPill(cx, cy, [`${up?'+':''}${px(diff)} (${pctSigned(pct)}) · ${bars} Kerzen`], up?'#123B33':'#401616', up?'#8FE3C8':'#FFB3AB', 0.9));
   }
   function fillRect(x,y,w,h,fill){
     const r = document.createElementNS(NS_SVG,'rect');
@@ -2358,10 +2358,10 @@
 
     const tpLabelY = yTp<yEntry ? yTp-13 : yTp+13;
     const slLabelY = ySl<yEntry ? ySl-13 : ySl+13;
-    svg.appendChild(svgPill(cx, tpLabelY, [`Ziel: ${usd(d.tpPrice)} (${tpPct.toFixed(2)}%) · Betrag ${usd(tpAmount,0)}`], '#123B33', '#8FE3C8', 0.9));
+    svg.appendChild(svgPill(cx, tpLabelY, [`Ziel: ${px(d.tpPrice)} (${tpPct.toFixed(2)}%) · Betrag ${usd(tpAmount,0)}`], '#123B33', '#8FE3C8', 0.9));
     const rrTxt = rr!=null ? ` · R/R ${rr.toFixed(2)}` : '';
     svg.appendChild(svgPill(cx, yEntry-14, [`${usdSigned(openPnl)} · ${qty.toFixed(4)} Stk.${rrTxt}`], '#12313D', '#8FE3FF', 0.6));
-    svg.appendChild(svgPill(cx, slLabelY, [`Stop: ${usd(d.slPrice)} (${slPct.toFixed(2)}%) · Betrag ${usd(slAmount,0)}`], '#401616', '#FFB3AB', 0.9));
+    svg.appendChild(svgPill(cx, slLabelY, [`Stop: ${px(d.slPrice)} (${slPct.toFixed(2)}%) · Betrag ${usd(slAmount,0)}`], '#401616', '#FFB3AB', 0.9));
   }
   function handleCircle(x,y){
     const c = document.createElementNS(NS_SVG,'circle');
@@ -3224,6 +3224,8 @@
   // ---------- formatting ----------
   function decimalsFor(v){ const av=Math.abs(v); if(av<1) return 5; if(av<10) return 4; return 2; }
   const usd = (v, d) => { const dec = (d===undefined) ? decimalsFor(v) : d; return (v<0?'-€':'€') + Math.abs(v).toLocaleString('de-DE', {minimumFractionDigits:dec, maximumFractionDigits:dec}); };
+  // Kurse (EUR/USD 1,1387 · BTC 77.250,00) ohne Euro-Zeichen — € nur fuer Kontostand, Gewinn und Groesse
+  const px = (v, d) => { if(v == null || !isFinite(v)) return '–'; const dec = (d===undefined) ? decimalsFor(v) : d; return (v<0?'-':'') + Math.abs(v).toLocaleString('de-DE', {minimumFractionDigits:dec, maximumFractionDigits:dec}); };
   const usdSigned = (v) => (v>=0?'+':'-') + '€' + Math.abs(v).toLocaleString('de-DE', {minimumFractionDigits:2, maximumFractionDigits:2});
   const pctSigned = (v) => (v>=0?'+':'') + v.toFixed(2) + '%';
   const priceFmt = (v) => v.toLocaleString('de-DE', {minimumFractionDigits:2, maximumFractionDigits: v<10?4:2});
@@ -4173,16 +4175,16 @@
   function fillPendingOrder(fillTime, fillPrice){
     const o = state.pendingOrder;
     if(!o) return;
-    const px = (typeof fillPrice === 'number' && isFinite(fillPrice) && fillPrice > 0) ? fillPrice : o.limitPrice;
-    const qty = o.notional/px;
+    const fillPx = (typeof fillPrice === 'number' && isFinite(fillPrice) && fillPrice > 0) ? fillPrice : o.limitPrice;
+    const qty = o.notional/fillPx;
     const entryFee = o.notional*state.feePct/100;
-    const liqPrice = o.leverage>1 ? (o.side==='long' ? px*(1-1/o.leverage) : px*(1+1/o.leverage)) : null;
+    const liqPrice = o.leverage>1 ? (o.side==='long' ? fillPx*(1-1/o.leverage) : fillPx*(1+1/o.leverage)) : null;
     state.position = {
       side:o.side, qty, notional:o.notional, leverage:o.leverage, margin:o.margin,
-      entryPrice:px, entryFee, entryTime:fillTime,
+      entryPrice:fillPx, entryFee, entryTime:fillTime,
       tpPrice:o.tpPrice, slPrice:o.slPrice, liqPrice,
-      tpPct: o.tpPrice!=null ? Math.abs(o.tpPrice-px)/px*100 : null,
-      slPct: o.slPrice!=null ? Math.abs(o.slPrice-px)/px*100 : null,
+      tpPct: o.tpPrice!=null ? Math.abs(o.tpPrice-fillPx)/fillPx*100 : null,
+      slPct: o.slPrice!=null ? Math.abs(o.slPrice-fillPx)/fillPx*100 : null,
       balanceAtEntry: o.balanceAtEntry!=null ? o.balanceAtEntry : state.balance, note:'',
       strategyId:o.strategyId||null, strategyName:o.strategyName||null, checklist:o.checklist||[]
     };
@@ -4210,10 +4212,10 @@
     els.pendingOrderPanel.hidden = false;
     els.pendingSide.textContent = o.side==='long' ? 'Long-Limit' : 'Short-Limit';
     els.pendingSide.className = 'pos-side ' + o.side;
-    els.pendingPrice.textContent = usd(o.limitPrice);
+    els.pendingPrice.textContent = px(o.limitPrice);
     els.pendingQty.textContent = usd(o.notional,0) + ' @ ' + o.leverage + 'x';
-    els.pendingTp.textContent = o.tpPrice!=null ? usd(o.tpPrice) : '– aus –';
-    els.pendingSl.textContent = o.slPrice!=null ? usd(o.slPrice) : '– aus –';
+    els.pendingTp.textContent = o.tpPrice!=null ? px(o.tpPrice) : '– aus –';
+    els.pendingSl.textContent = o.slPrice!=null ? px(o.slPrice) : '– aus –';
   }
   function updateOrderPreview(){
     const leverage = parseFloat(els.leverageSelect.value) || 1;
@@ -4398,7 +4400,7 @@
     const marginUsed = state.position ? state.position.margin : 0;
     els.marginUsedOut.textContent = usd(marginUsed, 0);
     els.freeMarginOut.textContent = usd(Math.max(0, state.balance - marginUsed), 0);
-    els.priceNow.textContent = state.data.length ? usd(currentBar().close) : '–';
+    els.priceNow.textContent = state.data.length ? px(currentBar().close) : '–';
     const srcTag = document.getElementById('srcTag');
     if(state.data.length){
       const isLive = liveSessionActive();
@@ -4420,7 +4422,7 @@
     els.limitPriceInput.disabled = !canTrade;
     els.orderTypeToggle.querySelectorAll('button').forEach(b => b.disabled = !canTrade);
     if(state.data.length){
-      const price = usd(currentBar().close);
+      const price = px(currentBar().close);
       els.qtBuyPrice.textContent = price;
       els.qtSellPrice.textContent = price;
     }
@@ -4435,7 +4437,7 @@
     const prev = state.cursor>0 ? state.data[state.cursor-1] : null;
     const chg = prev ? (bar.close-prev.close)/prev.close*100 : 0;
     const chgCls = chg>=0 ? 'up-txt' : 'down-txt';
-    els.ohlcLine.innerHTML = `O <b>${usd(bar.open)}</b> H <b>${usd(bar.high)}</b> L <b>${usd(bar.low)}</b> C <b>${usd(bar.close)}</b> <b class="${chgCls}">${pctSigned(chg)}</b>`;
+    els.ohlcLine.innerHTML = `O <b>${px(bar.open)}</b> H <b>${px(bar.high)}</b> L <b>${px(bar.low)}</b> C <b>${px(bar.close)}</b> <b class="${chgCls}">${pctSigned(chg)}</b>`;
   }
 
   function updatePositionUI(){
@@ -4449,13 +4451,13 @@
     els.posSide.className = 'pos-side ' + pos.side;
     els.posPnl.textContent = usdSigned(unreal) + '  (' + pctSigned(unrealPct) + ')';
     els.posPnl.className = 'pos-pnl ' + (unreal>=0?'up-txt':'down-txt');
-    els.posEntry.textContent = usd(pos.entryPrice);
-    els.posCurrent.textContent = usd(bar.close);
+    els.posEntry.textContent = px(pos.entryPrice);
+    els.posCurrent.textContent = px(bar.close);
     els.posQty.textContent = usd(pos.notional,0) + ' @ ' + pos.leverage + 'x' + (pos.partials && pos.partials.length ? ' (Rest)' : '');
-    els.posTp.textContent = pos.tpPrice!=null ? usd(pos.tpPrice) + ' (' + pos.tpPct.toFixed(2) + '%)' : '– aus –';
-    els.posSl.textContent = pos.slPrice!=null ? usd(pos.slPrice) + ' (' + pos.slPct.toFixed(2) + '%)' : '– aus –';
+    els.posTp.textContent = pos.tpPrice!=null ? px(pos.tpPrice) + ' (' + pos.tpPct.toFixed(2) + '%)' : '– aus –';
+    els.posSl.textContent = pos.slPrice!=null ? px(pos.slPrice) + ' (' + pos.slPct.toFixed(2) + '%)' : '– aus –';
     els.posLiqRow.hidden = pos.liqPrice==null;
-    if(pos.liqPrice!=null) els.posLiq.textContent = usd(pos.liqPrice);
+    if(pos.liqPrice!=null) els.posLiq.textContent = px(pos.liqPrice);
     // Only reset the note field when a DIFFERENT position is now shown — this
     // function reruns on every step/price tick, and overwriting the field's
     // value on every call would erase whatever the user is mid-typing.
@@ -4540,8 +4542,8 @@
         <td><span class="chip ${t.side}">${t.side==='long'?'Long':'Short'}</span></td>
         <td class="num">${fmtTime(t.entryTime)}</td>
         <td class="num">${fmtTime(t.exitTime)}</td>
-        <td class="num">${usd(t.entryPrice)}</td>
-        <td class="num">${usd(t.exitPrice)}</td>
+        <td class="num">${px(t.entryPrice)}</td>
+        <td class="num">${px(t.exitPrice)}</td>
         <td class="num">${usd(t.notional,0)}</td>
         <td class="num">${t.leverage}x</td>
         <td><span class="chip ${t.reason==='tp'?'tp':(t.reason==='sl'||t.reason==='liquidation')?'sl':'manual'}">${REASON_LABEL[t.reason]||t.reason}</span></td>
@@ -5831,8 +5833,8 @@
           <td class="num">${t.closedAt ? new Date(t.closedAt).toLocaleString('de-DE', { day:'2-digit', month:'2-digit', year:'2-digit', hour:'2-digit', minute:'2-digit' }) : '–'}</td>
           <td>${escapeHtml(SYMBOL_NAME[t.symbol] || t.symbol || '–')} · ${escapeHtml(TF_NAME[t.tf] || t.tf || '')}</td>
           <td><span class="chip ${t.side}">${t.side === 'long' ? 'Long' : 'Short'}</span></td>
-          <td class="num">${t.entryTime != null ? fmtTimeY(t.entryTime) : '–'} · ${t.entryPrice != null ? usd(t.entryPrice) : ''}</td>
-          <td class="num">${t.exitTime != null ? fmtTimeY(t.exitTime) : '–'} · ${t.exitPrice != null ? usd(t.exitPrice) : ''}</td>
+          <td class="num">${t.entryTime != null ? fmtTimeY(t.entryTime) : '–'} · ${t.entryPrice != null ? px(t.entryPrice) : ''}</td>
+          <td class="num">${t.exitTime != null ? fmtTimeY(t.exitTime) : '–'} · ${t.exitPrice != null ? px(t.exitPrice) : ''}</td>
           <td><span class="chip ${t.reason==='tp'?'tp':(t.reason==='sl'||t.reason==='liquidation')?'sl':'manual'}">${REASON_LABEL[t.reason] || t.reason || '–'}</span></td>
           <td>${t.strategyName ? escapeHtml(t.strategyName) : '–'}</td>
           <td class="note-cell" title="${escapeHtml(t.note || '')}">${escapeHtml(t.note || '')}</td>
