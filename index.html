@@ -3511,19 +3511,26 @@
       document.head.appendChild(s);
     });
   }
+  // Ausweich-Quellen fuer die eingebauten Kursdaten: dieselben Dateien aus dem oeffentlichen GitHub-Repo
+  // (ueber den CDN jsDelivr bzw. GitHub Pages). Hilft z. B. auf dem iPad, wenn TradeReplay als Symbol auf dem
+  // Home-Bildschirm laeuft und die Dateien der Claude-Seite dort nicht laden.
+  const DATA_MIRRORS = ['https://cdn.jsdelivr.net/gh/noelpisaroni-cloud/tradereplay@main/', 'https://noelpisaroni-cloud.github.io/tradereplay/'];
   async function loadScriptTag(src){
-    const MAX = 3;
+    const isRel = !/^https?:/.test(src);
+    const sources = isRel ? [[src, 20000], [DATA_MIRRORS[0] + src, 45000], [src, 45000], [DATA_MIRRORS[1] + src, 45000], [DATA_MIRRORS[0] + src + '?r=' + Date.now(), 60000]] : [[src, 60000], [src, 45000], [src, 45000]];
+    const MAX = sources.length;
     let last = null;
     for(let n = 1; n <= MAX; n++){
       try{
-        bootStatus('Kursdaten werden geladen … (' + src + (n > 1 ? ', Versuch ' + n + ' von ' + MAX : '') + ')');
-        await loadScriptOnce(src, n === 1 ? 60000 : 45000);
+        const [url, ms] = sources[n-1];
+        bootStatus('Kursdaten werden geladen … (' + src + (n > 1 ? ', Versuch ' + n + ' von ' + MAX + (url !== src ? ' über Ersatz-Server' : '') : '') + ')');
+        await loadScriptOnce(url, ms);
         bootLog(src + ' geladen');
         if(!BOOT.active) bootHide();
         return;
       }catch(e){
         last = e; bootLog('Fehler: ' + (e && e.message ? e.message : e));
-        if(n < MAX) await new Promise(r => setTimeout(r, 900 * n));
+        if(n < MAX) await new Promise(r => setTimeout(r, 400 * n));
       }
     }
     if(!BOOT.active) bootHide();
