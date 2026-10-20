@@ -589,6 +589,18 @@
   body.review-mode #compBtn, body.review-mode .quick-trade{ opacity:.4; pointer-events:none; }
   .review-btn{ height:26px !important; padding:0 10px !important; font-size:12px !important; }
   #historyBody td.note-cell{ max-width:220px; overflow:hidden; text-overflow:ellipsis; }
+  /* Leiste ueber einer ausgewaehlten Zeichnung (wie bei TradingView): Farbe, Order, Alarm, Kopie */
+  .sel-bar{ position:absolute; z-index:9; display:flex; align-items:center; gap:4px; padding:4px; border-radius:10px; background:var(--panel); border:1px solid var(--line-strong, var(--line)); box-shadow:0 10px 26px -10px rgba(0,0,0,.7); white-space:nowrap; }
+  .sel-bar[hidden]{ display:none; }
+  .sel-bar .sw{ width:22px; height:22px; border-radius:50%; border:2px solid transparent; padding:0; flex:none; }
+  .sel-bar .sw.on{ border-color:var(--ink); }
+  .sel-bar .sb-sep{ width:1px; height:20px; background:var(--line); margin:0 2px; }
+  .sel-bar .sb-btn{ height:28px; padding:0 9px; border-radius:7px; border:1px solid var(--line); background:var(--panel-alt); color:var(--ink); font-size:12px; font-weight:600; display:inline-flex; align-items:center; gap:5px; }
+  .sel-bar .sb-btn:hover{ border-color:var(--accent); }
+  .sel-bar .sb-btn.on{ background:var(--accent-soft); border-color:var(--accent); color:var(--accent-text, var(--accent)); }
+  .sel-bar .sb-trade{ background:var(--up); border-color:var(--up); color:#fff; }
+  .sel-bar .sb-trade.short{ background:var(--down); border-color:var(--down); }
+  @media (pointer:coarse){ .sel-bar .sw{ width:28px; height:28px; } .sel-bar .sb-btn{ height:34px; padding:0 11px; } }
   .text-editor{ position:absolute; z-index:8; width:260px; max-width:calc(100% - 16px); padding:8px; border-radius:10px; background:var(--panel); border:1px solid var(--accent); box-shadow:0 12px 30px -10px rgba(0,0,0,.6); }
   .text-editor[hidden]{ display:none; }
   .text-editor textarea{ display:block; width:100%; resize:vertical; min-height:56px; padding:7px 9px; border-radius:7px; border:1px solid var(--line); background:var(--panel-alt); color:var(--ink); font:inherit; font-size:14px; line-height:1.4; }
@@ -1193,6 +1205,7 @@
                 <label class="menu-item"><input type="checkbox" id="asiaHlToggle"><span>Asia High/Low</span></label>
                 <label class="menu-item"><input type="checkbox" id="pdhlToggle"><span>Vortages-Hoch/Tief<small>PDH / PDL</small></span></label>
                 <label class="menu-item"><input type="checkbox" id="weeklyOpenToggle"><span>Wochen-Eröffnung</span></label>
+                <label class="menu-item"><input type="checkbox" id="fvgToggle"><span>Fair Value Gaps (FVG)<small>Offene Lücken aus 3 Kerzen – grün = bullisch, rot = bärisch; endet, sobald gefüllt</small></span></label>
               </div>
             </div>
             <button class="tool-btn" id="compBtn" title="Zweiten Zeitrahmen neben dem Chart anzeigen (z. B. 1h für die Richtung, 5m für den Einstieg)">
@@ -1224,6 +1237,7 @@
             <button class="draw-btn" data-tool="fib" title="Fibonacci-Retracement"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><line x1="3" y1="5" x2="21" y2="5" stroke="currentColor" stroke-width="1.6"/><line x1="3" y1="9.7" x2="17" y2="9.7" stroke="currentColor" stroke-width="1.6"/><line x1="3" y1="14.3" x2="21" y2="14.3" stroke="currentColor" stroke-width="1.6"/><line x1="3" y1="19" x2="13" y2="19" stroke="currentColor" stroke-width="1.6"/></svg></button>
             <button class="draw-btn" data-tool="text" title="Text in den Chart schreiben (Notiz antippen zum Bearbeiten)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 6V4.5h14V6"/><path d="M12 4.5V19.5"/><path d="M9 19.5h6"/></svg></button>
             <button class="draw-btn" data-tool="measure" title="Messwerkzeug (Preis, Prozent &amp; Kerzenanzahl zwischen zwei Punkten)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="9" width="18" height="6" rx="1" stroke="currentColor" stroke-width="1.6"/><line x1="7" y1="9" x2="7" y2="12" stroke="currentColor" stroke-width="1.4"/><line x1="11" y1="9" x2="11" y2="15" stroke="currentColor" stroke-width="1.4"/><line x1="15" y1="9" x2="15" y2="12" stroke="currentColor" stroke-width="1.4"/></svg></button>
+            <button class="draw-btn" id="magnetBtn" title="Magnet: Punkte rasten beim Zeichnen an Hoch, Tief, Eröffnung oder Schluss der Kerze ein"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4v8a6 6 0 0 0 12 0V4"/><path d="M6 8h3M15 8h3"/><path d="M9 4v8a3 3 0 0 0 6 0V4"/></svg></button>
             <button class="draw-btn" data-tool="poslong" title="Long-Position (Ziel oben, Stop unten, frei verschieb-/anpassbar)"><svg width="16" height="16" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="8.5" fill="#26A69A"/><rect x="3" y="12.5" width="18" height="8.5" fill="#EF5350"/></svg></button>
             <button class="draw-btn" data-tool="posshort" title="Short-Position (Ziel unten, Stop oben, frei verschieb-/anpassbar)"><svg width="16" height="16" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="8.5" fill="#EF5350"/><rect x="3" y="12.5" width="18" height="8.5" fill="#26A69A"/></svg></button>
             <div class="draw-sep-v"></div>
@@ -1243,6 +1257,7 @@
                   <button class="qt-buy" id="qtBuyBtn"><span class="qt-label">Kaufen</span><span class="qt-price" id="qtBuyPrice">&ndash;</span></button>
                 </div>
               </div>
+              <div class="sel-bar" id="selBar" hidden></div>
               <div class="text-editor" id="textEditor" hidden>
                 <textarea id="textEditorInput" rows="3" maxlength="400" placeholder="Notiz schreiben …"></textarea>
                 <div class="te-actions">
@@ -1663,7 +1678,7 @@
    'journalBody','statsGrid','equitySpark','chartTitle','priceNow','playPauseBtn','stepBtn','speedSelect','progressFill',
    'progressText','progressTime','startCapital','feePct','slippagePct','sessionLenInput','newSessionBtn','restartSessionBtn','endBanner','endNewSessionBtn',
    'ma20Toggle','ma50Toggle','bbToggle','rsiToggle','infoBox','hideInfoBtn','tpToggleBtn','slToggleBtn',
-   'sessionsToggle','asiaHlToggle','pdhlToggle','weeklyOpenToggle',
+   'sessionsToggle','asiaHlToggle','pdhlToggle','weeklyOpenToggle','fvgToggle',
    'drawToolbar','drawOverlay','undoDrawBtn','clearDrawBtn','drawHint','drawHintRow',
    'tpPlanRow','tpPlanActive','tpPlanText','tpPlanBtn','tpPlanRemoveBtn',
    'slPlanRow','slPlanActive','slPlanText','slPlanBtn','slPlanRemoveBtn',
@@ -2037,7 +2052,7 @@
     els.tpPlanActive.hidden = !hasTp;
     if(hasTp){
       const pct = state.data.length ? Math.abs(state.draftTp-currentBar().close)/currentBar().close*100 : null;
-      els.tpPlanText.textContent = '📍 ' + usd(state.draftTp) + (pct!=null ? ' (' + pct.toFixed(2) + '% entfernt)' : '');
+      els.tpPlanText.textContent = '📍 ' + px(state.draftTp) + (pct!=null ? ' (' + pct.toFixed(2) + '% entfernt)' : '');
       els.tpEnabled.checked = true;
     }
     const hasSl = state.draftSl!=null;
@@ -2045,7 +2060,7 @@
     els.slPlanActive.hidden = !hasSl;
     if(hasSl){
       const pct = state.data.length ? Math.abs(state.draftSl-currentBar().close)/currentBar().close*100 : null;
-      els.slPlanText.textContent = '📍 ' + usd(state.draftSl) + (pct!=null ? ' (' + pct.toFixed(2) + '% entfernt)' : '');
+      els.slPlanText.textContent = '📍 ' + px(state.draftSl) + (pct!=null ? ' (' + pct.toFixed(2) + '% entfernt)' : '');
       els.slEnabled.checked = true;
     }
   }
@@ -2060,13 +2075,58 @@
   // coordinateToLogical instead work in a continuous bar-index space that lightweight-
   // charts keeps well-defined for any value, on-bar or not, so converting our times
   // to/from that space first avoids the exact-bar-match requirement entirely.
+  // Zeit <-> Kerzen-Index ueber die ECHTEN Kerzenzeiten. Frueher wurde mit festem Abstand gerechnet
+  // (erste Kerze + n * Kerzenlaenge) — bei Forex fehlen aber die Wochenenden (bei 15m 192 Kerzen pro
+  // Woche), dadurch landeten Zeichnungen nach einem Zeitrahmen-Wechsel weit daneben ("verschwunden").
+  // Zwischen zwei Kerzen wird anteilig gerechnet, vor der ersten / nach der letzten mit der Kerzenlaenge.
+  function barIndexFloor(t){
+    const d = state.data; let lo = 0, hi = d.length - 1;
+    while(lo < hi){ const mid = (lo + hi + 1) >> 1; if(d[mid].time <= t) lo = mid; else hi = mid - 1; }
+    return lo;
+  }
   function logicalFromTime(t){
-    if(!state.data.length || !state.barSeconds) return null;
-    return (t - state.data[0].time) / state.barSeconds;
+    const d = state.data, bs = state.barSeconds;
+    if(!d.length || !bs || typeof t !== 'number' || !isFinite(t)) return null;
+    const last = d.length - 1;
+    if(t <= d[0].time) return (t - d[0].time) / bs;
+    if(t >= d[last].time) return last + (t - d[last].time) / bs;
+    const i = barIndexFloor(t), span = d[i+1].time - d[i].time;
+    return i + (span > 0 ? (t - d[i].time) / span : 0);
   }
   function timeFromLogical(l){
-    if(!state.data.length || !state.barSeconds) return null;
-    return Math.round(state.data[0].time + l*state.barSeconds);
+    const d = state.data, bs = state.barSeconds;
+    if(!d.length || !bs || typeof l !== 'number' || !isFinite(l)) return null;
+    const last = d.length - 1;
+    if(l <= 0) return Math.round(d[0].time + l * bs);
+    if(l >= last) return Math.round(d[last].time + (l - last) * bs);
+    const i = Math.floor(l);
+    return Math.round(d[i].time + (l - i) * (d[i+1].time - d[i].time));
+  }
+  // Kerzenlaenge aus dem Zeitrahmen (nicht aus den ersten zwei Kerzen — die koennen ueber ein
+  // Wochenende oder eine Datenluecke reichen).
+  function barSecondsFor(data, tf){
+    const s = Math.round((TF_MS[tf] || 0) / 1000);
+    if(s > 0) return s;
+    let m = Infinity;
+    for(let i = 1; i < Math.min(data.length, 200); i++){ const g = data[i].time - data[i-1].time; if(g > 0 && g < m) m = g; }
+    return isFinite(m) ? m : 900;
+  }
+  // Zeichnungen aus aelteren Versionen haben "falsche" Zeiten (fester Abstand ab der ersten Kerze).
+  // Einmalig auf echte Kerzenzeiten umrechnen — sie bleiben genau dort, wo sie gezeichnet wurden.
+  function migrateDrawingTimes(list){
+    const d = state.data;
+    if(!Array.isArray(list) || d.length < 2) return false;
+    const oldBs = d[1].time - d[0].time;
+    let changed = false;
+    const conv = t => (typeof t === 'number' && isFinite(t) && oldBs > 0) ? (timeFromLogical((t - d[0].time) / oldBs) ?? t) : t;
+    list.forEach(dr => {
+      if(!dr || dr.tv === 2) return;
+      if(dr.p1) dr.p1.time = conv(dr.p1.time);
+      if(dr.p2) dr.p2.time = conv(dr.p2.time);
+      if(dr.type === 'posbox'){ dr.t1 = conv(dr.t1); dr.t2 = conv(dr.t2); }
+      dr.tv = 2; changed = true;
+    });
+    return changed;
   }
   // logicalToCoordinate silently returns 0 — not null — for a FRACTIONAL logical
   // index (confirmed directly against the library: integer 7284 → a real coordinate,
@@ -2225,13 +2285,36 @@
     const cx = (e.touches && e.touches[0]) ? e.touches[0].clientX : e.clientX;
     const cy = (e.touches && e.touches[0]) ? e.touches[0].clientY : e.clientY;
     const x = cx - rect.left, y = cy - rect.top;
-    const time = timeFromXRobust(x);
-    const price = priceFromYRobust(y);
+    let time = timeFromXRobust(x);
+    let price = priceFromYRobust(y);
+    // Magnet: an Hoch/Tief/Eroeffnung/Schluss der Kerze unter dem Finger einrasten (wenn nah genug)
+    if(state.magnet && time != null){
+      const l = chart.timeScale().coordinateToLogical(x);
+      const i = l == null ? -1 : Math.round(l);
+      const bar = i >= 0 && i <= state.cursor ? state.data[i] : null;
+      if(bar){
+        let best = null, bestDy = TOUCH_UI ? 40 : 28;
+        [bar.high, bar.low, bar.open, bar.close].forEach(p => { const py = yFromPriceRobust(p); if(py != null && Math.abs(py - y) < bestDy){ bestDy = Math.abs(py - y); best = p; } });
+        if(best != null){ price = best; time = bar.time; }
+      }
+    }
     return { time, price };
   }
+  (function wireMagnet(){
+    const btn = document.getElementById('magnetBtn'); if(!btn) return;
+    try{ state.magnet = localStorage.getItem('tradereplay_magnet_v1') === '1'; }catch(e){}
+    const sync = () => btn.classList.toggle('active', !!state.magnet);
+    sync();
+    btn.addEventListener('click', () => {
+      state.magnet = !state.magnet; sync();
+      try{ localStorage.setItem('tradereplay_magnet_v1', state.magnet ? '1' : '0'); }catch(e){}
+      showToast(state.magnet ? 'Magnet an: Punkte rasten an Hoch, Tief, Eröffnung oder Schluss der Kerze ein.' : 'Magnet aus.');
+    });
+  })();
 
   function addDrawing(d){
     pushDrawUndo();
+    d.tv = 2;
     d.id = 'd' + Date.now() + Math.floor(Math.random()*1000);
     state.drawings.push(d);
     renderDrawings();
@@ -2559,6 +2642,121 @@
     }
     return null;
   }
+  // ---------- Leiste ueber der ausgewaehlten Zeichnung ----------
+  const SEL_COLORS = ['#9C27B0', '#2962FF', '#26A69A', '#EF5350', '#E0A438', '#B2B5BE'];
+  const COLORABLE = { hline:1, ray:1, vline:1, trendline:1, rect:1, text:1 };
+  const DEFAULT_DRAW_COLOR = { hline:'#E0A438', ray:'#B39DDB', vline:'#B39DDB', trendline:'#2962FF', rect:'#9C27B0', text:'#FFD166' };
+  let selBarKey = '';
+  function updateSelBar(){
+    const bar = document.getElementById('selBar');
+    if(!bar) return;
+    const d = state.selectedDrawingId && !state.reviewing ? state.drawings.find(x => x.id === state.selectedDrawingId) : null;
+    const bb = d ? getDrawingBBox(d) : null;
+    if(!d || !bb || state.activeTool !== 'cursor'){ bar.hidden = true; selBarKey = ''; return; }
+    const key = [d.id, d.type, d.color || '', d.alert ? 1 : 0, state.position ? 1 : 0, state.pendingOrder ? 1 : 0, d.type === 'posbox' ? (d.tpPrice < d.entryPrice ? 's' : 'l') : ''].join('|');
+    if(key !== selBarKey){
+      selBarKey = key;
+      let html = '';
+      if(d.type === 'posbox'){
+        const isShort = d.tpPrice < d.entryPrice;
+        const busy = !!(state.position || state.pendingOrder);
+        html += `<button class="sb-btn sb-trade${isShort ? ' short' : ''}" data-sb="trade" ${busy ? 'disabled title="Es läuft schon eine Position oder Order"' : 'title="Order mit genau diesem Einstieg, Ziel und Stop platzieren"'}>${isShort ? '▼' : '▲'} Order platzieren</button>`;
+        html += `<button class="sb-btn" data-sb="flip" title="Long ↔ Short umdrehen">⇅ ${isShort ? 'zu Long' : 'zu Short'}</button><span class="sb-sep"></span>`;
+      }
+      if(COLORABLE[d.type]){
+        const cur = drawColor(d, DEFAULT_DRAW_COLOR[d.type] || '');
+        html += SEL_COLORS.map(c => `<button class="sw${cur.toLowerCase() === c.toLowerCase() ? ' on' : ''}" data-sb="color" data-c="${c}" style="background:${c}" title="Farbe"></button>`).join('') + '<span class="sb-sep"></span>';
+      }
+      if(d.type === 'hline' || d.type === 'ray') html += `<button class="sb-btn${d.alert ? ' on' : ''}" data-sb="alert" title="Alarm: Abspielen hält an, sobald der Kurs diese Linie erreicht">🔔 Alarm</button>`;
+      if(d.type === 'text') html += `<button class="sb-btn" data-sb="edit" title="Text bearbeiten">✎ Text</button>`;
+      html += `<button class="sb-btn" data-sb="dup" title="Kopie anlegen">⧉ Kopie</button>`;
+      bar.innerHTML = html;
+    }
+    bar.hidden = false;
+    const W = plotRightX(), H = container.clientHeight;
+    const bw = bar.offsetWidth || 200, bh = bar.offsetHeight || 34;
+    let x = bb.x + bb.w / 2 - bw / 2;
+    x = Math.max(4, Math.min(x, W - bw - 4));
+    // Bei der TP/SL-Box steht ueber und unter der Box noch die Ziel-/Stop-Beschriftung
+    const gap = d.type === 'posbox' ? 40 : 14;
+    let y = bb.y - gap - bh;
+    if(y < 4) y = bb.y + bb.h + gap;
+    y = Math.max(4, Math.min(y, H - bh - 34));
+    bar.style.left = Math.round(x) + 'px'; bar.style.top = Math.round(y) + 'px';
+  }
+  (function wireSelBar(){
+    const bar = document.getElementById('selBar');
+    if(!bar) return;
+    const stop = e => e.stopPropagation();
+    ['mousedown','touchstart','pointerdown','dblclick'].forEach(t => bar.addEventListener(t, stop, { passive:true }));
+    bar.addEventListener('click', e => {
+      e.stopPropagation();
+      const b = e.target.closest('[data-sb]'); if(!b || b.disabled) return;
+      const d = state.drawings.find(x => x.id === state.selectedDrawingId); if(!d) return;
+      const act = b.dataset.sb;
+      if(act === 'color'){ pushDrawUndo(); d.color = b.dataset.c; renderDrawings(); saveState(); }
+      else if(act === 'alert'){ pushDrawUndo(); d.alert = !d.alert; renderDrawings(); saveState(); showToast(d.alert ? '🔔 Alarm an: Beim Abspielen hält TradeReplay an, sobald der Kurs ' + px(d.p1.price) + ' erreicht.' : 'Alarm aus.'); }
+      else if(act === 'edit'){ editTextDrawing(d); }
+      else if(act === 'dup'){ duplicateDrawing(d); }
+      else if(act === 'trade'){ tradeFromBox(d); }
+      else if(act === 'flip'){ flipPosbox(d); }
+    });
+  })();
+  function duplicateDrawing(d){
+    pushDrawUndo();
+    const c = JSON.parse(JSON.stringify(d));
+    c.id = 'd' + Date.now() + Math.floor(Math.random()*1000);
+    c.tv = 2; delete c.alert;
+    const shiftT = t => { const l = logicalFromTime(t); return l == null ? t : (timeFromLogical(l + 6) ?? t); };
+    if(c.type === 'hline'){ const vb = visibleBoundsForClamp(); c.p1.price = c.p1.price + (vb ? (vb.pMax - vb.pMin) * 0.05 : c.p1.price * 0.002); }
+    else {
+      if(c.p1) c.p1.time = shiftT(c.p1.time);
+      if(c.p2) c.p2.time = shiftT(c.p2.time);
+      if(c.type === 'posbox'){ c.t1 = shiftT(c.t1); c.t2 = shiftT(c.t2); }
+    }
+    state.drawings.push(c);
+    selectDrawing(c.id);
+    renderDrawings(); saveState();
+    showToast('Kopie angelegt – zum Verschieben einfach hineinfassen und ziehen.');
+  }
+  // TP/SL-Box als echte Order: nahe am aktuellen Kurs sofort (Markt), sonst als Limit-Order am
+  // Einstieg der Box. Ziel und Stop kommen exakt aus der Box, die Groesse aus dem Order-Feld.
+  function tradeFromBox(d){
+    if(state.position || state.pendingOrder){ showToast('Es läuft schon eine Position oder Order – erst schließen bzw. abbrechen.'); return; }
+    if(state.ended){ showToast('Die Session ist zu Ende.'); return; }
+    const side = d.tpPrice > d.entryPrice ? 'long' : 'short';
+    const close = currentBar().close;
+    const near = Math.abs(d.entryPrice - close) / close < 0.0006;
+    const tpOk = side === 'long' ? d.tpPrice > (near ? close : d.entryPrice) : d.tpPrice < (near ? close : d.entryPrice);
+    const slOk = side === 'long' ? d.slPrice < (near ? close : d.entryPrice) : d.slPrice > (near ? close : d.entryPrice);
+    if(!tpOk || !slOk){ showToast('Der Kurs steht schon jenseits von Ziel oder Stop der Box – Box anpassen oder neu setzen.', 5500); return; }
+    const saved = { tpOn: els.tpEnabled.checked, slOn: els.slEnabled.checked, dTp: state.draftTp, dSl: state.draftSl, lim: els.limitPriceInput.value };
+    els.tpEnabled.checked = true; els.slEnabled.checked = true;
+    state.draftTp = d.tpPrice; state.draftSl = d.slPrice;
+    try{
+      if(near) openPosition(side);
+      else { els.limitPriceInput.value = String(+d.entryPrice.toFixed(decimalsFor(d.entryPrice) + 1)); placeLimitOrder(side); }
+    } finally {
+      els.tpEnabled.checked = saved.tpOn; els.slEnabled.checked = saved.slOn;
+      if(!state.position && !state.pendingOrder){ state.draftTp = saved.dTp; state.draftSl = saved.dSl; els.limitPriceInput.value = saved.lim; }
+    }
+    if(state.position) showToast((side === 'long' ? 'Long' : 'Short') + ' eröffnet – Ziel ' + px(d.tpPrice) + ', Stop ' + px(d.slPrice) + '.');
+    else if(state.pendingOrder) showToast('Limit-Order bei ' + px(state.pendingOrder.limitPrice) + ' gesetzt – Ziel ' + px(d.tpPrice) + ', Stop ' + px(d.slPrice) + '.', 5000);
+    renderDrawings();
+  }
+  // Alarm-Linien: pruefen, ob die neue Kerze sie beruehrt hat
+  function checkDrawingAlerts(bar, prevClose){
+    const hit = [];
+    state.drawings.forEach(d => {
+      if(!d.alert || !(d.type === 'hline' || d.type === 'ray')) return;
+      if(d.type === 'ray' && bar.time < d.p1.time) return;
+      const p = d.p1.price;
+      const crossed = (bar.low <= p && bar.high >= p) || (prevClose != null && ((prevClose < p && bar.open >= p) || (prevClose > p && bar.open <= p)));
+      if(crossed){ d.alert = false; hit.push(p); }
+    });
+    return hit;
+  }
+
   function renderSelection(svg, d){
     const bb = getDrawingBBox(d);
     if(!bb) return;
@@ -2623,17 +2821,20 @@
   // range or within a pixel of the chart's edge, which made every shape here
   // flicker in and out on nearly every redraw (many redraws per second while
   // panning/zooming/playing) instead of just at genuine off-screen positions.
+  function drawColor(d, def){ return (d && typeof d.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(d.color)) ? d.color : def; }
+  function hexA(hex, a){ const n = parseInt(hex.slice(1), 16); return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`; }
   function renderOne(svg, d){
     const w = container.clientWidth, h = container.clientHeight;
     if(d.type==='hline'){
       const y = yFromPriceRobust(d.p1.price);
       if(y==null) return;
-      svg.appendChild(svgLine(0,y,w,y,{ stroke:'#E0A438', 'stroke-width':1.5, 'stroke-dasharray':'4 3' }));
-      svg.appendChild(svgText(plotRightX()-6,y-5,usd(d.p1.price),{ fill:'#E0A438', 'text-anchor':'end' }));
+      const c = drawColor(d, '#E0A438');
+      svg.appendChild(svgLine(0,y,w,y,{ stroke:c, 'stroke-width':1.5, 'stroke-dasharray':'4 3' }));
+      svg.appendChild(svgText(plotRightX()-6,y-5,(d.alert ? '🔔 ' : '') + px(d.p1.price),{ fill:c, 'text-anchor':'end' }));
     } else if(d.type==='trendline'){
       const x1=xFromTimeRobust(d.p1.time), y1=yFromPriceRobust(d.p1.price), x2=xFromTimeRobust(d.p2.time), y2=yFromPriceRobust(d.p2.price);
       if(x1==null||y1==null||x2==null||y2==null) return;
-      svg.appendChild(svgLine(x1,y1,x2,y2,{ stroke:'#2962FF', 'stroke-width':2 }));
+      svg.appendChild(svgLine(x1,y1,x2,y2,{ stroke:drawColor(d, '#2962FF'), 'stroke-width':2 }));
       svg.appendChild(circleAt(svg,x1,y1)); svg.appendChild(circleAt(svg,x2,y2));
     } else if(d.type==='rect'){
       const x1=xFromTimeRobust(d.p1.time), y1=yFromPriceRobust(d.p1.price), x2=xFromTimeRobust(d.p2.time), y2=yFromPriceRobust(d.p2.price);
@@ -2642,7 +2843,8 @@
       const rect = document.createElementNS(NS_SVG,'rect');
       rect.setAttribute('x',rx); rect.setAttribute('y',ry); rect.setAttribute('width',rw); rect.setAttribute('height',rh);
       // Aussehen wie das TradingView-Rechteck (Vorbild des Nutzers): lila Flaeche, lila Rand
-      rect.setAttribute('fill','rgba(156,39,176,0.2)'); rect.setAttribute('stroke','#9C27B0'); rect.setAttribute('stroke-width','1.5');
+      const rc = drawColor(d, '#9C27B0');
+      rect.setAttribute('fill', hexA(rc, 0.2)); rect.setAttribute('stroke', rc); rect.setAttribute('stroke-width','1.5');
       svg.appendChild(rect);
     } else if(d.type==='fib'){
       const x1=xFromTimeRobust(d.p1.time), x2=xFromTimeRobust(d.p2.time);
@@ -2653,25 +2855,26 @@
         const y = yFromPriceRobust(price);
         if(y==null) return;
         svg.appendChild(svgLine(lo,y,hi,y,{ stroke:'#E0A438', 'stroke-width':1, opacity:'0.75' }));
-        svg.appendChild(svgText(lo+4,y-4,(lvl*100).toFixed(1)+'% · '+usd(price),{ fill:'#E0A438' }));
+        svg.appendChild(svgText(lo+4,y-4,(lvl*100).toFixed(1)+'% · '+px(price),{ fill:'#E0A438' }));
       });
     } else if(d.type==='posbox'){
       renderPosbox(svg, d);
     } else if(d.type==='ray'){
       const x1=xFromTimeRobust(d.p1.time), y=yFromPriceRobust(d.p1.price);
       if(x1==null||y==null) return;
-      svg.appendChild(svgLine(x1,y,w,y,{ stroke:'#B39DDB', 'stroke-width':1.8 }));
+      const c = drawColor(d, '#B39DDB');
+      svg.appendChild(svgLine(x1,y,w,y,{ stroke:c, 'stroke-width':1.8 }));
       svg.appendChild(circleAt(svg,x1,y));
-      svg.appendChild(svgText(Math.max(x1+60, plotRightX()-6),y-5,usd(d.p1.price),{ fill:'#B39DDB', 'text-anchor':'end' }));
+      svg.appendChild(svgText(Math.max(x1+60, plotRightX()-6),y-5,(d.alert ? '🔔 ' : '') + px(d.p1.price),{ fill:c, 'text-anchor':'end' }));
     } else if(d.type==='vline'){
       const x1=xFromTimeRobust(d.p1.time);
       if(x1==null) return;
-      svg.appendChild(svgLine(x1,0,x1,h,{ stroke:'#B39DDB', 'stroke-width':1.5, 'stroke-dasharray':'4 3' }));
+      svg.appendChild(svgLine(x1,0,x1,h,{ stroke:drawColor(d, '#B39DDB'), 'stroke-width':1.5, 'stroke-dasharray':'4 3' }));
     } else if(d.type==='text'){
       const x1=xFromTimeRobust(d.p1.time), y1=yFromPriceRobust(d.p1.price);
       if(x1==null||y1==null) return;
       svg.appendChild(handleCircle(x1,y1));
-      String(d.text||'').split('\n').forEach((line, i) => svg.appendChild(svgText(x1+8, y1+4+i*15, line, { fill:'#FFD166', 'font-weight':'600', 'font-size':'12px' })));
+      String(d.text||'').split('\n').forEach((line, i) => svg.appendChild(svgText(x1+8, y1+4+i*15, line, { fill:drawColor(d, '#FFD166'), 'font-weight':'600', 'font-size':'12px' })));
     } else if(d.type==='measure'){
       renderMeasure(svg, d);
     }
@@ -2692,9 +2895,10 @@
     svg.appendChild(handleCircle(x1,y1)); svg.appendChild(handleCircle(x2,y2));
     const diff = d.p2.price - d.p1.price;
     const pct = diff/d.p1.price*100;
-    const bars = state.barSeconds ? Math.round(Math.abs(d.p2.time-d.p1.time)/state.barSeconds) : 0;
+    const l1 = logicalFromTime(d.p1.time), l2 = logicalFromTime(d.p2.time);
+    const bars = (l1 != null && l2 != null) ? Math.round(Math.abs(l2 - l1)) : 0;
     const cx = (x1+x2)/2, cy = Math.min(y1,y2)-16;
-    svg.appendChild(svgPill(cx, cy, [`${up?'+':''}${usd(diff)} (${pctSigned(pct)}) · ${bars} Kerzen`], up?'#123B33':'#401616', up?'#8FE3C8':'#FFB3AB', 0.9));
+    svg.appendChild(svgPill(cx, cy, [`${up?'+':''}${px(diff)} (${pctSigned(pct)}) · ${bars} Kerzen`], up?'#123B33':'#401616', up?'#8FE3C8':'#FFB3AB', 0.9));
   }
   function fillRect(x,y,w,h,fill){
     const r = document.createElementNS(NS_SVG,'rect');
@@ -2714,33 +2918,61 @@
   // the dashed middle line to move the entry, the left/right edges to resize the
   // time span, or the body to move the whole thing — mirrors TradingView's
   // Long/Short Position tool.
+  // Wie TradingViews Long/Short-Werkzeug: die Box beginnt am Klick und laeuft ~25 Kerzen nach rechts.
+  // Stop-Abstand aus der aktuellen Schwankung (1,5 x ATR 14), Ziel doppelt so weit (R/R 1:2).
+  function recentAtr(n){
+    const d = state.data, end = Math.min(state.cursor, d.length - 1);
+    let sum = 0, k = 0;
+    for(let i = Math.max(1, end - n + 1); i <= end; i++){ const b = d[i], pc = d[i-1].close; sum += Math.max(b.high - b.low, Math.abs(b.high - pc), Math.abs(b.low - pc)); k++; }
+    return k ? sum / k : 0;
+  }
   function makeDefaultPosbox(pt, isShort){
-    // Size relative to the current zoom (not a fixed bar count) so the box is
-    // always comfortably grabbable, whether the chart shows days or months.
-    // Centered on the click and then shifted (not shrunk) to stay fully inside
-    // the visible range — a box extending past the visible edge can't be
-    // converted back to pixels (timeToCoordinate returns null) and silently
-    // fails to render at all, which is why placing it could look like nothing happened.
+    const l0 = logicalFromTime(pt.time);
+    let t1 = pt.time, t2 = l0 != null ? (timeFromLogical(l0 + 25) ?? pt.time + 25 * (state.barSeconds || 900)) : pt.time + 25 * (state.barSeconds || 900);
     const visible = chart.timeScale().getVisibleRange();
-    const barSec = state.barSeconds || 900;
-    let halfWidth = 10 * barSec;
-    if(visible && visible.to>visible.from) halfWidth = Math.max(4*barSec, (visible.to-visible.from)*0.04);
-    let t1 = pt.time - halfWidth, t2 = pt.time + halfWidth;
-    if(visible && visible.to>visible.from){
-      if(t2>visible.to){ const shift=t2-visible.to; t1-=shift; t2-=shift; }
-      if(t1<visible.from){ const shift=visible.from-t1; t1+=shift; t2+=shift; }
+    if(visible && visible.to > visible.from){
+      const lTo = logicalFromTime(visible.to), lFrom = logicalFromTime(visible.from), l2 = logicalFromTime(t2);
+      if(lTo != null && l2 != null && l2 > lTo + 8){ const sh = l2 - (lTo + 8); t1 = timeFromLogical(l0 - sh) ?? t1; t2 = timeFromLogical(l2 - sh) ?? t2; }
+      if(lFrom != null && logicalFromTime(t1) < lFrom){ t1 = visible.from; }
     }
-    const notional = parseFloat(els.qtyInput.value) || 1000;
-    // Long: target above entry, stop below. Short: target below entry, stop above —
-    // renderPosbox/openPnl already infer direction purely from tp-vs-entry, so this
-    // is just which default shape the box starts in, not a separate drawing type.
-    // Abstand relativ zum sichtbaren Kursbereich statt fest 1 % — sonst bedeckte die Box auf
-    // kleinen Zeitrahmen fast den ganzen Chart.
     const vb = visibleBoundsForClamp();
-    const dist = vb && vb.pMax > vb.pMin ? (vb.pMax - vb.pMin) * 0.12 : pt.price * 0.01;
-    const tpPrice = isShort ? pt.price - dist : pt.price + dist;
-    const slPrice = isShort ? pt.price + dist : pt.price - dist;
-    return { type:'posbox', t1, t2, entryPrice: pt.price, tpPrice, slPrice, qty: notional/pt.price };
+    const range = vb && vb.pMax > vb.pMin ? vb.pMax - vb.pMin : pt.price * 0.02;
+    let slDist = recentAtr(14) * 1.5;
+    if(!(slDist > 0)) slDist = range * 0.08;
+    slDist = Math.min(Math.max(slDist, range * 0.07), range * 0.25);   // gut greifbar, aber nicht riesig
+    const tpDist = slDist * 2;
+    const tpPrice = isShort ? pt.price - tpDist : pt.price + tpDist;
+    const slPrice = isShort ? pt.price + slDist : pt.price - slDist;
+    return { type:'posbox', t1, t2, entryPrice: pt.price, tpPrice, slPrice };
+  }
+  // Pip-Groesse fuer Forex (JPY-Paare 0,01, sonst 0,0001) — fuer alles andere null (dann Prozent).
+  function pipSize(symbol){
+    if(!symbol || /USDT$/.test(symbol) || symbol === 'PAXGUSDT' || symbol.length !== 6) return null;
+    return /JPY/.test(symbol) ? 0.01 : 0.0001;
+  }
+  function distLabel(a, b){
+    const ps = pipSize(state.symbol);
+    if(ps) return (Math.abs(a - b) / ps).toFixed(1).replace('.', ',') + ' Pips';
+    return (Math.abs(a - b) / b * 100).toFixed(2).replace('.', ',') + ' %';
+  }
+  // Stueckzahl der Box live aus dem Order-Feld: bei "%" aus dem Risiko (Stop-Abstand), sonst aus dem Betrag.
+  function posboxQty(d){
+    const risk = Math.abs(d.entryPrice - d.slPrice);
+    if(sizeMode === 'risk'){
+      const pct = parseFloat(document.getElementById('riskPctInput').value) || 1;
+      return risk > 0 ? (state.balance * pct / 100) / risk : 0;
+    }
+    const notional = parseFloat(els.qtyInput.value) || (d.qty ? d.qty * d.entryPrice : 1000);
+    return d.entryPrice > 0 ? notional / d.entryPrice : 0;
+  }
+  // Groesse/Risiko im Order-Feld geaendert -> Box-Beschriftungen sofort aktualisieren
+  ['qtyInput','riskPctInput'].forEach(id => { const el = document.getElementById(id); if(el) el.addEventListener('input', () => scheduleRenderDrawings()); });
+  document.getElementById('sizeModeToggle').addEventListener('click', () => setTimeout(scheduleRenderDrawings, 0));
+  function flipPosbox(d){
+    pushDrawUndo();
+    const tp = d.tpPrice, sl = d.slPrice, e = d.entryPrice;
+    d.tpPrice = e - (tp - e); d.slPrice = e - (sl - e);
+    renderDrawings(); saveState();
   }
 
   // Mirrors TradingView's Long/Short Position tool: no outer border, just the
@@ -2753,13 +2985,13 @@
     if(x1==null||x2==null||yTp==null||yEntry==null||ySl==null) return;
     const rx = Math.min(x1,x2), rw = Math.abs(x2-x1), cx = rx+rw/2;
     const isLong = d.tpPrice >= d.entryPrice;
-    const qty = d.qty || 0;
+    const qty = posboxQty(d);
 
-    svg.appendChild(fillRect(rx, Math.min(yEntry,yTp), rw, Math.abs(yEntry-yTp), 'rgba(38,166,154,0.32)'));
-    svg.appendChild(fillRect(rx, Math.min(yEntry,ySl), rw, Math.abs(yEntry-ySl), 'rgba(239,83,80,0.32)'));
-    svg.appendChild(svgLine(rx, yTp, rx+rw, yTp, { stroke:'#26A69A', 'stroke-width':1 }));
-    svg.appendChild(svgLine(rx, ySl, rx+rw, ySl, { stroke:'#EF5350', 'stroke-width':1 }));
-    svg.appendChild(svgLine(rx, yEntry, rx+rw, yEntry, { stroke:'#4FC3F7', 'stroke-width':1.3 }));
+    svg.appendChild(fillRect(rx, Math.min(yEntry,yTp), rw, Math.abs(yEntry-yTp), 'rgba(38,166,154,0.22)'));
+    svg.appendChild(fillRect(rx, Math.min(yEntry,ySl), rw, Math.abs(yEntry-ySl), 'rgba(239,83,80,0.22)'));
+    svg.appendChild(svgLine(rx, yTp, rx+rw, yTp, { stroke:'#26A69A', 'stroke-width':1.2 }));
+    svg.appendChild(svgLine(rx, ySl, rx+rw, ySl, { stroke:'#EF5350', 'stroke-width':1.2 }));
+    svg.appendChild(svgLine(rx, yEntry, rx+rw, yEntry, { stroke:'#B2B5BE', 'stroke-width':1.3 }));
 
     [rx, rx+rw].forEach(hx => { svg.appendChild(handleSquare(hx, yTp)); svg.appendChild(handleSquare(hx, ySl)); });
     svg.appendChild(handleCircle(rx, yEntry)); svg.appendChild(handleCircle(rx+rw, yEntry));
@@ -2774,10 +3006,14 @@
 
     const tpLabelY = yTp<yEntry ? yTp-13 : yTp+13;
     const slLabelY = ySl<yEntry ? ySl-13 : ySl+13;
-    svg.appendChild(svgPill(cx, tpLabelY, [`Ziel: ${usd(d.tpPrice)} (${tpPct.toFixed(2)}%) · Betrag ${usd(tpAmount,0)}`], '#123B33', '#8FE3C8', 0.9));
-    const rrTxt = rr!=null ? ` · R/R ${rr.toFixed(2)}` : '';
-    svg.appendChild(svgPill(cx, yEntry-14, [`${usdSigned(openPnl)} · ${qty.toFixed(4)} Stk.${rrTxt}`], '#12313D', '#8FE3FF', 0.6));
-    svg.appendChild(svgPill(cx, slLabelY, [`Stop: ${usd(d.slPrice)} (${slPct.toFixed(2)}%) · Betrag ${usd(slAmount,0)}`], '#401616', '#FFB3AB', 0.9));
+    svg.appendChild(svgPill(cx, tpLabelY, [`Ziel ${px(d.tpPrice)} · ${distLabel(d.tpPrice, d.entryPrice)} · +${usd(tpAmount, tpAmount < 100 ? 2 : 0)}`], '#123B33', '#8FE3C8', 0.92));
+    const riskPctAcc = state.balance > 0 ? slAmount / state.balance * 100 : 0;
+    const centerLines = [`${isLong ? 'Long' : 'Short'} · R/R ${rr != null ? '1:' + rr.toFixed(2).replace('.', ',') : '–'}`,
+      `Größe ${usd(qty * d.entryPrice, 0)} · Risiko ${usd(slAmount, slAmount < 100 ? 2 : 0)} (${riskPctAcc.toFixed(1).replace('.', ',')} %)`];
+    // Zweite Zeile (Groesse/Risiko) nur, wenn die Box hoch genug ist — sonst verdeckt das Schild die Box
+    const boxH = Math.abs(yTp - ySl);
+    svg.appendChild(svgPill(cx, yEntry, boxH > 90 ? centerLines : [centerLines[0] + ' · Risiko ' + usd(slAmount, slAmount < 100 ? 2 : 0)], '#1E222D', '#E3E6EC', 0.85));
+    svg.appendChild(svgPill(cx, slLabelY, [`Stop ${px(d.slPrice)} · ${distLabel(d.slPrice, d.entryPrice)} · −${usd(slAmount, slAmount < 100 ? 2 : 0)}`], '#401616', '#FFB3AB', 0.92));
   }
   function handleCircle(x,y){
     const c = document.createElementNS(NS_SVG,'circle');
@@ -2958,9 +3194,63 @@
     renderAsiaHighLowSvg(svg);
     renderPrevDayHighLowSvg(svg);
     renderWeeklyOpenSvg(svg);
+    renderFvgSvg(svg);
   }
 
-  ['sessionsToggle','asiaHlToggle','pdhlToggle','weeklyOpenToggle'].forEach(id=>{
+  // ---------- Fair Value Gaps (SMC/ICT) ----------
+  // Bullisch: Tief der 3. Kerze liegt ueber dem Hoch der 1. Kerze; baerisch umgekehrt. Die Zone beginnt an
+  // der mittleren Kerze und laeuft nach rechts, bis der Kurs sie komplett gefuellt hat. Nur bis zur aktuellen
+  // Replay-Kerze — nichts aus der Zukunft. Ergebnis wird pro Kerze zwischengespeichert.
+  let fvgCache = { key:'', list:[] };
+  function computeFvgs(from){
+    const d = state.data, end = state.cursor, out = [];
+    const minGap = d[end] ? d[end].close * 0.00008 : 0;
+    for(let i = Math.max(2, from); i <= end; i++){
+      const a = d[i-2], c = d[i];
+      let lo = null, hi = null, bull = null;
+      if(c.low > a.high && c.low - a.high >= minGap){ lo = a.high; hi = c.low; bull = true; }
+      else if(c.high < a.low && a.low - c.high >= minGap){ lo = c.high; hi = a.low; bull = false; }
+      if(bull === null) continue;
+      let filledAt = null, top = hi, bot = lo;
+      for(let j = i + 1; j <= end; j++){
+        const b = d[j];
+        if(bull){ if(b.low <= lo){ filledAt = j; break; } if(b.low < top) top = b.low; }
+        else { if(b.high >= hi){ filledAt = j; break; } if(b.high > bot) bot = b.high; }
+      }
+      out.push({ start:i-1, end:filledAt, lo: bull ? lo : bot, hi: bull ? top : hi, bull });
+    }
+    return out;
+  }
+  function renderFvgSvg(svg){
+    if(!els.fvgToggle || !els.fvgToggle.checked || !state.data.length) return;
+    const lr = chart.timeScale().getVisibleLogicalRange(); if(!lr) return;
+    const from = Math.max(2, Math.floor(lr.from) - 400);
+    const key = [state.symbol, state.tf, state.cursor, state.data.length, from].join('|');
+    if(fvgCache.key !== key) fvgCache = { key, list: computeFvgs(from) };
+    const W = plotRightX();
+    let shown = 0;
+    for(let k = fvgCache.list.length - 1; k >= 0 && shown < 60; k--){
+      const f = fvgCache.list[k];
+      if(f.end != null && f.end < lr.from) continue;
+      if(f.start > lr.to) continue;
+      const x1 = chart.timeScale().logicalToCoordinate(f.start);
+      const x2 = f.end != null ? chart.timeScale().logicalToCoordinate(f.end) : W;
+      const y1 = yFromPriceRobust(f.hi), y2 = yFromPriceRobust(f.lo);
+      if(x1 == null || x2 == null || y1 == null || y2 == null) continue;
+      const open = f.end == null;
+      const col = f.bull ? '38,166,154' : '239,83,80';
+      const r = document.createElementNS(NS_SVG, 'rect');
+      r.setAttribute('x', Math.min(x1, x2)); r.setAttribute('y', Math.min(y1, y2));
+      r.setAttribute('width', Math.max(1, Math.abs(x2 - x1))); r.setAttribute('height', Math.max(1, Math.abs(y2 - y1)));
+      r.setAttribute('fill', `rgba(${col},${open ? 0.16 : 0.07})`);
+      r.setAttribute('stroke', `rgba(${col},${open ? 0.55 : 0.2})`); r.setAttribute('stroke-width', '1');
+      svg.appendChild(r);
+      if(open && Math.abs(x2 - x1) > 40) svg.appendChild(svgText(Math.min(x1, x2) + 4, Math.min(y1, y2) + 10, 'FVG', { fill:`rgba(${col},0.9)`, 'font-size':'9.5px', 'font-weight':'700' }));
+      shown++;
+    }
+  }
+
+  ['sessionsToggle','asiaHlToggle','pdhlToggle','weeklyOpenToggle','fvgToggle'].forEach(id=>{
     els[id].addEventListener('change', ()=>{ scheduleRenderDrawings(); saveState(); });
   });
 
@@ -3006,6 +3296,7 @@
       const sel = state.drawings.find(dd=>dd.id===state.selectedDrawingId);
       if(sel) renderSelection(svg, sel); else state.selectedDrawingId=null;
     }
+    updateSelBar();
     // Angefangene Form (erster Punkt gesetzt) wieder mitzeichnen — sonst verschwand sie bei jedem
     // Neuaufbau (Abspielen, neue Kerze, Preisskala), auf dem iPad gibt es dazwischen keine Mausbewegung.
     if(drawStart && state.activeTool!=='cursor') renderPreview(state.activeTool, drawStart, drawPreviewPt || drawStart);
@@ -3473,7 +3764,7 @@
     if(!bars || !bars.length){
       const msg = 'Keine Kursdaten verfügbar für '+(SYMBOL_NAME[symbol]||symbol)+' ('+(TF_NAME[tf]||tf)+'). Prüfe deine Internetverbindung.';
       window.dispatchEvent(new ErrorEvent('error', { message: msg }));
-      try{ alert(msg); }catch(e){}
+      showToast(msg, 7000);
       return false;
     }
 
@@ -3482,7 +3773,7 @@
     state.smaFull = { 20: sma(state.data, 20), 50: sma(state.data, 50) };
     state.bbFull = bollinger(state.data, 20, 2);
     state.rsiFull = rsi(state.data, 14);
-    state.barSeconds = state.data[1].time - state.data[0].time;
+    state.barSeconds = barSecondsFor(state.data, state.tf);
     const prec = decimalsFor(state.data[state.data.length-1].close);
     candleSeries.applyOptions({ priceFormat:{ type:'price', precision:prec, minMove: Math.pow(10,-prec) } });
     resetDrawingsForNewData();
@@ -3640,6 +3931,8 @@
   // ---------- formatting ----------
   function decimalsFor(v){ const av=Math.abs(v); if(av<1) return 5; if(av<10) return 4; return 2; }
   const usd = (v, d) => { const dec = (d===undefined) ? decimalsFor(v) : d; return (v<0?'-€':'€') + Math.abs(v).toLocaleString('de-DE', {minimumFractionDigits:dec, maximumFractionDigits:dec}); };
+  // Kurse (EUR/USD 1,1387 · BTC 77.250,00) ohne Euro-Zeichen — € nur fuer Kontostand, Gewinn und Groesse
+  const px = (v, d) => { if(v == null || !isFinite(v)) return '–'; const dec = (d===undefined) ? decimalsFor(v) : d; return (v<0?'-':'') + Math.abs(v).toLocaleString('de-DE', {minimumFractionDigits:dec, maximumFractionDigits:dec}); };
   const usdSigned = (v) => (v>=0?'+':'-') + '€' + Math.abs(v).toLocaleString('de-DE', {minimumFractionDigits:2, maximumFractionDigits:2});
   const pctSigned = (v) => (v>=0?'+':'') + v.toFixed(2) + '%';
   const priceFmt = (v) => v.toLocaleString('de-DE', {minimumFractionDigits:2, maximumFractionDigits: v<10?4:2});
@@ -3812,7 +4105,7 @@
       state.smaFull = { 20: sma(state.data, 20), 50: sma(state.data, 50) };
       state.bbFull = bollinger(state.data, 20, 2);
       state.rsiFull = rsi(state.data, 14);
-      state.barSeconds = state.data.length>1 ? (state.data[1].time-state.data[0].time) : Math.round((TF_MS[newTf]||900000)/1000);
+      state.barSeconds = barSecondsFor(state.data, newTf);
       const prec = decimalsFor(state.data[state.data.length-1].close);
       candleSeries.applyOptions({ priceFormat:{ type:'price', precision:prec, minMove: Math.pow(10,-prec) } });
       state.fetchEndTimeMs = newFetchEnd;
@@ -4060,8 +4353,20 @@
     if(rsiSeries && state.rsiFull[state.cursor]!=null) rsiSeries.update({time:bar.time, value:state.rsiFull[state.cursor]});
     stepXInd(state.cursor);
     renderIndLegend();
+    const hadOrder = !!state.pendingOrder, hadPos = !!state.position, nJournal = state.journal.length;
+    const prevClose = state.data[state.cursor-1] ? state.data[state.cursor-1].close : null;
     if(state.pendingOrder) checkPendingOrderAgainstBar(bar);
     if(state.position) checkPositionAgainstBar(bar);
+    // Wichtige Ereignisse halten das Abspielen an und werden angezeigt (sonst verpasst man sie)
+    const events = [];
+    if(hadOrder && !state.pendingOrder && state.position) events.push('Limit-Order ausgeführt bei ' + px(state.position.entryPrice));
+    if((hadPos || hadOrder) && state.journal.length > nJournal){
+      const t = state.journal[state.journal.length-1];
+      events.push((REASON_LABEL[t.reason] || t.reason) + ': ' + usdSigned(t.pnl));
+    }
+    const alerts = checkDrawingAlerts(bar, prevClose);
+    alerts.forEach(p => events.push('🔔 Alarm: Kurs hat ' + px(p) + ' erreicht'));
+    if(events.length){ if(state.playing) pause(); showToast(events.join(' · '), 5000); }
     state.equityHistory.push({ i: state.cursor, equity: computeEquity() });
     updateAccountUI();
     updateProgressUI();
@@ -4342,7 +4647,7 @@
   }
   function saveStrategyFromEditor(){
     const name = els.stratNameInput.value.trim();
-    if(!name){ alert('Bitte einen Namen für die Strategie eingeben.'); return; }
+    if(!name){ showToast('Bitte einen Namen für die Strategie eingeben.'); return; }
     const checklist = collectEditorChecklist();
     if(state.editingStrategyId){
       const s = findStrategy(state.editingStrategyId);
@@ -4354,9 +4659,12 @@
     renderActiveStrategySelect();
     closeStrategyEditor();
   }
+  let stratDeleteArmedUntil = 0;
   function deleteStrategyFromEditor(){
     if(!state.editingStrategyId) return;
-    if(!confirm('Diese Strategie wirklich löschen? Bereits geloggte Trades behalten ihren Strategienamen, verlieren aber den Link zur Checkliste.')) return;
+    // confirm() erscheint in der Claude-App nicht — deshalb zweimal tippen zum Loeschen
+    if(Date.now() > stratDeleteArmedUntil){ stratDeleteArmedUntil = Date.now() + 4000; showToast('Nochmal auf „Löschen“ tippen, um die Strategie wirklich zu löschen. Bereits geloggte Trades behalten ihren Strategienamen.', 4000); return; }
+    stratDeleteArmedUntil = 0;
     state.strategies = state.strategies.filter(s=>s.id!==state.editingStrategyId);
     saveStrategies();
     if(state.activeStrategyId===state.editingStrategyId){ state.activeStrategyId=''; state.activeChecklist={}; }
@@ -4473,15 +4781,15 @@
     const price = bar.close;
     if(sizeMode === 'risk'){
       const rs = computeRiskSizing(side, price);
-      if(!rs.ok){ alert(rs.msg); return; }
+      if(!rs.ok){ showToast(rs.msg, 6500); return; }
       els.qtyInput.value = rs.notional.toFixed(2);
     }
     const notional = parseFloat(els.qtyInput.value);
     const leverage = parseFloat(els.leverageSelect.value) || 1;
-    if(!notional || notional<=0){ alert('Bitte eine gültige Positionsgröße eingeben.'); return; }
+    if(!notional || notional<=0){ showToast('Bitte eine gültige Positionsgröße eingeben.', 5000); return; }
     const margin = notional/leverage;
     if(margin > state.balance + 1e-9){
-      alert('Nicht genug Kontostand für diese Positionsgröße bei diesem Hebel.\nBenötigte Marge: '+usd(margin)+'\nVerfügbar: '+usd(state.balance));
+      showToast('Nicht genug Kontostand für diese Positionsgröße bei diesem Hebel. Benötigte Marge: '+usd(margin)+' · verfügbar: '+usd(state.balance), 7000);
       return;
     }
     const qty = notional/price;
@@ -4538,25 +4846,26 @@
   function placeLimitOrder(side){
     if(state.position || state.pendingOrder || state.ended || state.reviewing) return;
     const limitPrice = parseFloat(els.limitPriceInput.value);
-    if(!limitPrice || limitPrice<=0){ alert('Bitte einen gültigen Limit-Preis eingeben.'); return; }
+    if(!limitPrice || limitPrice<=0){ showToast('Bitte einen gültigen Limit-Preis eingeben (Feld „Limit-Preis“ im Order-Feld).', 5500); return; }
     if(sizeMode === 'risk'){
       const rs = computeRiskSizing(side, limitPrice);
-      if(!rs.ok){ alert(rs.msg); return; }
+      if(!rs.ok){ showToast(rs.msg, 6500); return; }
       els.qtyInput.value = rs.notional.toFixed(2);
     }
     const notional = parseFloat(els.qtyInput.value);
     const leverage = parseFloat(els.leverageSelect.value) || 1;
-    if(!notional || notional<=0){ alert('Bitte eine gültige Positionsgröße eingeben.'); return; }
+    if(!notional || notional<=0){ showToast('Bitte eine gültige Positionsgröße eingeben.', 5000); return; }
     const margin = notional/leverage;
     if(margin > state.balance + 1e-9){
-      alert('Nicht genug Kontostand für diese Positionsgröße bei diesem Hebel.\nBenötigte Marge: '+usd(margin)+'\nVerfügbar: '+usd(state.balance));
+      showToast('Nicht genug Kontostand für diese Positionsgröße bei diesem Hebel. Benötigte Marge: '+usd(margin)+' · verfügbar: '+usd(state.balance), 7000);
       return;
     }
     const tpOn = els.tpEnabled.checked, slOn = els.slEnabled.checked;
     const tpPct = parseFloat(els.tpPct.value), slPct = parseFloat(els.slPct.value);
     const tpPrice = resolveDraftOrPct('tp', side, limitPrice, tpOn, tpPct);
     const slPrice = resolveDraftOrPct('sl', side, limitPrice, slOn, slPct);
-    state.pendingOrder = { side, limitPrice, notional, leverage, margin, tpPrice, slPrice, balanceAtEntry: state.balance, ...snapshotActiveStrategy() };
+    const dir = state.data.length ? (limitPrice < currentBar().close ? 'below' : 'above') : null;
+    state.pendingOrder = { side, limitPrice, dir, notional, leverage, margin, tpPrice, slPrice, balanceAtEntry: state.balance, ...snapshotActiveStrategy() };
     clearDrafts();
     drawPendingOrderLine();
     updateAccountUI();
@@ -4576,20 +4885,25 @@
   function checkPendingOrderAgainstBar(bar){
     const o = state.pendingOrder;
     if(!o) return;
-    if(bar.low<=o.limitPrice && bar.high>=o.limitPrice) fillPendingOrder(bar.time);
+    // Springt der Kurs ueber den Limit-Preis hinweg (Luecke), wird zum Eroeffnungskurs ausgefuehrt.
+    // dir = ob der Preis beim Platzieren unter ('below') oder ueber ('above') dem Kurs lag.
+    if(o.dir === 'below'){ if(bar.low <= o.limitPrice) fillPendingOrder(bar.time, Math.min(o.limitPrice, bar.open)); }
+    else if(o.dir === 'above'){ if(bar.high >= o.limitPrice) fillPendingOrder(bar.time, Math.max(o.limitPrice, bar.open)); }
+    else if(bar.low<=o.limitPrice && bar.high>=o.limitPrice) fillPendingOrder(bar.time);
   }
-  function fillPendingOrder(fillTime){
+  function fillPendingOrder(fillTime, fillPrice){
     const o = state.pendingOrder;
     if(!o) return;
-    const qty = o.notional/o.limitPrice;
+    const fillPx = (typeof fillPrice === 'number' && isFinite(fillPrice) && fillPrice > 0) ? fillPrice : o.limitPrice;
+    const qty = o.notional/fillPx;
     const entryFee = o.notional*state.feePct/100;
-    const liqPrice = o.leverage>1 ? (o.side==='long' ? o.limitPrice*(1-1/o.leverage) : o.limitPrice*(1+1/o.leverage)) : null;
+    const liqPrice = o.leverage>1 ? (o.side==='long' ? fillPx*(1-1/o.leverage) : fillPx*(1+1/o.leverage)) : null;
     state.position = {
       side:o.side, qty, notional:o.notional, leverage:o.leverage, margin:o.margin,
-      entryPrice:o.limitPrice, entryFee, entryTime:fillTime,
+      entryPrice:fillPx, entryFee, entryTime:fillTime,
       tpPrice:o.tpPrice, slPrice:o.slPrice, liqPrice,
-      tpPct: o.tpPrice!=null ? Math.abs(o.tpPrice-o.limitPrice)/o.limitPrice*100 : null,
-      slPct: o.slPrice!=null ? Math.abs(o.slPrice-o.limitPrice)/o.limitPrice*100 : null,
+      tpPct: o.tpPrice!=null ? Math.abs(o.tpPrice-fillPx)/fillPx*100 : null,
+      slPct: o.slPrice!=null ? Math.abs(o.slPrice-fillPx)/fillPx*100 : null,
       balanceAtEntry: o.balanceAtEntry!=null ? o.balanceAtEntry : state.balance, note:'',
       strategyId:o.strategyId||null, strategyName:o.strategyName||null, checklist:o.checklist||[]
     };
@@ -4617,10 +4931,10 @@
     els.pendingOrderPanel.hidden = false;
     els.pendingSide.textContent = o.side==='long' ? 'Long-Limit' : 'Short-Limit';
     els.pendingSide.className = 'pos-side ' + o.side;
-    els.pendingPrice.textContent = usd(o.limitPrice);
+    els.pendingPrice.textContent = px(o.limitPrice);
     els.pendingQty.textContent = usd(o.notional,0) + ' @ ' + o.leverage + 'x';
-    els.pendingTp.textContent = o.tpPrice!=null ? usd(o.tpPrice) : '– aus –';
-    els.pendingSl.textContent = o.slPrice!=null ? usd(o.slPrice) : '– aus –';
+    els.pendingTp.textContent = o.tpPrice!=null ? px(o.tpPrice) : '– aus –';
+    els.pendingSl.textContent = o.slPrice!=null ? px(o.slPrice) : '– aus –';
   }
   function updateOrderPreview(){
     const leverage = parseFloat(els.leverageSelect.value) || 1;
@@ -4666,19 +4980,20 @@
     const pos = state.position;
     if(!pos) return;
     let reason=null, price=null;
+    // Kurs-Luecken (z. B. Forex-Wochenende): eroeffnet die Kerze schon jenseits von Stop oder Ziel,
+    // wird zum Eroeffnungskurs ausgefuehrt — beim Stop schlechter, beim Ziel besser, wie im echten Markt.
+    const open = bar.open;
     if(pos.side==='long'){
       const stopBarrier = pos.liqPrice!=null ? Math.max(pos.slPrice ?? -Infinity, pos.liqPrice) : pos.slPrice;
-      if(stopBarrier!=null && bar.low <= stopBarrier){
-        reason = (pos.liqPrice!=null && stopBarrier===pos.liqPrice && stopBarrier>=(pos.slPrice ?? -Infinity)) ? 'liquidation' : 'sl';
-        price = applySlippage(stopBarrier, 'long');
-      }
+      const stopReason = () => (pos.liqPrice!=null && stopBarrier===pos.liqPrice && stopBarrier>=(pos.slPrice ?? -Infinity)) ? 'liquidation' : 'sl';
+      if(pos.tpPrice!=null && open >= pos.tpPrice && !(stopBarrier!=null && open <= stopBarrier)){ reason='tp'; price=open; }
+      else if(stopBarrier!=null && bar.low <= stopBarrier){ reason = stopReason(); price = applySlippage(Math.min(stopBarrier, open), 'long'); }
       else if(pos.tpPrice!=null && bar.high >= pos.tpPrice){ reason='tp'; price=pos.tpPrice; }
     } else {
       const stopBarrier = pos.liqPrice!=null ? Math.min(pos.slPrice ?? Infinity, pos.liqPrice) : pos.slPrice;
-      if(stopBarrier!=null && bar.high >= stopBarrier){
-        reason = (pos.liqPrice!=null && stopBarrier===pos.liqPrice && stopBarrier<=(pos.slPrice ?? Infinity)) ? 'liquidation' : 'sl';
-        price = applySlippage(stopBarrier, 'short');
-      }
+      const stopReason = () => (pos.liqPrice!=null && stopBarrier===pos.liqPrice && stopBarrier<=(pos.slPrice ?? Infinity)) ? 'liquidation' : 'sl';
+      if(pos.tpPrice!=null && open <= pos.tpPrice && !(stopBarrier!=null && open >= stopBarrier)){ reason='tp'; price=open; }
+      else if(stopBarrier!=null && bar.high >= stopBarrier){ reason = stopReason(); price = applySlippage(Math.max(stopBarrier, open), 'short'); }
       else if(pos.tpPrice!=null && bar.low <= pos.tpPrice){ reason='tp'; price=pos.tpPrice; }
     }
     if(reason) closePosition(price, bar.time, reason);
@@ -4804,7 +5119,7 @@
     const marginUsed = state.position ? state.position.margin : 0;
     els.marginUsedOut.textContent = usd(marginUsed, 0);
     els.freeMarginOut.textContent = usd(Math.max(0, state.balance - marginUsed), 0);
-    els.priceNow.textContent = state.data.length ? usd(currentBar().close) : '–';
+    els.priceNow.textContent = state.data.length ? px(currentBar().close) : '–';
     const srcTag = document.getElementById('srcTag');
     if(state.data.length){
       const isLive = liveSessionActive();
@@ -4826,7 +5141,7 @@
     els.limitPriceInput.disabled = !canTrade;
     els.orderTypeToggle.querySelectorAll('button').forEach(b => b.disabled = !canTrade);
     if(state.data.length){
-      const price = usd(currentBar().close);
+      const price = px(currentBar().close);
       els.qtBuyPrice.textContent = price;
       els.qtSellPrice.textContent = price;
     }
@@ -4842,7 +5157,7 @@
     const prev = state.cursor>0 ? state.data[state.cursor-1] : null;
     const chg = prev ? (bar.close-prev.close)/prev.close*100 : 0;
     const chgCls = chg>=0 ? 'up-txt' : 'down-txt';
-    els.ohlcLine.innerHTML = `O <b>${usd(bar.open)}</b> H <b>${usd(bar.high)}</b> L <b>${usd(bar.low)}</b> C <b>${usd(bar.close)}</b> <b class="${chgCls}">${pctSigned(chg)}</b>`;
+    els.ohlcLine.innerHTML = `O <b>${px(bar.open)}</b> H <b>${px(bar.high)}</b> L <b>${px(bar.low)}</b> C <b>${px(bar.close)}</b> <b class="${chgCls}">${pctSigned(chg)}</b>`;
   }
 
   function updatePositionUI(){
@@ -4856,13 +5171,13 @@
     els.posSide.className = 'pos-side ' + pos.side;
     els.posPnl.textContent = usdSigned(unreal) + '  (' + pctSigned(unrealPct) + ')';
     els.posPnl.className = 'pos-pnl ' + (unreal>=0?'up-txt':'down-txt');
-    els.posEntry.textContent = usd(pos.entryPrice);
-    els.posCurrent.textContent = usd(bar.close);
+    els.posEntry.textContent = px(pos.entryPrice);
+    els.posCurrent.textContent = px(bar.close);
     els.posQty.textContent = usd(pos.notional,0) + ' @ ' + pos.leverage + 'x' + (pos.partials && pos.partials.length ? ' (Rest)' : '');
-    els.posTp.textContent = pos.tpPrice!=null ? usd(pos.tpPrice) + ' (' + pos.tpPct.toFixed(2) + '%)' : '– aus –';
-    els.posSl.textContent = pos.slPrice!=null ? usd(pos.slPrice) + ' (' + pos.slPct.toFixed(2) + '%)' : '– aus –';
+    els.posTp.textContent = pos.tpPrice!=null ? px(pos.tpPrice) + ' (' + pos.tpPct.toFixed(2) + '%)' : '– aus –';
+    els.posSl.textContent = pos.slPrice!=null ? px(pos.slPrice) + ' (' + pos.slPct.toFixed(2) + '%)' : '– aus –';
     els.posLiqRow.hidden = pos.liqPrice==null;
-    if(pos.liqPrice!=null) els.posLiq.textContent = usd(pos.liqPrice);
+    if(pos.liqPrice!=null) els.posLiq.textContent = px(pos.liqPrice);
     // Only reset the note field when a DIFFERENT position is now shown — this
     // function reruns on every step/price tick, and overwriting the field's
     // value on every call would erase whatever the user is mid-typing.
@@ -4948,8 +5263,8 @@
         <td><span class="chip ${t.side}">${t.side==='long'?'Long':'Short'}</span></td>
         <td class="num">${fmtTime(t.entryTime)}</td>
         <td class="num">${fmtTime(t.exitTime)}</td>
-        <td class="num">${usd(t.entryPrice)}</td>
-        <td class="num">${usd(t.exitPrice)}</td>
+        <td class="num">${px(t.entryPrice)}</td>
+        <td class="num">${px(t.exitPrice)}</td>
         <td class="num">${usd(t.notional,0)}</td>
         <td class="num">${t.leverage}x</td>
         <td><span class="chip ${t.reason==='tp'?'tp':(t.reason==='sl'||t.reason==='liquidation')?'sl':'manual'}">${REASON_LABEL[t.reason]||t.reason}</span></td>
@@ -5883,7 +6198,7 @@
   });
 
   // ---------- Menues, Hilfe-Fenster, Indikator-Badge (Theme v2) ----------
-  const IND_TOGGLE_IDS = ['ma20Toggle','ma50Toggle','bbToggle','rsiToggle','volumeToggle','sessionsToggle','asiaHlToggle','pdhlToggle','weeklyOpenToggle'];
+  const IND_TOGGLE_IDS = ['ma20Toggle','ma50Toggle','bbToggle','rsiToggle','volumeToggle','sessionsToggle','asiaHlToggle','pdhlToggle','weeklyOpenToggle','fvgToggle'];
   function renderIndBadge(){
     const n = IND_TOGGLE_IDS.filter(id => els[id] && els[id].checked).length + document.querySelectorAll('#indMenu input[data-xind]:checked').length;
     renderIndLegend();
@@ -6293,7 +6608,7 @@
     state.position = null; state.pendingOrder = null;
     state.symbol = got.sym; state.tf = got.tf;
     state.data = got.bars; state.sessionStart = 0; state.sessionSplit = 0; state.cursor = got.bars.length-1; state.ended = false;
-    state.barSeconds = state.data[1].time - state.data[0].time;
+    state.barSeconds = barSecondsFor(state.data, state.tf);
     state.smaFull = { 20: sma(state.data, 20), 50: sma(state.data, 50) };
     state.bbFull = bollinger(state.data, 20, 2);
     state.rsiFull = rsi(state.data, 14);
@@ -6399,8 +6714,8 @@
           <td class="num">${t.closedAt ? new Date(t.closedAt).toLocaleString('de-DE', { day:'2-digit', month:'2-digit', year:'2-digit', hour:'2-digit', minute:'2-digit' }) : '–'}</td>
           <td>${escapeHtml(SYMBOL_NAME[t.symbol] || t.symbol || '–')} · ${escapeHtml(TF_NAME[t.tf] || t.tf || '')}</td>
           <td><span class="chip ${t.side}">${t.side === 'long' ? 'Long' : 'Short'}</span></td>
-          <td class="num">${t.entryTime != null ? fmtTimeY(t.entryTime) : '–'} · ${t.entryPrice != null ? usd(t.entryPrice) : ''}</td>
-          <td class="num">${t.exitTime != null ? fmtTimeY(t.exitTime) : '–'} · ${t.exitPrice != null ? usd(t.exitPrice) : ''}</td>
+          <td class="num">${t.entryTime != null ? fmtTimeY(t.entryTime) : '–'} · ${t.entryPrice != null ? px(t.entryPrice) : ''}</td>
+          <td class="num">${t.exitTime != null ? fmtTimeY(t.exitTime) : '–'} · ${t.exitPrice != null ? px(t.exitPrice) : ''}</td>
           <td><span class="chip ${t.reason==='tp'?'tp':(t.reason==='sl'||t.reason==='liquidation')?'sl':'manual'}">${REASON_LABEL[t.reason] || t.reason || '–'}</span></td>
           <td>${t.strategyName ? escapeHtml(t.strategyName) : '–'}</td>
           <td class="note-cell" title="${escapeHtml(t.note || '')}">${escapeHtml(t.note || '')}</td>
@@ -6455,7 +6770,7 @@
       markers, ma20: !!els.ma20Toggle.checked, ma50: !!els.ma50Toggle.checked,
       bb: !!els.bbToggle.checked, rsi: !!els.rsiToggle.checked,
       sessions: !!els.sessionsToggle.checked, asiaHl: !!els.asiaHlToggle.checked,
-      pdhl: !!els.pdhlToggle.checked, weeklyOpen: !!els.weeklyOpenToggle.checked,
+      pdhl: !!els.pdhlToggle.checked, weeklyOpen: !!els.weeklyOpenToggle.checked, fvg: !!els.fvgToggle.checked,
       xind: Object.keys(xSeries), volume: !!els.volumeToggle.checked,
       fetchEndTimeMs: state.fetchEndTimeMs, bundleOffset: state.bundleOffset, dataLen: state.data.length
     };
@@ -6467,6 +6782,7 @@
     state.drawTomb = mg.drawTomb;
     if(!mg.added && !mg.removed) return false;
     state.drawings = mg.drawings;
+    migrateDrawingTimes(state.drawings);
     if(state.selectedDrawingId && !state.drawings.some(d => d.id === state.selectedDrawingId)) state.selectedDrawingId = null;
     renderDrawings();
     return true;
@@ -6538,6 +6854,7 @@
     state.journal = Array.isArray(save.journal) ? save.journal : [];
     state.equityHistory = (Array.isArray(save.equityHistory) && save.equityHistory.length) ? save.equityHistory : [{ i:cursor, equity:state.balance }];
     state.drawings = Array.isArray(save.drawings) ? save.drawings : [];
+    migrateDrawingTimes(state.drawings);
     state.drawTomb = Array.isArray(save.drawTomb) ? save.drawTomb.slice(-400) : [];
     state.epoch = save.epoch || 0;
     slotSeen[sessId(slotGroupKey(state.symbol, state.tf), state.activeSlot)] = save.savedAt;
@@ -6576,6 +6893,7 @@
     els.asiaHlToggle.checked = !!save.asiaHl;
     els.pdhlToggle.checked = !!save.pdhl;
     els.weeklyOpenToggle.checked = !!save.weeklyOpen;
+    els.fvgToggle.checked = !!save.fvg;
     renderIndicators(true);
 
     candleSeries.setMarkers(markers);
