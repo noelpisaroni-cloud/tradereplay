@@ -607,6 +607,15 @@
   .boot-banner .bb-actions button.alt{ background:transparent; color:var(--ink); }
   .boot-banner .bb-log{ margin-top:12px; text-align:left; white-space:pre-wrap; font:11px/1.45 ui-monospace,Menlo,monospace; color:var(--ink-soft); max-height:30vh; overflow:auto; }
   .boot-banner .bb-ver{ margin-top:8px; font-size:11px; color:var(--ink-faint); }
+  /* TP/SL-Werkzeug-Knoepfe: immer mit Beschriftung, deutlich sichtbar */
+  .tool-btn.pos-tool{ border:1px solid var(--line-strong, var(--line)); color:var(--ink); }
+  .tool-btn.pos-tool .lbl{ display:inline !important; }
+  .tool-btn.pos-tool.long:hover, .tool-btn.pos-tool.long.active{ border-color:#26A69A; background:rgba(38,166,154,.14); color:var(--ink); }
+  .tool-btn.pos-tool.short:hover, .tool-btn.pos-tool.short.active{ border-color:#EF5350; background:rgba(239,83,80,.14); color:var(--ink); }
+  @media (max-width:520px){ .tool-btn.pos-tool .lbl{ font-size:11px; } .tool-btn.pos-tool{ padding:0 7px; } }
+  @media (max-width:760px){ .chart-head .chart-tools{ flex-wrap:wrap; margin-left:0; row-gap:4px; } }
+  /* Legende + Kaufen/Verkaufen liegen ueber den Zeichnungen (sonst verdeckte z. B. ein Rechteck die Knoepfe) */
+  .chart-overlay-tl{ z-index:6; }
 </style>
 
 <div class="app">
@@ -701,6 +710,14 @@
             <span class="src-tag" id="srcTag" hidden></span>
           </div>
           <div class="chart-tools">
+            <button class="tool-btn pos-tool long" data-pos-tool="poslong" title="TP/SL-Werkzeug Long: in den Chart tippen, wo du einsteigen willst – Ziel (grün) oben, Stop (rot) unten, danach frei ziehen">
+              <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="8.5" rx="1.5" fill="#26A69A"/><rect x="3" y="12.5" width="18" height="8.5" rx="1.5" fill="#EF5350"/></svg>
+              <span class="lbl">Long TP/SL</span>
+            </button>
+            <button class="tool-btn pos-tool short" data-pos-tool="posshort" title="TP/SL-Werkzeug Short: in den Chart tippen, wo du einsteigen willst – Ziel (grün) unten, Stop (rot) oben, danach frei ziehen">
+              <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="8.5" rx="1.5" fill="#EF5350"/><rect x="3" y="12.5" width="18" height="8.5" rx="1.5" fill="#26A69A"/></svg>
+              <span class="lbl">Short TP/SL</span>
+            </button>
             <div class="menu-wrap">
               <button class="tool-btn" id="indMenuBtn" data-menu-btn="indMenu" aria-haspopup="true" aria-expanded="false" title="Indikatoren und Marktzeiten ein-/ausblenden">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l5-5 4 4 8-9"/><path d="M3 21h18"/></svg>
@@ -1488,7 +1505,7 @@
     ray: 'Klicken, um einen horizontalen Strahl zu setzen, der nur nach rechts weiterl&auml;uft.',
     hline: 'Klicken, um eine horizontale Linie zu setzen.',
     vline: 'Klicken, um eine senkrechte Linie an diesem Zeitpunkt zu setzen.',
-    rect: 'Ziehen oder zwei Ecken nacheinander antippen, um eine Zone aufzuspannen. Danach Ecken/Kanten ziehen zum Anpassen; zum Verschieben das Rechteck erst antippen.',
+    rect: 'Ziehen oder zwei Ecken nacheinander antippen, um eine Zone aufzuspannen. Danach Ecken/Kanten ziehen zum Anpassen; zum Verschieben einfach hineinfassen und ziehen.',
     fib: 'Von Hoch zu Tief (oder umgekehrt) ziehen &ndash; oder beide Punkte nacheinander antippen.',
     text: 'Tippe in den Chart, wo der Text stehen soll, und schreib los. Eine Notiz antippen (oder doppelklicken), um sie zu ändern.',
     measure: 'Ziehen oder zwei Punkte nacheinander antippen, um Preis-/Prozent-Unterschied und Kerzenanzahl zu messen.',
@@ -1498,7 +1515,7 @@
     posshort: 'Short-Position: Bewege die Maus &uuml;ber den Chart &ndash; die Vorschau zeigt, wo die Box landet (Ziel unten, Stop oben). Klicken zum Platzieren, danach TP/SL/R&auml;nder/Einstieg einzeln oder die ganze Box per Drag anpassen.'
   };
   let drawStart = null;
-  let drawStartXY = null, drawAwaitSecond = false;
+  let drawStartXY = null, drawAwaitSecond = false, drawPreviewPt = null;
   // Finger brauchen groessere Greifbereiche als die Maus (iPad, Handy).
   const TOUCH_UI = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
   // Rueckgaengig-Stapel fuer Zeichnungen: vor jeder Aenderung (neu, loeschen, alle loeschen,
@@ -1512,6 +1529,7 @@
   function setActiveTool(tool){
     state.activeTool = tool;
     els.drawToolbar.querySelectorAll('.draw-btn[data-tool]').forEach(b => b.classList.toggle('active', b.dataset.tool===tool));
+    document.querySelectorAll('[data-pos-tool]').forEach(b => b.classList.toggle('active', b.dataset.posTool===tool));
     els.drawOverlay.classList.toggle('active', tool!=='cursor');
     const hint = TOOL_HINTS[tool] || '';
     els.drawHint.innerHTML = hint;
@@ -2040,9 +2058,8 @@
         const onBorder = (x>=left-HIT && x<=right+HIT && (Math.abs(y-top)<=HIT || Math.abs(y-bottom)<=HIT))
           || (y>=top-HIT && y<=bottom+HIT && (Math.abs(x-left)<=HIT || Math.abs(x-right)<=HIT));
         if(onBorder) return { id:d.id, mode:'move' };
-        // Innenflaeche nur bei ausgewaehltem Rechteck — sonst liesse sich der Chart hinter einer
-        // grossen Zone nicht mehr verschieben. Einmal antippen waehlt es aus.
-        if(state.selectedDrawingId===d.id && x>=left && x<=right && y>=top && y<=bottom) return { id:d.id, mode:'move' };
+        // Wie bei TradingView: in das Rechteck fassen und ziehen verschiebt es direkt.
+        if(x>=left && x<=right && y>=top && y<=bottom) return { id:d.id, mode:'move' };
       } else if(d.type==='ray'){
         const x1=xFromTimeRobust(d.p1.time), ly=yFromPriceRobust(d.p1.price);
         if(x1==null||ly==null) continue;
@@ -2147,7 +2164,8 @@
       const rx=Math.min(x1,x2), ry=Math.min(y1,y2), rw=Math.abs(x2-x1), rh=Math.abs(y2-y1);
       const rect = document.createElementNS(NS_SVG,'rect');
       rect.setAttribute('x',rx); rect.setAttribute('y',ry); rect.setAttribute('width',rw); rect.setAttribute('height',rh);
-      rect.setAttribute('fill','rgba(41,98,255,0.15)'); rect.setAttribute('stroke','#2962FF'); rect.setAttribute('stroke-width','1.5');
+      // Aussehen wie das TradingView-Rechteck (Vorbild des Nutzers): lila Flaeche, lila Rand
+      rect.setAttribute('fill','rgba(156,39,176,0.2)'); rect.setAttribute('stroke','#9C27B0'); rect.setAttribute('stroke-width','1.5');
       svg.appendChild(rect);
     } else if(d.type==='fib'){
       const x1=xFromTimeRobust(d.p1.time), x2=xFromTimeRobust(d.p2.time);
@@ -2511,6 +2529,9 @@
       const sel = state.drawings.find(dd=>dd.id===state.selectedDrawingId);
       if(sel) renderSelection(svg, sel); else state.selectedDrawingId=null;
     }
+    // Angefangene Form (erster Punkt gesetzt) wieder mitzeichnen — sonst verschwand sie bei jedem
+    // Neuaufbau (Abspielen, neue Kerze, Preisskala), auf dem iPad gibt es dazwischen keine Mausbewegung.
+    if(drawStart && state.activeTool!=='cursor') renderPreview(state.activeTool, drawStart, drawPreviewPt || drawStart);
   }
 
   function clearPreview(){
@@ -2541,6 +2562,11 @@
     renderPosbox(g, makeDefaultPosbox(pt, isShort));
   }
 
+  // Beschriftete TP/SL-Knoepfe ueber dem Chart (das kleine Kaestchen links war kaum zu erkennen)
+  document.querySelectorAll('[data-pos-tool]').forEach(btn => btn.addEventListener('click', () => {
+    setActiveTool(state.activeTool === btn.dataset.posTool ? 'cursor' : btn.dataset.posTool);
+    if(state.activeTool !== 'cursor') showToast('Tippe in den Chart, wo du einsteigen willst. Danach Ziel (grün) und Stop (rot) einfach ziehen.', 3500);
+  }));
   els.drawToolbar.querySelectorAll('.draw-btn[data-tool]').forEach(btn => {
     btn.addEventListener('click', ()=> setActiveTool(btn.dataset.tool));
   });
@@ -2601,7 +2627,7 @@
     e.stopPropagation();
     if(placeSingleClickTool(pt)) return;
     if(drawStart && drawAwaitSecond){ finishTwoPoint(pt, xy); return; }
-    drawStart = pt; drawStartXY = xy; drawAwaitSecond = false;
+    drawStart = pt; drawStartXY = xy; drawAwaitSecond = false; drawPreviewPt = null;
     renderPreview(state.activeTool, drawStart, drawStart);
   }
   function onDrawMove(e){
@@ -2610,6 +2636,7 @@
     if(pt.time==null || pt.price==null) return;
     if((state.activeTool==='poslong' || state.activeTool==='posshort') && !drawStart){ renderPosboxPreview(pt, state.activeTool==='posshort'); return; }
     if(!drawStart) return;
+    drawPreviewPt = pt;
     renderPreview(state.activeTool, drawStart, pt);
     if(e.type==='touchmove' && e.cancelable) e.preventDefault();
   }
