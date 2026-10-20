@@ -1597,13 +1597,58 @@
   // coordinateToLogical instead work in a continuous bar-index space that lightweight-
   // charts keeps well-defined for any value, on-bar or not, so converting our times
   // to/from that space first avoids the exact-bar-match requirement entirely.
+  // Zeit <-> Kerzen-Index ueber die ECHTEN Kerzenzeiten. Frueher wurde mit festem Abstand gerechnet
+  // (erste Kerze + n * Kerzenlaenge) — bei Forex fehlen aber die Wochenenden (bei 15m 192 Kerzen pro
+  // Woche), dadurch landeten Zeichnungen nach einem Zeitrahmen-Wechsel weit daneben ("verschwunden").
+  // Zwischen zwei Kerzen wird anteilig gerechnet, vor der ersten / nach der letzten mit der Kerzenlaenge.
+  function barIndexFloor(t){
+    const d = state.data; let lo = 0, hi = d.length - 1;
+    while(lo < hi){ const mid = (lo + hi + 1) >> 1; if(d[mid].time <= t) lo = mid; else hi = mid - 1; }
+    return lo;
+  }
   function logicalFromTime(t){
-    if(!state.data.length || !state.barSeconds) return null;
-    return (t - state.data[0].time) / state.barSeconds;
+    const d = state.data, bs = state.barSeconds;
+    if(!d.length || !bs || typeof t !== 'number' || !isFinite(t)) return null;
+    const last = d.length - 1;
+    if(t <= d[0].time) return (t - d[0].time) / bs;
+    if(t >= d[last].time) return last + (t - d[last].time) / bs;
+    const i = barIndexFloor(t), span = d[i+1].time - d[i].time;
+    return i + (span > 0 ? (t - d[i].time) / span : 0);
   }
   function timeFromLogical(l){
-    if(!state.data.length || !state.barSeconds) return null;
-    return Math.round(state.data[0].time + l*state.barSeconds);
+    const d = state.data, bs = state.barSeconds;
+    if(!d.length || !bs || typeof l !== 'number' || !isFinite(l)) return null;
+    const last = d.length - 1;
+    if(l <= 0) return Math.round(d[0].time + l * bs);
+    if(l >= last) return Math.round(d[last].time + (l - last) * bs);
+    const i = Math.floor(l);
+    return Math.round(d[i].time + (l - i) * (d[i+1].time - d[i].time));
+  }
+  // Kerzenlaenge aus dem Zeitrahmen (nicht aus den ersten zwei Kerzen — die koennen ueber ein
+  // Wochenende oder eine Datenluecke reichen).
+  function barSecondsFor(data, tf){
+    const s = Math.round((TF_MS[tf] || 0) / 1000);
+    if(s > 0) return s;
+    let m = Infinity;
+    for(let i = 1; i < Math.min(data.length, 200); i++){ const g = data[i].time - data[i-1].time; if(g > 0 && g < m) m = g; }
+    return isFinite(m) ? m : 900;
+  }
+  // Zeichnungen aus aelteren Versionen haben "falsche" Zeiten (fester Abstand ab der ersten Kerze).
+  // Einmalig auf echte Kerzenzeiten umrechnen — sie bleiben genau dort, wo sie gezeichnet wurden.
+  function migrateDrawingTimes(list){
+    const d = state.data;
+    if(!Array.isArray(list) || d.length < 2) return false;
+    const oldBs = d[1].time - d[0].time;
+    let changed = false;
+    const conv = t => (typeof t === 'number' && isFinite(t) && oldBs > 0) ? (timeFromLogical((t - d[0].time) / oldBs) ?? t) : t;
+    list.forEach(dr => {
+      if(!dr || dr.tv === 2) return;
+      if(dr.p1) dr.p1.time = conv(dr.p1.time);
+      if(dr.p2) dr.p2.time = conv(dr.p2.time);
+      if(dr.type === 'posbox'){ dr.t1 = conv(dr.t1); dr.t2 = conv(dr.t2); }
+      dr.tv = 2; changed = true;
+    });
+    return changed;
   }
   // logicalToCoordinate silently returns 0 — not null — for a FRACTIONAL logical
   // index (confirmed directly against the library: integer 7284 → a real coordinate,
@@ -1769,6 +1814,7 @@
 
   function addDrawing(d){
     pushDrawUndo();
+    d.tv = 2;
     d.id = 'd' + Date.now() + Math.floor(Math.random()*1000);
     state.drawings.push(d);
     renderDrawings();
@@ -2229,7 +2275,8 @@
     svg.appendChild(handleCircle(x1,y1)); svg.appendChild(handleCircle(x2,y2));
     const diff = d.p2.price - d.p1.price;
     const pct = diff/d.p1.price*100;
-    const bars = state.barSeconds ? Math.round(Math.abs(d.p2.time-d.p1.time)/state.barSeconds) : 0;
+    const l1 = logicalFromTime(d.p1.time), l2 = logicalFromTime(d.p2.time);
+    const bars = (l1 != null && l2 != null) ? Math.round(Math.abs(l2 - l1)) : 0;
     const cx = (x1+x2)/2, cy = Math.min(y1,y2)-16;
     svg.appendChild(svgPill(cx, cy, [`${up?'+':''}${usd(diff)} (${pctSigned(pct)}) · ${bars} Kerzen`], up?'#123B33':'#401616', up?'#8FE3C8':'#FFB3AB', 0.9));
   }
@@ -3019,7 +3066,7 @@
     state.smaFull = { 20: sma(state.data, 20), 50: sma(state.data, 50) };
     state.bbFull = bollinger(state.data, 20, 2);
     state.rsiFull = rsi(state.data, 14);
-    state.barSeconds = state.data[1].time - state.data[0].time;
+    state.barSeconds = barSecondsFor(state.data, state.tf);
     const prec = decimalsFor(state.data[state.data.length-1].close);
     candleSeries.applyOptions({ priceFormat:{ type:'price', precision:prec, minMove: Math.pow(10,-prec) } });
     resetDrawingsForNewData();
@@ -3349,7 +3396,7 @@
       state.smaFull = { 20: sma(state.data, 20), 50: sma(state.data, 50) };
       state.bbFull = bollinger(state.data, 20, 2);
       state.rsiFull = rsi(state.data, 14);
-      state.barSeconds = state.data.length>1 ? (state.data[1].time-state.data[0].time) : Math.round((TF_MS[newTf]||900000)/1000);
+      state.barSeconds = barSecondsFor(state.data, newTf);
       const prec = decimalsFor(state.data[state.data.length-1].close);
       candleSeries.applyOptions({ priceFormat:{ type:'price', precision:prec, minMove: Math.pow(10,-prec) } });
       state.fetchEndTimeMs = newFetchEnd;
@@ -5668,7 +5715,7 @@
     state.position = null; state.pendingOrder = null;
     state.symbol = got.sym; state.tf = got.tf;
     state.data = got.bars; state.sessionStart = 0; state.sessionSplit = 0; state.cursor = got.bars.length-1; state.ended = false;
-    state.barSeconds = state.data[1].time - state.data[0].time;
+    state.barSeconds = barSecondsFor(state.data, state.tf);
     state.smaFull = { 20: sma(state.data, 20), 50: sma(state.data, 50) };
     state.bbFull = bollinger(state.data, 20, 2);
     state.rsiFull = rsi(state.data, 14);
@@ -5842,6 +5889,7 @@
     state.drawTomb = mg.drawTomb;
     if(!mg.added && !mg.removed) return false;
     state.drawings = mg.drawings;
+    migrateDrawingTimes(state.drawings);
     if(state.selectedDrawingId && !state.drawings.some(d => d.id === state.selectedDrawingId)) state.selectedDrawingId = null;
     renderDrawings();
     return true;
@@ -5913,6 +5961,7 @@
     state.journal = Array.isArray(save.journal) ? save.journal : [];
     state.equityHistory = (Array.isArray(save.equityHistory) && save.equityHistory.length) ? save.equityHistory : [{ i:cursor, equity:state.balance }];
     state.drawings = Array.isArray(save.drawings) ? save.drawings : [];
+    migrateDrawingTimes(state.drawings);
     state.drawTomb = Array.isArray(save.drawTomb) ? save.drawTomb.slice(-400) : [];
     state.epoch = save.epoch || 0;
     slotSeen[sessId(slotGroupKey(state.symbol, state.tf), state.activeSlot)] = save.savedAt;
