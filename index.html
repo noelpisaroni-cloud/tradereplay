@@ -2190,14 +2190,15 @@
     const d = state.selectedDrawingId && !state.reviewing ? state.drawings.find(x => x.id === state.selectedDrawingId) : null;
     const bb = d ? getDrawingBBox(d) : null;
     if(!d || !bb || state.activeTool !== 'cursor'){ bar.hidden = true; selBarKey = ''; return; }
-    const key = [d.id, d.type, d.color || '', d.alert ? 1 : 0, state.position ? 1 : 0, state.pendingOrder ? 1 : 0].join('|');
+    const key = [d.id, d.type, d.color || '', d.alert ? 1 : 0, state.position ? 1 : 0, state.pendingOrder ? 1 : 0, d.type === 'posbox' ? (d.tpPrice < d.entryPrice ? 's' : 'l') : ''].join('|');
     if(key !== selBarKey){
       selBarKey = key;
       let html = '';
       if(d.type === 'posbox'){
         const isShort = d.tpPrice < d.entryPrice;
         const busy = !!(state.position || state.pendingOrder);
-        html += `<button class="sb-btn sb-trade${isShort ? ' short' : ''}" data-sb="trade" ${busy ? 'disabled title="Es läuft schon eine Position oder Order"' : 'title="Order mit genau diesem Einstieg, Ziel und Stop platzieren"'}>${isShort ? '▼' : '▲'} Order platzieren</button><span class="sb-sep"></span>`;
+        html += `<button class="sb-btn sb-trade${isShort ? ' short' : ''}" data-sb="trade" ${busy ? 'disabled title="Es läuft schon eine Position oder Order"' : 'title="Order mit genau diesem Einstieg, Ziel und Stop platzieren"'}>${isShort ? '▼' : '▲'} Order platzieren</button>`;
+        html += `<button class="sb-btn" data-sb="flip" title="Long ↔ Short umdrehen">⇅ ${isShort ? 'zu Long' : 'zu Short'}</button><span class="sb-sep"></span>`;
       }
       if(COLORABLE[d.type]){
         const cur = drawColor(d, DEFAULT_DRAW_COLOR[d.type] || '');
@@ -2235,6 +2236,7 @@
       else if(act === 'edit'){ editTextDrawing(d); }
       else if(act === 'dup'){ duplicateDrawing(d); }
       else if(act === 'trade'){ tradeFromBox(d); }
+      else if(act === 'flip'){ flipPosbox(d); }
     });
   })();
   function duplicateDrawing(d){
@@ -2453,33 +2455,61 @@
   // the dashed middle line to move the entry, the left/right edges to resize the
   // time span, or the body to move the whole thing — mirrors TradingView's
   // Long/Short Position tool.
+  // Wie TradingViews Long/Short-Werkzeug: die Box beginnt am Klick und laeuft ~25 Kerzen nach rechts.
+  // Stop-Abstand aus der aktuellen Schwankung (1,5 x ATR 14), Ziel doppelt so weit (R/R 1:2).
+  function recentAtr(n){
+    const d = state.data, end = Math.min(state.cursor, d.length - 1);
+    let sum = 0, k = 0;
+    for(let i = Math.max(1, end - n + 1); i <= end; i++){ const b = d[i], pc = d[i-1].close; sum += Math.max(b.high - b.low, Math.abs(b.high - pc), Math.abs(b.low - pc)); k++; }
+    return k ? sum / k : 0;
+  }
   function makeDefaultPosbox(pt, isShort){
-    // Size relative to the current zoom (not a fixed bar count) so the box is
-    // always comfortably grabbable, whether the chart shows days or months.
-    // Centered on the click and then shifted (not shrunk) to stay fully inside
-    // the visible range — a box extending past the visible edge can't be
-    // converted back to pixels (timeToCoordinate returns null) and silently
-    // fails to render at all, which is why placing it could look like nothing happened.
+    const l0 = logicalFromTime(pt.time);
+    let t1 = pt.time, t2 = l0 != null ? (timeFromLogical(l0 + 25) ?? pt.time + 25 * (state.barSeconds || 900)) : pt.time + 25 * (state.barSeconds || 900);
     const visible = chart.timeScale().getVisibleRange();
-    const barSec = state.barSeconds || 900;
-    let halfWidth = 10 * barSec;
-    if(visible && visible.to>visible.from) halfWidth = Math.max(4*barSec, (visible.to-visible.from)*0.04);
-    let t1 = pt.time - halfWidth, t2 = pt.time + halfWidth;
-    if(visible && visible.to>visible.from){
-      if(t2>visible.to){ const shift=t2-visible.to; t1-=shift; t2-=shift; }
-      if(t1<visible.from){ const shift=visible.from-t1; t1+=shift; t2+=shift; }
+    if(visible && visible.to > visible.from){
+      const lTo = logicalFromTime(visible.to), lFrom = logicalFromTime(visible.from), l2 = logicalFromTime(t2);
+      if(lTo != null && l2 != null && l2 > lTo + 8){ const sh = l2 - (lTo + 8); t1 = timeFromLogical(l0 - sh) ?? t1; t2 = timeFromLogical(l2 - sh) ?? t2; }
+      if(lFrom != null && logicalFromTime(t1) < lFrom){ t1 = visible.from; }
     }
-    const notional = parseFloat(els.qtyInput.value) || 1000;
-    // Long: target above entry, stop below. Short: target below entry, stop above —
-    // renderPosbox/openPnl already infer direction purely from tp-vs-entry, so this
-    // is just which default shape the box starts in, not a separate drawing type.
-    // Abstand relativ zum sichtbaren Kursbereich statt fest 1 % — sonst bedeckte die Box auf
-    // kleinen Zeitrahmen fast den ganzen Chart.
     const vb = visibleBoundsForClamp();
-    const dist = vb && vb.pMax > vb.pMin ? (vb.pMax - vb.pMin) * 0.12 : pt.price * 0.01;
-    const tpPrice = isShort ? pt.price - dist : pt.price + dist;
-    const slPrice = isShort ? pt.price + dist : pt.price - dist;
-    return { type:'posbox', t1, t2, entryPrice: pt.price, tpPrice, slPrice, qty: notional/pt.price };
+    const range = vb && vb.pMax > vb.pMin ? vb.pMax - vb.pMin : pt.price * 0.02;
+    let slDist = recentAtr(14) * 1.5;
+    if(!(slDist > 0)) slDist = range * 0.08;
+    slDist = Math.min(Math.max(slDist, range * 0.07), range * 0.25);   // gut greifbar, aber nicht riesig
+    const tpDist = slDist * 2;
+    const tpPrice = isShort ? pt.price - tpDist : pt.price + tpDist;
+    const slPrice = isShort ? pt.price + slDist : pt.price - slDist;
+    return { type:'posbox', t1, t2, entryPrice: pt.price, tpPrice, slPrice };
+  }
+  // Pip-Groesse fuer Forex (JPY-Paare 0,01, sonst 0,0001) — fuer alles andere null (dann Prozent).
+  function pipSize(symbol){
+    if(!symbol || /USDT$/.test(symbol) || symbol === 'PAXGUSDT' || symbol.length !== 6) return null;
+    return /JPY/.test(symbol) ? 0.01 : 0.0001;
+  }
+  function distLabel(a, b){
+    const ps = pipSize(state.symbol);
+    if(ps) return (Math.abs(a - b) / ps).toFixed(1).replace('.', ',') + ' Pips';
+    return (Math.abs(a - b) / b * 100).toFixed(2).replace('.', ',') + ' %';
+  }
+  // Stueckzahl der Box live aus dem Order-Feld: bei "%" aus dem Risiko (Stop-Abstand), sonst aus dem Betrag.
+  function posboxQty(d){
+    const risk = Math.abs(d.entryPrice - d.slPrice);
+    if(sizeMode === 'risk'){
+      const pct = parseFloat(document.getElementById('riskPctInput').value) || 1;
+      return risk > 0 ? (state.balance * pct / 100) / risk : 0;
+    }
+    const notional = parseFloat(els.qtyInput.value) || (d.qty ? d.qty * d.entryPrice : 1000);
+    return d.entryPrice > 0 ? notional / d.entryPrice : 0;
+  }
+  // Groesse/Risiko im Order-Feld geaendert -> Box-Beschriftungen sofort aktualisieren
+  ['qtyInput','riskPctInput'].forEach(id => { const el = document.getElementById(id); if(el) el.addEventListener('input', () => scheduleRenderDrawings()); });
+  document.getElementById('sizeModeToggle').addEventListener('click', () => setTimeout(scheduleRenderDrawings, 0));
+  function flipPosbox(d){
+    pushDrawUndo();
+    const tp = d.tpPrice, sl = d.slPrice, e = d.entryPrice;
+    d.tpPrice = e - (tp - e); d.slPrice = e - (sl - e);
+    renderDrawings(); saveState();
   }
 
   // Mirrors TradingView's Long/Short Position tool: no outer border, just the
@@ -2492,13 +2522,13 @@
     if(x1==null||x2==null||yTp==null||yEntry==null||ySl==null) return;
     const rx = Math.min(x1,x2), rw = Math.abs(x2-x1), cx = rx+rw/2;
     const isLong = d.tpPrice >= d.entryPrice;
-    const qty = d.qty || 0;
+    const qty = posboxQty(d);
 
-    svg.appendChild(fillRect(rx, Math.min(yEntry,yTp), rw, Math.abs(yEntry-yTp), 'rgba(38,166,154,0.32)'));
-    svg.appendChild(fillRect(rx, Math.min(yEntry,ySl), rw, Math.abs(yEntry-ySl), 'rgba(239,83,80,0.32)'));
-    svg.appendChild(svgLine(rx, yTp, rx+rw, yTp, { stroke:'#26A69A', 'stroke-width':1 }));
-    svg.appendChild(svgLine(rx, ySl, rx+rw, ySl, { stroke:'#EF5350', 'stroke-width':1 }));
-    svg.appendChild(svgLine(rx, yEntry, rx+rw, yEntry, { stroke:'#4FC3F7', 'stroke-width':1.3 }));
+    svg.appendChild(fillRect(rx, Math.min(yEntry,yTp), rw, Math.abs(yEntry-yTp), 'rgba(38,166,154,0.22)'));
+    svg.appendChild(fillRect(rx, Math.min(yEntry,ySl), rw, Math.abs(yEntry-ySl), 'rgba(239,83,80,0.22)'));
+    svg.appendChild(svgLine(rx, yTp, rx+rw, yTp, { stroke:'#26A69A', 'stroke-width':1.2 }));
+    svg.appendChild(svgLine(rx, ySl, rx+rw, ySl, { stroke:'#EF5350', 'stroke-width':1.2 }));
+    svg.appendChild(svgLine(rx, yEntry, rx+rw, yEntry, { stroke:'#B2B5BE', 'stroke-width':1.3 }));
 
     [rx, rx+rw].forEach(hx => { svg.appendChild(handleSquare(hx, yTp)); svg.appendChild(handleSquare(hx, ySl)); });
     svg.appendChild(handleCircle(rx, yEntry)); svg.appendChild(handleCircle(rx+rw, yEntry));
@@ -2513,10 +2543,14 @@
 
     const tpLabelY = yTp<yEntry ? yTp-13 : yTp+13;
     const slLabelY = ySl<yEntry ? ySl-13 : ySl+13;
-    svg.appendChild(svgPill(cx, tpLabelY, [`Ziel: ${px(d.tpPrice)} (${tpPct.toFixed(2)}%) · Betrag ${usd(tpAmount,0)}`], '#123B33', '#8FE3C8', 0.9));
-    const rrTxt = rr!=null ? ` · R/R ${rr.toFixed(2)}` : '';
-    svg.appendChild(svgPill(cx, yEntry-14, [`${usdSigned(openPnl)} · ${qty.toFixed(4)} Stk.${rrTxt}`], '#12313D', '#8FE3FF', 0.6));
-    svg.appendChild(svgPill(cx, slLabelY, [`Stop: ${px(d.slPrice)} (${slPct.toFixed(2)}%) · Betrag ${usd(slAmount,0)}`], '#401616', '#FFB3AB', 0.9));
+    svg.appendChild(svgPill(cx, tpLabelY, [`Ziel ${px(d.tpPrice)} · ${distLabel(d.tpPrice, d.entryPrice)} · +${usd(tpAmount, tpAmount < 100 ? 2 : 0)}`], '#123B33', '#8FE3C8', 0.92));
+    const riskPctAcc = state.balance > 0 ? slAmount / state.balance * 100 : 0;
+    const centerLines = [`${isLong ? 'Long' : 'Short'} · R/R ${rr != null ? '1:' + rr.toFixed(2).replace('.', ',') : '–'}`,
+      `Größe ${usd(qty * d.entryPrice, 0)} · Risiko ${usd(slAmount, slAmount < 100 ? 2 : 0)} (${riskPctAcc.toFixed(1).replace('.', ',')} %)`];
+    // Zweite Zeile (Groesse/Risiko) nur, wenn die Box hoch genug ist — sonst verdeckt das Schild die Box
+    const boxH = Math.abs(yTp - ySl);
+    svg.appendChild(svgPill(cx, yEntry, boxH > 90 ? centerLines : [centerLines[0] + ' · Risiko ' + usd(slAmount, slAmount < 100 ? 2 : 0)], '#1E222D', '#E3E6EC', 0.85));
+    svg.appendChild(svgPill(cx, slLabelY, [`Stop ${px(d.slPrice)} · ${distLabel(d.slPrice, d.entryPrice)} · −${usd(slAmount, slAmount < 100 ? 2 : 0)}`], '#401616', '#FFB3AB', 0.92));
   }
   function handleCircle(x,y){
     const c = document.createElementNS(NS_SVG,'circle');
