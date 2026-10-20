@@ -287,6 +287,37 @@
   .strat-filter-note{ font-size:11.5px; color:var(--ink-faint); margin-left:auto; align-self:center; }
   #strategyCompareBody tr.best-row td:first-child{ box-shadow: inset 3px 0 0 var(--up); }
 
+  /* ---------- Trade-Journal ---------- */
+  .tj-panel{ width:min(620px,100%); }
+  .tj-summary{ display:flex; flex-wrap:wrap; gap:6px 14px; padding:10px 12px; margin-bottom:14px; border-radius:10px; background:var(--panel-alt); border:1px solid var(--line); font-size:12.5px; color:var(--ink-soft); }
+  .tj-summary b{ color:var(--ink); }
+  .tj-sec{ margin-bottom:14px; }
+  .tj-h{ font-size:12.5px; font-weight:600; color:var(--ink); margin-bottom:7px; }
+  .tj-h small{ font-weight:400; color:var(--ink-faint); }
+  .tj-chips{ display:flex; flex-wrap:wrap; gap:6px; }
+  .tj-chip{ height:30px; padding:0 11px; border-radius:100px; border:1px solid var(--line-strong, var(--line)); background:transparent; color:var(--ink-soft); font-size:12.5px; font-weight:500; }
+  .tj-chip:hover{ border-color:var(--accent); color:var(--ink); }
+  .tj-chip.on{ background:var(--accent-soft); border-color:var(--accent); color:var(--accent-text, var(--accent)); font-weight:600; }
+  .tj-chip.bad.on{ background:var(--down-soft); border-color:var(--down); color:var(--down); }
+  .tj-chip.good.on{ background:var(--up-soft); border-color:var(--up); color:var(--up); }
+  .tj-add{ display:flex; gap:6px; margin-top:8px; }
+  .tj-add input{ flex:1; height:32px; padding:0 10px; border-radius:8px; background:var(--panel-alt); border:1px solid var(--line); color:var(--ink); font-size:13px; }
+  .tj-stars{ display:flex; gap:4px; }
+  .tj-star{ width:34px; height:34px; border:none; background:transparent; font-size:24px; line-height:1; color:var(--ink-faint); padding:0; }
+  .tj-star.on{ color:#E0A438; }
+  .tj-panel textarea{ width:100%; min-height:56px; padding:8px 10px; border-radius:8px; background:var(--panel-alt); border:1px solid var(--line); color:var(--ink); font:inherit; font-size:13px; resize:vertical; }
+  .tj-foot{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding:12px 18px; border-top:1px solid var(--line); }
+  .tj-foot .spacer{ flex:1; }
+  .tj-foot .toggle-en{ display:flex; align-items:center; gap:6px; font-size:12px; color:var(--ink-soft); }
+  .tj-save{ background:var(--accent) !important; border-color:var(--accent) !important; color:#fff !important; }
+  .tj-cell{ display:flex; align-items:center; gap:5px; flex-wrap:wrap; max-width:300px; white-space:normal; }
+  .tj-tag{ display:inline-block; padding:1px 7px; border-radius:100px; font-size:11px; background:var(--accent-soft); color:var(--accent-text, var(--accent)); }
+  .tj-tag.emo{ background:var(--panel-alt); color:var(--ink-soft); border:1px solid var(--line); }
+  .tj-tag.bad{ background:var(--down-soft); color:var(--down); }
+  .tj-stars-sm{ color:#E0A438; font-size:11px; letter-spacing:-1px; }
+  .tj-edit{ height:24px; padding:0 8px; font-size:11.5px; }
+  .tj-missing{ color:var(--amber); font-size:11.5px; }
+  @media (max-width:600px){ .tj-foot .toggle-en{ width:100%; } }
   /* ---------- strategy management modal ---------- */
   .modal-backdrop{ position:fixed; inset:0; z-index:2000; background:rgba(6,8,13,0.72); display:flex; align-items:center; justify-content:center; padding:20px; }
   .modal-backdrop[hidden]{ display:none; }
@@ -1480,7 +1511,7 @@
     <div class="tab-body" id="journalTab">
       <div class="table-wrap">
         <table>
-          <thead><tr><th>#</th><th>Richtung</th><th>Einstieg</th><th>Ausstieg</th><th>Kurs ein</th><th>Kurs aus</th><th>Größe</th><th>Hebel</th><th>Grund</th><th>Strategie</th><th>Score</th><th>PnL</th><th></th></tr></thead>
+          <thead><tr><th>#</th><th>Richtung</th><th>Einstieg</th><th>Ausstieg</th><th>Kurs ein</th><th>Kurs aus</th><th>Größe</th><th>Hebel</th><th>Grund</th><th>Strategie</th><th>Score</th><th>Journal</th><th>PnL</th><th></th></tr></thead>
           <tbody id="journalBody"></tbody>
         </table>
       </div>
@@ -1524,11 +1555,15 @@
       <div class="strat-filter-row">
         <label>Instrument <select id="histFilterSymbol" class="full"><option value="all">Alle</option></select></label>
         <label>Zeitrahmen <select id="histFilterTf" class="full"><option value="all">Alle</option></select></label>
+        <label>Setup <select id="histFilterSetup" class="full"><option value="all">Alle</option></select></label>
+        <label>Gefühl <select id="histFilterEmo" class="full"><option value="all">Alle</option></select></label>
+        <label>Ergebnis <select id="histFilterRes" class="full"><option value="all">Alle</option><option value="win">Gewinner</option><option value="loss">Verlierer</option><option value="open">Noch nicht bewertet</option></select></label>
+        <button class="btn" id="histCsvBtn" type="button" title="Alle (gefilterten) Trades mit Journal als Tabelle für Excel/Numbers speichern">⬇ CSV</button>
         <span class="strat-filter-note" id="histNote"></span>
       </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Geschlossen</th><th>Markt</th><th>Richtung</th><th>Einstieg</th><th>Ausstieg</th><th>Grund</th><th>Strategie</th><th>Notiz</th><th>PnL</th><th></th></tr></thead>
+          <thead><tr><th>Geschlossen</th><th>Markt</th><th>Richtung</th><th>Einstieg</th><th>Ausstieg</th><th>Grund</th><th>Strategie</th><th>Journal</th><th>PnL</th><th></th></tr></thead>
           <tbody id="historyBody"></tbody>
         </table>
       </div>
@@ -1599,6 +1634,33 @@
       <p>Dein Fortschritt (Position, Order, Journal, Zeichnungen) wird automatisch lokal gespeichert und bleibt beim Schlie&szlig;en erhalten, bis du eine neue Session startest.</p>
       <h4>Daten &amp; Hinweise</h4>
       <p>Echte historische Kursdaten: Krypto/Gold-Token von Binance Spot (12 Instrumente), Forex von Yahoo Finance (28 Paare der 8 Hauptw&auml;hrungen, indikative Kurse; 1m &asymp; 4 Wochen, 5&ndash;30m &asymp; 2 Monate, 1h/4h/1T &asymp; 3 Jahre &ndash; bei EUR/USD, GBP/USD, AUD/USD und NZD/USD ist die 1-Minuten-Kerze aus den Minuten-Kursen gebildet). Stop-Loss &amp; Liquidation ber&uuml;cksichtigen konfigurierbare Slippage (Take-Profit f&uuml;llt exakt wie eine Limit-Order). Simuliert werden <b>kein</b> echtes Orderbuch und keine variable, marktabh&auml;ngige Slippage &ndash; reale Ausf&uuml;hrung kann in schnellen M&auml;rkten schlechter sein. Historische Performance ist keine Garantie f&uuml;r zuk&uuml;nftige Ergebnisse; dies ist keine Anlageberatung.</p>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="tjBackdrop" hidden>
+  <div class="modal-panel tj-panel" role="dialog" aria-labelledby="tjTitle">
+    <div class="modal-head">
+      <h3 id="tjTitle">Trade-Journal</h3>
+      <button class="mini-btn" id="tjCloseBtn" title="Schließen">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="tj-summary" id="tjSummary"></div>
+      <div class="tj-sec"><div class="tj-h">Setup <small>(mehrere möglich)</small></div><div class="tj-chips" id="tjSetups"></div>
+        <div class="tj-add"><input type="text" id="tjSetupNew" placeholder="Eigenes Setup hinzufügen …" maxlength="30"><button class="btn" id="tjSetupAdd" type="button">+ Hinzufügen</button></div></div>
+      <div class="tj-sec"><div class="tj-h">Gefühl beim Trade</div><div class="tj-chips" id="tjEmotion"></div></div>
+      <div class="tj-sec"><div class="tj-h">Plan eingehalten?</div><div class="tj-chips" id="tjPlan"></div></div>
+      <div class="tj-sec"><div class="tj-h">Fehler <small>(ehrlich sein – genau daraus lernst du)</small></div><div class="tj-chips" id="tjMistakes"></div></div>
+      <div class="tj-sec"><div class="tj-h">Ausführung bewerten</div><div class="tj-stars" id="tjStars"></div></div>
+      <div class="tj-sec"><div class="tj-h">Warum bin ich rein?</div><textarea id="tjNote" rows="2" maxlength="800" placeholder="z. B. Liquidity Sweep unter Asia-Tief, dann FVG auf 5m …"></textarea></div>
+      <div class="tj-sec"><div class="tj-h">Was lerne ich daraus?</div><textarea id="tjLesson" rows="2" maxlength="800" placeholder="z. B. Nächstes Mal auf Bestätigung warten, nicht vor der News …"></textarea></div>
+    </div>
+    <div class="tj-foot">
+      <label class="toggle-en"><input type="checkbox" id="tjAutoOpen"> Nach jedem Trade öffnen</label>
+      <span class="spacer"></span>
+      <button class="btn" id="tjReviewBtn" type="button">Im Chart ansehen</button>
+      <button class="btn" id="tjSkipBtn" type="button">Später</button>
+      <button class="btn tj-save" id="tjSaveBtn" type="button">Speichern</button>
     </div>
   </div>
 </div>
@@ -5039,6 +5101,8 @@
     const pos = state.position;
     if(!pos) return;
     const netPnl = realizeClose(pos, exitPrice, exitTime, reason);
+    const closedKey = state.journal.length ? histKey(state.journal[state.journal.length-1]) : null;
+    if(closedKey && tjAutoOn() && !state.reviewing) setTimeout(() => openTradeJournal(closedKey), 450);
     removePositionLines();
     addExitMarker(exitTime, netPnl, reason);
     state.position = null;
@@ -5250,7 +5314,7 @@
   function renderJournal(){
     const body = els.journalBody;
     if(!state.journal.length){
-      body.innerHTML = '<tr><td colspan="13"><div class="empty">Noch keine geschlossenen Trades in dieser Session.</div></td></tr>';
+      body.innerHTML = '<tr><td colspan="14"><div class="empty">Noch keine geschlossenen Trades in dieser Session.</div></td></tr>';
       return;
     }
     body.innerHTML = state.journal.map((t,idx) => `
@@ -5265,9 +5329,10 @@
         <td class="num">${t.leverage}x</td>
         <td><span class="chip ${t.reason==='tp'?'tp':(t.reason==='sl'||t.reason==='liquidation')?'sl':'manual'}">${REASON_LABEL[t.reason]||t.reason}</span></td>
         <td>${t.strategyName ? escapeHtml(t.strategyName) : '<span class="chip manual">–</span>'}</td>
-        <td>${scoreBadgeHtml(t.score, t.grade, t.feedback)}${t.note ? ` <span title="${escapeHtml(t.note)}" style="cursor:help;">📝</span>` : ''}</td>
+        <td>${scoreBadgeHtml(t.score, t.grade, t.feedback)}</td>
+        <td>${tjCellHtml(t)}</td>
         <td class="num ${t.pnl>=0?'up-txt':'down-txt'}">${usdSigned(t.pnl)}</td>
-        <td><button class="btn review-btn" data-rv-journal="${idx}" title="Trade im Chart ansehen – mit deinen Zeichnungen">Ansehen</button></td>
+        <td style="white-space:nowrap"><button class="btn tj-edit" data-tj-open="${escapeHtml(histKey(t))}" title="Journal: Setup, Gefühl, Fehler, Bewertung">✎ Journal</button> <button class="btn review-btn" data-rv-journal="${idx}" title="Trade im Chart ansehen – mit deinen Zeichnungen">Ansehen</button></td>
       </tr>`).reverse().join('');
   }
 
@@ -5495,6 +5560,47 @@
     if(sides.length === 2) lines.push('↕ ' + sides.map(s => '<b>' + s.label + '</b> ' + usdSigned(s.st.totalPnl) + ' (' + s.st.n + ')').join(' · '));
     return lines.length ? '<div class="ana-insights">' + lines.map(l => '<div>' + l + '</div>').join('') + '</div>' : '';
   }
+  // Journal-Auswertung: Setups, Gefuehle, Plan, Fehler, Bewertung + Kennzahlen (Drawdown, Serien)
+  function anaJournalHtml(trades){
+    const sorted = trades.slice().sort((a, b) => (a.closedAt || 0) - (b.closedAt || 0));
+    let eq = 0, peak = 0, maxDd = 0, curW = 0, curL = 0, maxW = 0, maxL = 0;
+    sorted.forEach(t => { eq += t.pnl || 0; peak = Math.max(peak, eq); maxDd = Math.max(maxDd, peak - eq);
+      if((t.pnl || 0) > 0){ curW++; curL = 0; } else { curL++; curW = 0; } maxW = Math.max(maxW, curW); maxL = Math.max(maxL, curL); });
+    const wins = trades.filter(t => (t.pnl || 0) > 0), losses = trades.filter(t => (t.pnl || 0) <= 0);
+    const avg = a => a.length ? a.reduce((s, t) => s + (t.pnl || 0), 0) / a.length : 0;
+    const journaled = trades.filter(tjHasEntry);
+    const tile = (k, v, cls) => '<div class="tile"><div class="k">' + k + '</div><div class="v ' + (cls||'') + '">' + v + '</div></div>';
+    let html = '<div class="ana-block"><div class="section-title">Kennzahlen</div><div class="ana-tiles">'
+      + tile('Ø Gewinner', usdSigned(avg(wins)), 'up-txt') + tile('Ø Verlierer', usdSigned(avg(losses)), 'down-txt')
+      + tile('Max. Drawdown', usd(-maxDd, 0), maxDd > 0 ? 'down-txt' : '') + tile('Längste Gewinnserie', maxW) + tile('Längste Verlustserie', maxL)
+      + tile('Bewertet', journaled.length + ' / ' + trades.length) + '</div></div>';
+    if(!journaled.length) return html + '<div class="ana-empty">Bewerte deine Trades im <b>Journal</b> (Setup, Gefühl, Fehler) – dann siehst du hier, <b>welche Setups</b> bei dir funktionieren und <b>welche Fehler</b> dich am meisten kosten.</div>';
+    const setupNames = [...new Set(journaled.flatMap(t => t.j.setups || []))];
+    const setupRows = setupNames.map(x => ({ label:x, trades:journaled.filter(t => (t.j.setups || []).includes(x)) })).sort((a, b) => statsFor(b.trades).totalPnl - statsFor(a.trades).totalPnl);
+    const emoRows = TJ_EMOTIONS.map(([k, l]) => ({ label:l, trades:journaled.filter(t => t.j.emotion === k) })).filter(r => r.trades.length);
+    const planRows = TJ_PLAN.map(([k, l]) => ({ label:l, trades:journaled.filter(t => t.j.plan === k) })).filter(r => r.trades.length);
+    const misRows = TJ_MISTAKES.concat([...new Set(journaled.flatMap(t => t.j.mistakes || []))].filter(x => !TJ_MISTAKES.includes(x)))
+      .map(x => ({ label:x, trades:journaled.filter(t => (t.j.mistakes || []).includes(x)) })).filter(r => r.trades.length)
+      .sort((a, b) => statsFor(a.trades).totalPnl - statsFor(b.trades).totalPnl);
+    const starRows = [5,4,3,2,1].map(n => ({ label:'★'.repeat(n), trades:journaled.filter(t => t.j.rating === n) })).filter(r => r.trades.length);
+    // Erkenntnisse in Klartext
+    const ins = [];
+    const pickBest = rows => rows.map(r => ({ label:r.label, st:statsFor(r.trades) })).filter(x => x.st.n >= 2);
+    const bs = pickBest(setupRows); if(bs.length){ ins.push('🏆 Bestes Setup: <b>' + escapeHtml(bs[0].label) + '</b> (' + usdSigned(bs[0].st.totalPnl) + ', ' + bs[0].st.winRate.toFixed(0) + '% Treffer bei ' + bs[0].st.n + ' Trades)');
+      const w = bs[bs.length-1]; if(bs.length > 1 && w.st.totalPnl < 0) ins.push('⚠️ Schwächstes Setup: <b>' + escapeHtml(w.label) + '</b> (' + usdSigned(w.st.totalPnl) + ') – genauer prüfen oder weglassen.'); }
+    const pm = pickBest(misRows); if(pm.length && pm[0].st.totalPnl < 0) ins.push('💸 Teuerster Fehler: <b>' + escapeHtml(pm[0].label) + '</b> – hat dich ' + usdSigned(pm[0].st.totalPnl) + ' gekostet (' + pm[0].st.n + '×).');
+    const pj = statsFor(journaled.filter(t => t.j.plan === 'ja')), pn = statsFor(journaled.filter(t => t.j.plan === 'nein'));
+    if(pj.n >= 2 && pn.n >= 2) ins.push('📋 Mit Plan: ' + usdSigned(pj.totalPnl) + ' (' + pj.winRate.toFixed(0) + '% Treffer) · ohne Plan: ' + usdSigned(pn.totalPnl) + ' (' + pn.winRate.toFixed(0) + '%)');
+    const bad = journaled.filter(t => ['fomo','gierig','rache'].includes(t.j.emotion)); const sb = statsFor(bad);
+    if(sb.n >= 2) ins.push('🧠 Trades aus FOMO/Gier/Rache: ' + usdSigned(sb.totalPnl) + ' bei ' + sb.n + ' Trades.');
+    html += (ins.length ? '<div class="ana-insights">' + ins.map(l => '<div>' + l + '</div>').join('') + '</div>' : '')
+      + '<div class="ana-grid2"><div class="ana-block"><div class="section-title">Nach Setup</div>' + anaTableHtml(setupRows) + '</div>'
+      + '<div class="ana-block"><div class="section-title">Nach Gefühl</div>' + anaTableHtml(emoRows) + '</div></div>'
+      + '<div class="ana-grid2"><div class="ana-block"><div class="section-title">Plan eingehalten?</div>' + anaTableHtml(planRows) + '</div>'
+      + '<div class="ana-block"><div class="section-title">Fehler (teuerste zuerst)</div>' + (misRows.length ? anaTableHtml(misRows) : '<div class="ana-empty">Keine Fehler eingetragen.</div>') + '</div></div>'
+      + (starRows.length ? '<div class="ana-block"><div class="section-title">Nach eigener Bewertung der Ausführung</div>' + anaTableHtml(starRows) + '</div>' : '');
+    return html;
+  }
   function renderAnalysis(){
     populateAnalysisFilters();
     const symF = document.getElementById('anaFilterSymbol').value, tfF = document.getElementById('anaFilterTf').value;
@@ -5525,7 +5631,8 @@
       + '<div class="ana-block"><div class="section-title">Nach Wochentag</div>' + anaTableHtml(dayRows) + '</div></div>'
       + '<div class="ana-block"><div class="section-title">Nach Uhrzeit des Einstiegs (Berliner Zeit) &ndash; Gewinn oben, Verlust unten</div>' + anaHoursHtml(trades) + '</div>'
       + '<div class="ana-grid2"><div class="ana-block"><div class="section-title">Long vs. Short</div>' + anaTableHtml(sideRows) + '</div>'
-      + '<div class="ana-block"><div class="section-title">Nach Ausstiegsgrund</div>' + anaTableHtml(reasonRows) + '</div></div>';
+      + '<div class="ana-block"><div class="section-title">Nach Ausstiegsgrund</div>' + anaTableHtml(reasonRows) + '</div></div>'
+      + anaJournalHtml(trades);
   }
   document.getElementById('anaFilterSymbol').addEventListener('change', renderAnalysis);
   document.getElementById('anaFilterTf').addEventListener('change', renderAnalysis);
@@ -6684,6 +6791,124 @@
     enterReview(h || j);
   });
 
+  // ---------- Trade-Journal: Setup, Gefuehl, Plan, Fehler, Bewertung, Notizen ----------
+  // Steht in der Trade-Historie (alle Sessions) als t.j = { setups, emotion, plan, mistakes, rating, lesson, at }
+  // und im Journal der Session; Notiz "Warum bin ich rein?" ist t.note. Wird mit dem iPad abgeglichen (j.at).
+  const TJ_SETUPS = ['FVG', 'Order Block', 'Breaker', 'BOS', 'CHoCH', 'Liquidity Sweep', 'Equal Highs/Lows', 'OTE / Fibo', 'Asia Range', 'PDH / PDL', 'London Killzone', 'NY Killzone', 'Trendfolge', 'Range / Reversal'];
+  const TJ_EMOTIONS = [['ruhig','😌 Ruhig'], ['fokussiert','🎯 Fokussiert'], ['unsicher','😬 Unsicher'], ['fomo','😱 FOMO'], ['gierig','🤑 Gierig'], ['rache','😤 Rache-Trade'], ['gelangweilt','😴 Gelangweilt']];
+  const TJ_PLAN = [['ja','✅ Ja'], ['teils','➖ Teilweise'], ['nein','❌ Nein']];
+  const TJ_MISTAKES = ['Zu früh rein', 'Zu spät rein', 'Ohne Bestätigung', 'SL verschoben', 'TP zu früh genommen', 'Zu groß', 'Gegen den Trend', 'Overtrading', 'Ohne Plan', 'Vor News'];
+  const TJ_EMO_LABEL = Object.fromEntries(TJ_EMOTIONS);
+  const TJ_PLAN_LABEL = { ja:'Plan eingehalten', teils:'Plan teilweise', nein:'Plan nicht eingehalten' };
+  const TJ_CUSTOM_KEY = 'tradereplay_setups_v1', TJ_AUTO_KEY = 'tradereplay_tj_auto_v1';
+  function tjCustomSetups(){ try{ const a = JSON.parse(localStorage.getItem(TJ_CUSTOM_KEY) || '[]'); return Array.isArray(a) ? a.filter(x => typeof x === 'string').slice(0, 40) : []; }catch(e){ return []; } }
+  function tjAutoOn(){ try{ return localStorage.getItem(TJ_AUTO_KEY) !== '0'; }catch(e){ return true; } }
+  function tjHasEntry(t){ const j = t && t.j; return !!(j && (j.setups && j.setups.length || j.emotion || j.plan || j.rating || (j.mistakes && j.mistakes.length) || j.lesson)); }
+  function tjStars(n){ return n ? '★'.repeat(n) + '☆'.repeat(5 - n) : ''; }
+  function tjCellHtml(t){
+    const j = t.j || {};
+    const parts = [];
+    (j.setups || []).forEach(x => parts.push(`<span class="tj-tag">${escapeHtml(x)}</span>`));
+    if(j.emotion) parts.push(`<span class="tj-tag emo">${escapeHtml(TJ_EMO_LABEL[j.emotion] || j.emotion)}</span>`);
+    if(j.plan === 'nein') parts.push('<span class="tj-tag bad">Plan ✗</span>');
+    if(j.mistakes && j.mistakes.length) parts.push(`<span class="tj-tag bad" title="${escapeHtml(j.mistakes.join(', '))}">${j.mistakes.length} Fehler</span>`);
+    if(j.rating) parts.push(`<span class="tj-stars-sm">${tjStars(j.rating)}</span>`);
+    if(t.note || j.lesson) parts.push(`<span title="${escapeHtml((t.note ? 'Warum rein: ' + t.note : '') + (j.lesson ? '\nLehre: ' + j.lesson : ''))}" style="cursor:help;">📝</span>`);
+    if(!parts.length) parts.push('<span class="tj-missing">noch nicht bewertet</span>');
+    return `<div class="tj-cell">${parts.join('')}</div>`;
+  }
+  const tj = { key:null, draft:null };
+  function tjFind(key){
+    return { h: state.tradeHistory.find(t => histKey(t) === key) || null, s: state.journal.find(t => histKey(t) === key) || null };
+  }
+  function tjChip(label, on, data, cls){ return `<button type="button" class="tj-chip${cls ? ' ' + cls : ''}${on ? ' on' : ''}" ${data}>${escapeHtml(label)}</button>`; }
+  function tjRender(){
+    const d = tj.draft, t = tjFind(tj.key).h || tjFind(tj.key).s; if(!d || !t) return;
+    const dur = (t.exitTime != null && t.entryTime != null) ? Math.max(0, t.exitTime - t.entryTime) : null;
+    const durTxt = dur == null ? '–' : (dur >= 86400 ? (dur / 86400).toFixed(1).replace('.', ',') + ' Tage' : dur >= 3600 ? (dur / 3600).toFixed(1).replace('.', ',') + ' Std' : Math.round(dur / 60) + ' Min');
+    document.getElementById('tjSummary').innerHTML = `<span><b>${escapeHtml(SYMBOL_NAME[t.symbol] || t.symbol || '')}</b> · ${escapeHtml(TF_NAME[t.tf] || t.tf || '')}</span>`
+      + `<span class="chip ${t.side}">${t.side === 'long' ? 'Long' : 'Short'}</span>`
+      + `<span>Ein <b>${px(t.entryPrice)}</b> → Aus <b>${px(t.exitPrice)}</b></span>`
+      + `<span>${escapeHtml(REASON_LABEL[t.reason] || t.reason || '')}</span>`
+      + `<span>Dauer <b>${durTxt}</b></span>`
+      + (t.rMultiple != null ? `<span><b>${(t.rMultiple >= 0 ? '+' : '') + t.rMultiple.toFixed(2).replace('.', ',')} R</b></span>` : '')
+      + `<span class="${(t.pnl || 0) >= 0 ? 'up-txt' : 'down-txt'}"><b>${usdSigned(t.pnl || 0)}</b></span>`;
+    const setups = [...new Set(TJ_SETUPS.concat(tjCustomSetups(), d.setups))];
+    document.getElementById('tjSetups').innerHTML = setups.map(x => tjChip(x, d.setups.includes(x), `data-tj-setup="${escapeHtml(x)}"`)).join('');
+    document.getElementById('tjEmotion').innerHTML = TJ_EMOTIONS.map(([k, l]) => tjChip(l, d.emotion === k, `data-tj-emo="${k}"`, ['fomo','gierig','rache'].includes(k) ? 'bad' : (['ruhig','fokussiert'].includes(k) ? 'good' : ''))).join('');
+    document.getElementById('tjPlan').innerHTML = TJ_PLAN.map(([k, l]) => tjChip(l, d.plan === k, `data-tj-plan="${k}"`, k === 'ja' ? 'good' : k === 'nein' ? 'bad' : '')).join('');
+    document.getElementById('tjMistakes').innerHTML = TJ_MISTAKES.map(x => tjChip(x, d.mistakes.includes(x), `data-tj-mis="${escapeHtml(x)}"`, 'bad')).join('');
+    document.getElementById('tjStars').innerHTML = [1,2,3,4,5].map(n => `<button type="button" class="tj-star${d.rating >= n ? ' on' : ''}" data-tj-star="${n}" title="${n} von 5">★</button>`).join('');
+  }
+  function openTradeJournal(key){
+    const f = tjFind(key), t = f.h || f.s; if(!t) return;
+    try{ pause(); }catch(e){}
+    const j = t.j || {};
+    tj.key = key;
+    tj.draft = { setups: (j.setups || []).slice(), emotion: j.emotion || '', plan: j.plan || '', mistakes: (j.mistakes || []).slice(), rating: j.rating || 0 };
+    document.getElementById('tjNote').value = t.note || '';
+    document.getElementById('tjLesson').value = j.lesson || '';
+    document.getElementById('tjAutoOpen').checked = tjAutoOn();
+    document.getElementById('tjReviewBtn').hidden = !f.h;
+    tjRender();
+    document.getElementById('tjBackdrop').hidden = false;
+  }
+  function closeTradeJournal(){ document.getElementById('tjBackdrop').hidden = true; tj.key = null; tj.draft = null; }
+  function saveTradeJournal(){
+    const f = tjFind(tj.key); if(!f.h && !f.s){ closeTradeJournal(); return; }
+    const d = tj.draft;
+    const j = { setups:d.setups, emotion:d.emotion, plan:d.plan, mistakes:d.mistakes, rating:d.rating, lesson: document.getElementById('tjLesson').value.trim(), at: Date.now() };
+    const note = document.getElementById('tjNote').value.trim();
+    [f.h, f.s].forEach(t => { if(t){ t.j = j; t.note = note; } });
+    saveTradeHistory();
+    saveState();
+    renderJournal(); refreshHistoryTabIfOpen();
+    try{ if(!document.getElementById('analysisTab').hidden) renderAnalysis(); }catch(e){}
+    closeTradeJournal();
+    showToast('Journal gespeichert.');
+  }
+  (function wireTradeJournal(){
+    const bd = document.getElementById('tjBackdrop');
+    bd.addEventListener('click', e => {
+      if(e.target === bd){ closeTradeJournal(); return; }
+      const d = tj.draft; if(!d) return;
+      const b = e.target.closest('button'); if(!b) return;
+      if(b.dataset.tjSetup != null){ const x = b.dataset.tjSetup; d.setups = d.setups.includes(x) ? d.setups.filter(y => y !== x) : d.setups.concat([x]); tjRender(); }
+      else if(b.dataset.tjEmo != null){ d.emotion = d.emotion === b.dataset.tjEmo ? '' : b.dataset.tjEmo; tjRender(); }
+      else if(b.dataset.tjPlan != null){ d.plan = d.plan === b.dataset.tjPlan ? '' : b.dataset.tjPlan; tjRender(); }
+      else if(b.dataset.tjMis != null){ const x = b.dataset.tjMis; d.mistakes = d.mistakes.includes(x) ? d.mistakes.filter(y => y !== x) : d.mistakes.concat([x]); tjRender(); }
+      else if(b.dataset.tjStar != null){ const n = +b.dataset.tjStar; d.rating = d.rating === n ? 0 : n; tjRender(); }
+    });
+    const addSetup = () => {
+      const inp = document.getElementById('tjSetupNew'); const v = inp.value.trim().slice(0, 30); if(!v || !tj.draft) return;
+      const list = tjCustomSetups(); if(!list.includes(v) && !TJ_SETUPS.includes(v)){ list.push(v); try{ localStorage.setItem(TJ_CUSTOM_KEY, JSON.stringify(list)); }catch(e){} }
+      if(!tj.draft.setups.includes(v)) tj.draft.setups.push(v);
+      inp.value = ''; tjRender();
+    };
+    document.getElementById('tjSetupAdd').addEventListener('click', addSetup);
+    document.getElementById('tjSetupNew').addEventListener('keydown', e => { if(e.key === 'Enter'){ e.preventDefault(); addSetup(); } });
+    document.getElementById('tjSaveBtn').addEventListener('click', saveTradeJournal);
+    document.getElementById('tjSkipBtn').addEventListener('click', closeTradeJournal);
+    document.getElementById('tjCloseBtn').addEventListener('click', closeTradeJournal);
+    document.getElementById('tjAutoOpen').addEventListener('change', e => { try{ localStorage.setItem(TJ_AUTO_KEY, e.target.checked ? '1' : '0'); }catch(err){} });
+    document.getElementById('tjReviewBtn').addEventListener('click', () => { const t = tjFind(tj.key).h; saveTradeJournal(); if(t) enterReview(t); });
+    document.addEventListener('keydown', e => { if(e.key === 'Escape' && !bd.hidden) closeTradeJournal(); });
+    // Bearbeiten-Knoepfe in den Tabellen
+    document.addEventListener('click', e => { const b = e.target.closest('[data-tj-open]'); if(b) openTradeJournal(b.dataset.tjOpen); });
+  })();
+  // CSV-Export aller (gefilterten) Trades mit Journal
+  function tradesCsv(list){
+    const esc = v => { const t = v == null ? '' : String(v); return /[";\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; };
+    const num = v => v == null || !isFinite(v) ? '' : String(Math.round(v * 1e6) / 1e6).replace('.', ',');
+    const head = ['Geschlossen','Markt','Zeitrahmen','Richtung','Einstieg Zeit','Einstieg Kurs','Ausstieg Zeit','Ausstieg Kurs','Grund','Größe €','Hebel','PnL €','R','Strategie','Setups','Gefühl','Plan','Fehler','Bewertung','Warum rein','Lehre'];
+    const rows = list.map(t => { const j = t.j || {}; return [
+      t.closedAt ? new Date(t.closedAt).toLocaleString('de-DE') : '', SYMBOL_NAME[t.symbol] || t.symbol || '', TF_NAME[t.tf] || t.tf || '', t.side === 'long' ? 'Long' : 'Short',
+      t.entryTime != null ? fmtTimeY(t.entryTime) : '', num(t.entryPrice), t.exitTime != null ? fmtTimeY(t.exitTime) : '', num(t.exitPrice), REASON_LABEL[t.reason] || t.reason || '',
+      num(t.notional), t.leverage || '', num(t.pnl), num(t.rMultiple), t.strategyName || '', (j.setups || []).join(', '), TJ_EMO_LABEL[j.emotion] || '', TJ_PLAN_LABEL[j.plan] || '',
+      (j.mistakes || []).join(', '), j.rating || '', t.note || '', j.lesson || '' ].map(esc).join(';'); });
+    return '\ufeff' + head.join(';') + '\n' + rows.join('\n');
+  }
+
   // ---------- Reiter "Alle Trades": jeder Trade aus allen Sessions, mit Rueckblick ----------
   const HIST_PAGE = 100;
   let histShown = HIST_PAGE;
@@ -6697,8 +6922,14 @@
     const all = state.tradeHistory;
     fillFilterSelect(histFilterSymbolEl, [...new Set(all.map(t => t.symbol).filter(Boolean))].sort(), v => SYMBOL_NAME[v] || v);
     fillFilterSelect(histFilterTfEl, Object.keys(TF_NAME).filter(tf => all.some(t => t.tf === tf)), v => TF_NAME[v] || v);
-    const fs = histFilterSymbolEl.value, ft = histFilterTfEl.value;
-    const list = all.filter(t => (fs === 'all' || t.symbol === fs) && (ft === 'all' || t.tf === ft)).slice().reverse();
+    const setupEl = document.getElementById('histFilterSetup'), emoEl = document.getElementById('histFilterEmo'), resEl = document.getElementById('histFilterRes');
+    fillFilterSelect(setupEl, [...new Set(all.flatMap(t => (t.j && t.j.setups) || []))].sort(), v => v);
+    fillFilterSelect(emoEl, TJ_EMOTIONS.map(e => e[0]).filter(k => all.some(t => t.j && t.j.emotion === k)), v => TJ_EMO_LABEL[v] || v);
+    const fs = histFilterSymbolEl.value, ft = histFilterTfEl.value, fSet = setupEl.value, fEmo = emoEl.value, fRes = resEl.value;
+    const list = all.filter(t => (fs === 'all' || t.symbol === fs) && (ft === 'all' || t.tf === ft)
+      && (fSet === 'all' || (t.j && (t.j.setups || []).includes(fSet))) && (fEmo === 'all' || (t.j && t.j.emotion === fEmo))
+      && (fRes === 'all' || (fRes === 'win' ? (t.pnl || 0) > 0 : fRes === 'loss' ? (t.pnl || 0) <= 0 : !tjHasEntry(t)))).slice().reverse();
+    histLastList = list;
     const pnl = list.reduce((a, t) => a + (t.pnl || 0), 0);
     document.getElementById('histNote').textContent = list.length ? `${list.length} Trade(s) · Summe ${usdSigned(pnl)}` : '';
     const body = document.getElementById('historyBody');
@@ -6714,9 +6945,9 @@
           <td class="num">${t.exitTime != null ? fmtTimeY(t.exitTime) : '–'} · ${t.exitPrice != null ? px(t.exitPrice) : ''}</td>
           <td><span class="chip ${t.reason==='tp'?'tp':(t.reason==='sl'||t.reason==='liquidation')?'sl':'manual'}">${REASON_LABEL[t.reason] || t.reason || '–'}</span></td>
           <td>${t.strategyName ? escapeHtml(t.strategyName) : '–'}</td>
-          <td class="note-cell" title="${escapeHtml(t.note || '')}">${escapeHtml(t.note || '')}</td>
+          <td>${tjCellHtml(t)}</td>
           <td class="num ${(t.pnl || 0) >= 0 ? 'up-txt' : 'down-txt'}">${usdSigned(t.pnl || 0)}</td>
-          <td><button class="btn review-btn" data-rv-key="${escapeHtml(histKey(t))}">Ansehen</button></td>
+          <td style="white-space:nowrap"><button class="btn tj-edit" data-tj-open="${escapeHtml(histKey(t))}" title="Journal bearbeiten">✎ Journal</button> <button class="btn review-btn" data-rv-key="${escapeHtml(histKey(t))}">Ansehen</button></td>
         </tr>`).join('');
     }
     document.getElementById('historyMoreBtn').hidden = list.length <= histShown;
@@ -6724,6 +6955,13 @@
   function refreshHistoryTabIfOpen(){ if(!document.getElementById('historyTab').hidden) renderHistoryTab(); }
   histFilterSymbolEl.addEventListener('change', () => { histShown = HIST_PAGE; renderHistoryTab(); });
   histFilterTfEl.addEventListener('change', () => { histShown = HIST_PAGE; renderHistoryTab(); });
+  let histLastList = [];
+  ['histFilterSetup','histFilterEmo','histFilterRes'].forEach(id => document.getElementById(id).addEventListener('change', () => { histShown = HIST_PAGE; renderHistoryTab(); }));
+  document.getElementById('histCsvBtn').addEventListener('click', () => {
+    const list = histLastList.length ? histLastList.slice().reverse() : state.tradeHistory.slice();
+    if(!list.length){ showToast('Noch keine Trades zum Exportieren.'); return; }
+    saveFile('TradeReplay-Journal-' + new Date().toISOString().slice(0, 10) + '.csv', new Blob([tradesCsv(list)], { type:'text/csv;charset=utf-8' }));
+  });
   document.getElementById('historyMoreBtn').addEventListener('click', () => { histShown += HIST_PAGE; renderHistoryTab(); });
   document.getElementById('historyBody').addEventListener('click', e => {
     const b = e.target.closest('[data-rv-key]');
@@ -7301,7 +7539,8 @@
     if(cloudRev && cloudRev !== localRev){
       const snap = await db.collection('hist').get();
       const cloudKeys = new Set(), have = new Set(state.tradeHistory.map(histKey));
-      const add = [];
+      const localByKey = new Map(state.tradeHistory.map(t => [histKey(t), t]));
+      const add = []; let jChanged = false;
       snap.docs.forEach(d => {
         const data = d.data() || {};
         CLOUD.chunkJson[d.id] = data.json;
@@ -7309,10 +7548,16 @@
         arr.forEach(t => {
           if(!t) return;
           const k = histKey(t); cloudKeys.add(k);
-          if(!have.has(k)){ have.add(k); add.push(t); }
+          if(!have.has(k)){ have.add(k); add.push(t); return; }
+          // gleicher Trade: die neuere Journal-Bewertung gewinnt (in beide Richtungen)
+          const lt = localByKey.get(k); if(!lt) return;
+          const ca = (t.j && t.j.at) || 0, la = (lt.j && lt.j.at) || 0;
+          if(ca > la){ lt.j = t.j; lt.note = t.note; jChanged = true; const sj = state.journal.find(x => histKey(x) === k); if(sj){ sj.j = t.j; sj.note = t.note; } }
+          else if(la > ca) localOnly = true;
         });
       });
       state.tradeHistory.forEach(t => { if(!cloudKeys.has(histKey(t))) localOnly = true; });
+      if(jChanged && !add.length){ lsSet(HISTORY_KEY, JSON.stringify(state.tradeHistory)); try{ renderJournal(); refreshHistoryTabIfOpen(); }catch(e){} }
       if(add.length){
         let merged = state.tradeHistory.concat(add).sort((a, b) => (a.closedAt || 0) - (b.closedAt || 0));
         if(merged.length > HISTORY_MAX) merged = merged.slice(-HISTORY_MAX);
