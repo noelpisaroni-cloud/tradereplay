@@ -1684,7 +1684,7 @@
     playing:false, timer:null, speedMs:700, ended:false,
     startingBalance:10000, balance:10000, feePct:0.05, slippagePct:0.05, sessionLen:1000, replayCapBars:null,
     position:null, pendingOrder:null, orderType:'market', journal:[], equityHistory:[],
-    drawings:[], drawTomb:[], activeTool:'cursor', selectedDrawingId:null,
+    drawings:[], drawTomb:[], epoch:0, activeTool:'cursor', selectedDrawingId:null,
     draftTp:null, draftSl:null,
     strategies:[], tradeHistory:[], activeStrategyId:'', activeChecklist:{}, editingStrategyId:null,
     activeSlot:0
@@ -2239,7 +2239,10 @@
   }
   function undoDrawing(){
     if(drawUndo.length){
+      const before = state.drawings.map(d => d.id);
       try{ state.drawings = JSON.parse(drawUndo.pop()); }catch(e){}
+      const after = new Set(state.drawings.map(d => d.id));
+      tombDrawings(before.filter(id => !after.has(id)));
     } else {
       const last = state.drawings.pop();
       if(!last){ showToast('Nichts zum Rückgängigmachen.'); return; }
@@ -2264,6 +2267,15 @@
   function sameSessionWindow(a, b){
     return !!(a && b) && a.symbol === b.symbol && a.tf === b.tf && (a.sessionSplit|0) === (b.sessionSplit|0)
       && (a.dataLen|0) === (b.dataLen|0) && (a.bundleOffset ?? null) === (b.bundleOffset ?? null) && (a.fetchEndTimeMs ?? null) === (b.fetchEndTimeMs ?? null);
+  }
+  // Welcher Stand derselben Session ist die Grundlage? Fortschritt springt nie automatisch zurueck:
+  // es gewinnt der weiter abgespielte Stand — ausser der andere wurde bewusst neu gestartet.
+  function syncPrefersOther(mine, other){
+    if(!mine) return true;
+    if(!sameSessionWindow(mine, other)) return (other.savedAt || 0) > (mine.savedAt || 2);
+    if((other.epoch || 0) !== (mine.epoch || 0)) return (other.epoch || 0) > (mine.epoch || 0);
+    if((other.cursor | 0) !== (mine.cursor | 0)) return (other.cursor | 0) > (mine.cursor | 0);
+    return (other.savedAt || 0) > (mine.savedAt || 2);   // gleich weit: der neuere Stand (verhindert Hin und Her)
   }
   function mergeDrawingSets(mine, other){
     if(!other || !Array.isArray(other.drawings) || !sameSessionWindow(mine, other)) return null;
@@ -2589,6 +2601,8 @@
     }
   }
 
+  // Rechter Rand der Kerzenflaeche (ohne Preisachse) — Beschriftungen sollen die Achsen-Zahlen nicht ueberdecken
+  function plotRightX(){ try{ const w = chart.timeScale().width(); if(w > 0) return w; }catch(e){} return container.clientWidth; }
   function svgLine(x1,y1,x2,y2,extra){
     const el = document.createElementNS(NS_SVG,'line');
     el.setAttribute('x1',x1); el.setAttribute('y1',y1); el.setAttribute('x2',x2); el.setAttribute('y2',y2);
@@ -2615,7 +2629,7 @@
       const y = yFromPriceRobust(d.p1.price);
       if(y==null) return;
       svg.appendChild(svgLine(0,y,w,y,{ stroke:'#E0A438', 'stroke-width':1.5, 'stroke-dasharray':'4 3' }));
-      svg.appendChild(svgText(w-6,y-5,usd(d.p1.price),{ fill:'#E0A438', 'text-anchor':'end' }));
+      svg.appendChild(svgText(plotRightX()-6,y-5,usd(d.p1.price),{ fill:'#E0A438', 'text-anchor':'end' }));
     } else if(d.type==='trendline'){
       const x1=xFromTimeRobust(d.p1.time), y1=yFromPriceRobust(d.p1.price), x2=xFromTimeRobust(d.p2.time), y2=yFromPriceRobust(d.p2.price);
       if(x1==null||y1==null||x2==null||y2==null) return;
@@ -2648,7 +2662,7 @@
       if(x1==null||y==null) return;
       svg.appendChild(svgLine(x1,y,w,y,{ stroke:'#B39DDB', 'stroke-width':1.8 }));
       svg.appendChild(circleAt(svg,x1,y));
-      svg.appendChild(svgText(w-6,y-5,usd(d.p1.price),{ fill:'#B39DDB', 'text-anchor':'end' }));
+      svg.appendChild(svgText(Math.max(x1+60, plotRightX()-6),y-5,usd(d.p1.price),{ fill:'#B39DDB', 'text-anchor':'end' }));
     } else if(d.type==='vline'){
       const x1=xFromTimeRobust(d.p1.time);
       if(x1==null) return;
@@ -3672,6 +3686,7 @@
     state.position = null;
     state.pendingOrder = null;
     state.journal = [];
+    state.epoch = Date.now();   // bewusster Neustart: darf beim Abgleich einen weiter fortgeschrittenen Stand ersetzen
     state.equityHistory = [{ i: state.cursor, equity: state.balance }];
     state.ended = false;
     els.endBanner.classList.remove('show');
@@ -6435,7 +6450,7 @@
       feePct:state.feePct, slippagePct:state.slippagePct, ended:state.ended,
       position:state.position, pendingOrder:state.pendingOrder,
       journal:state.journal.map(j => j.review ? { ...j, review:undefined } : j), equityHistory:state.equityHistory,
-      drawings:state.drawings, drawTomb:state.drawTomb, draftTp:state.draftTp, draftSl:state.draftSl,
+      drawings:state.drawings, drawTomb:state.drawTomb, epoch:state.epoch, draftTp:state.draftTp, draftSl:state.draftSl,
       activeStrategyId:state.activeStrategyId, activeChecklist:state.activeChecklist,
       markers, ma20: !!els.ma20Toggle.checked, ma50: !!els.ma50Toggle.checked,
       bb: !!els.bbToggle.checked, rsi: !!els.rsiToggle.checked,
@@ -6524,6 +6539,7 @@
     state.equityHistory = (Array.isArray(save.equityHistory) && save.equityHistory.length) ? save.equityHistory : [{ i:cursor, equity:state.balance }];
     state.drawings = Array.isArray(save.drawings) ? save.drawings : [];
     state.drawTomb = Array.isArray(save.drawTomb) ? save.drawTomb.slice(-400) : [];
+    state.epoch = save.epoch || 0;
     slotSeen[sessId(slotGroupKey(state.symbol, state.tf), state.activeSlot)] = save.savedAt;
     state.position = save.position || null;
     state.pendingOrder = save.pendingOrder || null;
@@ -6849,6 +6865,19 @@
       const g = loadSessionGroups();
       const local = (g[m.k] || [])[m.slot];
       if(!sessCloudWins(local, m)) continue;
+      if(local && sameSessionWindow(local, p) && !syncPrefersOther(local, p)){
+        // Das andere Geraet ist zwar neuer gespeichert, aber weniger weit: hier bleibt der weitere Stand,
+        // nur seine Zeichnungen kommen dazu — dann wird der weitere Stand fuer alle hochgeladen.
+        const isActive = m.k === slotGroupKey(state.symbol, state.tf) && m.slot === state.activeSlot && state.data.length && !state.reviewing && !state.loadingData;
+        if(isActive){ adoptForeignDrawings(p); saveState(); const np = (loadSessionGroups()[m.k] || [])[m.slot]; if(np && (np.savedAt || 0) <= (m.savedAt || 0)){ np.savedAt = Date.now(); const g2 = loadSessionGroups(); g2[m.k][m.slot] = np; saveSessionGroups(g2); slotSeen[id] = np.savedAt; } }
+        else {
+          const mg2 = mergeDrawingSets(local, p);
+          if(mg2){ local.drawings = mg2.drawings; local.drawTomb = mg2.drawTomb; }
+          local.savedAt = Math.max(Date.now(), (m.savedAt || 0) + 1); saveSessionGroups(g);
+        }
+        CLOUD.dirty[id] = { k:m.k, slot:m.slot };
+        continue;
+      }
       // Zeichnungen, die nur hier existieren, gehen nicht verloren — sie kommen in den neueren Stand
       const mg = local ? mergeDrawingSets(p, local) : null;
       if(mg){
@@ -6868,12 +6897,24 @@
       const cp = cloudDecodeSession(d.data());
       CLOUD.mergedFrom[id] = m.savedAt;
       if(!cp) continue;
-      if(m.k === slotGroupKey(state.symbol, state.tf) && m.slot === state.activeSlot && state.data.length && !state.reviewing && !state.loadingData){
+      const isActive = m.k === slotGroupKey(state.symbol, state.tf) && m.slot === state.activeSlot && state.data.length && !state.reviewing && !state.loadingData;
+      const g = loadSessionGroups();
+      const lp = (g[m.k] || [])[m.slot];
+      if(lp && sameSessionWindow(lp, cp) && syncPrefersOther(isActive ? buildSessionPayload() : lp, cp)){
+        // Das andere Geraet ist weiter abgespielt: dessen Stand nehmen, eigene Zeichnungen behalten
+        const mine = isActive ? buildSessionPayload() : lp;
+        const mg3 = mergeDrawingSets(cp, mine);
+        if(mg3){ cp.drawings = mg3.drawings; cp.drawTomb = mg3.drawTomb; }
+        cp.savedAt = Math.max(Date.now(), (lp.savedAt || 0) + 1);
+        g[m.k][m.slot] = cp; saveSessionGroups(g);
+        CLOUD.dirty[id] = { k:m.k, slot:m.slot };
+        if(isActive) reapply = true;
+        continue;
+      }
+      if(isActive){
         if(adoptForeignDrawings(cp)) saveState();
         continue;
       }
-      const g = loadSessionGroups();
-      const lp = (g[m.k] || [])[m.slot];
       const mg = lp ? mergeDrawingSets(lp, cp) : null;
       if(mg && (mg.added || mg.removed)){ lp.drawings = mg.drawings; lp.drawTomb = mg.drawTomb; lp.savedAt = Date.now(); saveSessionGroups(g); CLOUD.dirty[id] = { k:m.k, slot:m.slot }; }
     }
