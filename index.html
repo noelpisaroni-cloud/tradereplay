@@ -6275,8 +6275,8 @@
     $('ptbBuyK').textContent = isLimit ? 'Limit Kauf' : 'Kaufen';
     $('ptbSellK').textContent = isLimit ? 'Limit Verkauf' : 'Verkaufen';
     const lp = parseFloat(els.limitPriceInput.value);
-    const px = isLimit && lp > 0 ? usd(lp) : (state.data.length ? usd(currentBar().close) : '–');
-    $('ptbBuyP').textContent = px; $('ptbSellP').textContent = px;
+    const pxTxt = isLimit && lp > 0 ? px(lp) : (state.data.length ? px(currentBar().close) : '–');
+    $('ptbBuyP').textContent = pxTxt; $('ptbSellP').textContent = pxTxt;
     const risk = sizeMode === 'risk';
     const src = risk ? document.getElementById('riskPctInput') : els.qtyInput;
     const q = $('ptbQty');
@@ -6294,7 +6294,7 @@
       $('ptbClose').textContent = 'Schließen'; $('ptbClose').title = 'Position schließen (Taste X)';
     } else if(po){
       $('ptbSide').textContent = po.side === 'long' ? 'Long' : 'Short'; $('ptbSide').className = 'pos-side ' + po.side;
-      $('ptbPnl').textContent = 'Limit wartet @ ' + usd(po.limitPrice); $('ptbPnl').className = 'ptb-pnl';
+      $('ptbPnl').textContent = 'Limit wartet @ ' + px(po.limitPrice); $('ptbPnl').className = 'ptb-pnl';
       $('ptbClose').textContent = 'Abbrechen'; $('ptbClose').title = 'Limit-Order abbrechen';
     }
     $('ptbBal').textContent = els.balanceOut.textContent;
