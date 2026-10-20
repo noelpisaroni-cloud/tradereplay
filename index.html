@@ -2039,7 +2039,11 @@
 
   // ---------- drawing tools (trendline / horizontal line / rectangle / fibonacci) ----------
   const NS_SVG = 'http://www.w3.org/2000/svg';
-  const FIB_LEVELS = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1];
+  // Fibonacci wie im Vorbild des Nutzers (ICT/OTE): 0 · 0.618 · 0.706 · 0.79 · 1, je Stufe eine eigene Farbe
+  const FIB_LEVELS = [0, 0.618, 0.706, 0.79, 1];
+  const FIB_COLORS = { 0:'#E8E6C8', 0.618:'#5B9CF6', 0.706:'#80CBC4', 0.79:'#F57C00', 1:'#E91E63' };
+  // Neue Fibs (fv:2): 0 am zweiten Punkt, 1 am ersten (wie TradingView). Alte Fibs behalten ihre Richtung.
+  function fibPrice(d, lvl){ return d.fv === 2 ? d.p2.price + (d.p1.price - d.p2.price) * lvl : d.p1.price + (d.p2.price - d.p1.price) * lvl; }
   const TOOL_HINTS = {
     cursor: '', trendline: 'Ziehen oder zwei Punkte nacheinander antippen, um sie zu verbinden.',
     ray: 'Klicken, um einen horizontalen Strahl zu setzen, der nur nach rechts weiterl&auml;uft.',
@@ -2377,6 +2381,7 @@
   function addDrawing(d){
     pushDrawUndo();
     d.tv = 2;
+    if(d.type === 'fib') d.fv = 2;
     d.id = 'd' + Date.now() + Math.floor(Math.random()*1000);
     state.drawings.push(d);
     renderDrawings();
@@ -2533,7 +2538,7 @@
     if(d.type==='fib'){
       const x1=xFromTimeRobust(d.p1.time), x2=xFromTimeRobust(d.p2.time);
       if(x1==null||x2==null) return null;
-      const ys = FIB_LEVELS.map(lvl=>yFromPriceRobust(d.p1.price+(d.p2.price-d.p1.price)*lvl)).filter(v=>v!=null);
+      const ys = FIB_LEVELS.map(lvl=>yFromPriceRobust(fibPrice(d, lvl))).filter(v=>v!=null);
       if(!ys.length) return null;
       return { x:Math.min(x1,x2), y:Math.min(...ys), w:w-Math.min(x1,x2), h:Math.max(...ys)-Math.min(...ys) };
     }
@@ -2715,7 +2720,7 @@
     const d = state.selectedDrawingId && !state.reviewing ? state.drawings.find(x => x.id === state.selectedDrawingId) : null;
     const bb = d ? getDrawingBBox(d) : null;
     if(!d || !bb || state.activeTool !== 'cursor'){ bar.hidden = true; selBarKey = ''; return; }
-    const key = [d.id, d.type, d.color || '', d.alert ? 1 : 0, state.position ? 1 : 0, state.pendingOrder ? 1 : 0, d.type === 'posbox' ? (d.tpPrice < d.entryPrice ? 's' : 'l') : ''].join('|');
+    const key = [d.id, d.type, d.color || '', d.alert ? 1 : 0, d.text ? 1 : 0, state.position ? 1 : 0, state.pendingOrder ? 1 : 0, d.type === 'posbox' ? (d.tpPrice < d.entryPrice ? 's' : 'l') : ''].join('|');
     if(key !== selBarKey){
       selBarKey = key;
       let html = '';
@@ -2731,6 +2736,7 @@
       }
       if(d.type === 'hline' || d.type === 'ray') html += `<button class="sb-btn${d.alert ? ' on' : ''}" data-sb="alert" title="Alarm: Abspielen hält an, sobald der Kurs diese Linie erreicht">🔔 Alarm</button>`;
       if(d.type === 'text') html += `<button class="sb-btn" data-sb="edit" title="Text bearbeiten">✎ Text</button>`;
+      if(LABELABLE[d.type]) html += `<button class="sb-btn${d.text ? ' on' : ''}" data-sb="label" title="Text in/an die Zeichnung schreiben (auch: doppelt antippen)">✎ ${d.text ? 'Text ändern' : 'Text'}</button>`;
       html += `<button class="sb-btn" data-sb="dup" title="Kopie anlegen">⧉ Kopie</button>`;
       bar.innerHTML = html;
     }
@@ -2759,6 +2765,7 @@
       if(act === 'color'){ pushDrawUndo(); d.color = b.dataset.c; renderDrawings(); saveState(); }
       else if(act === 'alert'){ pushDrawUndo(); d.alert = !d.alert; renderDrawings(); saveState(); showToast(d.alert ? '🔔 Alarm an: Beim Abspielen hält TradeReplay an, sobald der Kurs ' + px(d.p1.price) + ' erreicht.' : 'Alarm aus.'); }
       else if(act === 'edit'){ editTextDrawing(d); }
+      else if(act === 'label'){ editDrawingLabel(d); }
       else if(act === 'dup'){ duplicateDrawing(d); }
       else if(act === 'trade'){ tradeFromBox(d); }
       else if(act === 'flip'){ flipPosbox(d); }
@@ -2885,6 +2892,23 @@
   // panning/zooming/playing) instead of just at genuine off-screen positions.
   function drawColor(d, def){ return (d && typeof d.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(d.color)) ? d.color : def; }
   function hexA(hex, a){ const n = parseInt(hex.slice(1), 16); return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`; }
+  // Beschriftung einer Zeichnung (Rechteck, Linien): mehrzeilig; above = Zeilen nach oben stapeln
+  function drawLabelLines(svg, text, x, y, color, above){
+    const lines = String(text || '').split('\n').filter(l => l.length);
+    if(!lines.length) return;
+    lines.forEach((line, i) => {
+      const yy = above ? y - (lines.length - 1 - i) * 15 : y + i * 15;
+      svg.appendChild(svgText(x, yy, line, { fill:color, 'font-weight':'600', 'font-size':'12px', 'paint-order':'stroke', stroke:'rgba(0,0,0,.55)', 'stroke-width':'3px' }));
+    });
+  }
+  const LABELABLE = { rect:1, hline:1, ray:1, trendline:1 };
+  function editDrawingLabel(d){
+    if(state.reviewing) return;
+    const bb = getDrawingBBox(d);
+    openTextEditor(bb ? bb.x : 40, bb ? bb.y : 40, d.text || '',
+      txt => { const v = (txt || '').trim(); if(v !== (d.text || '')){ pushDrawUndo(); if(v) d.text = v; else delete d.text; } renderDrawings(); saveState(); },
+      d.text ? () => { pushDrawUndo(); delete d.text; renderDrawings(); saveState(); } : null);
+  }
   function renderOne(svg, d){
     const w = container.clientWidth, h = container.clientHeight;
     if(d.type==='hline'){
@@ -2893,10 +2917,12 @@
       const c = drawColor(d, '#E0A438');
       svg.appendChild(svgLine(0,y,w,y,{ stroke:c, 'stroke-width':1.5, 'stroke-dasharray':'4 3' }));
       svg.appendChild(svgText(plotRightX()-6,y-5,(d.alert ? '🔔 ' : '') + px(d.p1.price),{ fill:c, 'text-anchor':'end' }));
+      drawLabelLines(svg, d.text, 10, y - 7, c, true);
     } else if(d.type==='trendline'){
       const x1=xFromTimeRobust(d.p1.time), y1=yFromPriceRobust(d.p1.price), x2=xFromTimeRobust(d.p2.time), y2=yFromPriceRobust(d.p2.price);
       if(x1==null||y1==null||x2==null||y2==null) return;
       svg.appendChild(svgLine(x1,y1,x2,y2,{ stroke:drawColor(d, '#2962FF'), 'stroke-width':2 }));
+      drawLabelLines(svg, d.text, (x1+x2)/2 + 6, (y1+y2)/2 - 8, drawColor(d, '#2962FF'), true);
       svg.appendChild(circleAt(svg,x1,y1)); svg.appendChild(circleAt(svg,x2,y2));
     } else if(d.type==='rect'){
       const x1=xFromTimeRobust(d.p1.time), y1=yFromPriceRobust(d.p1.price), x2=xFromTimeRobust(d.p2.time), y2=yFromPriceRobust(d.p2.price);
@@ -2908,17 +2934,29 @@
       const rc = drawColor(d, '#9C27B0');
       rect.setAttribute('fill', hexA(rc, 0.2)); rect.setAttribute('stroke', rc); rect.setAttribute('stroke-width','1.5');
       svg.appendChild(rect);
+      drawLabelLines(svg, d.text, rx + 7, ry + 16, '#ECEFF4');
     } else if(d.type==='fib'){
       const x1=xFromTimeRobust(d.p1.time), x2=xFromTimeRobust(d.p2.time);
       if(x1==null||x2==null) return;
-      const lo = Math.min(x1,x2), hi = w;
+      const lo = Math.min(x1,x2), hi = plotRightX();
+      const y1 = yFromPriceRobust(d.p1.price), y2 = yFromPriceRobust(d.p2.price);
+      const dec = Math.max(2, decimalsFor(d.p1.price) + 1);
+      const labelsLeft = lo > 130;
       FIB_LEVELS.forEach(lvl => {
-        const price = d.p1.price + (d.p2.price-d.p1.price)*lvl;
+        const price = fibPrice(d, lvl);
         const y = yFromPriceRobust(price);
         if(y==null) return;
-        svg.appendChild(svgLine(lo,y,hi,y,{ stroke:'#E0A438', 'stroke-width':1, opacity:'0.75' }));
-        svg.appendChild(svgText(lo+4,y-4,(lvl*100).toFixed(1)+'% · '+px(price),{ fill:'#E0A438' }));
+        const c = FIB_COLORS[lvl] || '#E0A438';
+        svg.appendChild(svgLine(lo,y,hi,y,{ stroke:c, 'stroke-width':1.3 }));
+        const lbl = String(lvl) + ' (' + price.toFixed(dec) + ')';
+        if(labelsLeft) svg.appendChild(svgText(lo-6,y+4,lbl,{ fill:c, 'text-anchor':'end', 'font-size':'11px', 'font-weight':'600', 'paint-order':'stroke', stroke:'rgba(10,12,18,.85)', 'stroke-width':'3px' }));
+        else svg.appendChild(svgText(lo+6,y-5,lbl,{ fill:c, 'font-size':'11px', 'font-weight':'600', 'paint-order':'stroke', stroke:'rgba(10,12,18,.85)', 'stroke-width':'3px' }));
       });
+      // gestrichelte Verbindung der beiden Punkte + runde Griffe
+      if(y1!=null && y2!=null){
+        svg.appendChild(svgLine(x1,y1,x2,y2,{ stroke:'#E8E6C8', 'stroke-width':1.4, 'stroke-dasharray':'6 5' }));
+        [[x1,y1],[x2,y2]].forEach(([hx,hy]) => { const c = document.createElementNS(NS_SVG,'circle'); c.setAttribute('cx',hx); c.setAttribute('cy',hy); c.setAttribute('r',5); c.setAttribute('fill','#131722'); c.setAttribute('stroke','#2962FF'); c.setAttribute('stroke-width','1.6'); svg.appendChild(c); });
+      }
     } else if(d.type==='posbox'){
       renderPosbox(svg, d);
     } else if(d.type==='ray'){
@@ -2928,6 +2966,7 @@
       svg.appendChild(svgLine(x1,y,w,y,{ stroke:c, 'stroke-width':1.8 }));
       svg.appendChild(circleAt(svg,x1,y));
       svg.appendChild(svgText(Math.max(x1+60, plotRightX()-6),y-5,(d.alert ? '🔔 ' : '') + px(d.p1.price),{ fill:c, 'text-anchor':'end' }));
+      drawLabelLines(svg, d.text, x1 + 10, y - 7, c, true);
     } else if(d.type==='vline'){
       const x1=xFromTimeRobust(d.p1.time);
       if(x1==null) return;
@@ -3069,9 +3108,9 @@
     const tpLabelY = yTp<yEntry ? yTp-13 : yTp+13;
     const slLabelY = ySl<yEntry ? ySl-13 : ySl+13;
     const rrShort = rr != null ? ' · R/R 1:' + rr.toFixed(2).replace('.', ',') : '';
-    svg.appendChild(svgPill(cx, tpLabelY, [`Ziel ${px(d.tpPrice)} · ${distLabel(d.tpPrice, d.entryPrice)} · +${usd(tpAmount, tpAmount < 100 ? 2 : 0)}${rrShort}`], '#123B33', '#8FE3C8', 0.92));
+    svg.appendChild(svgPill(cx, tpLabelY + (yTp<yEntry ? -2 : 2), [`Ziel ${px(d.tpPrice)} · ${distLabel(d.tpPrice, d.entryPrice)} · +${usd(tpAmount, tpAmount < 100 ? 2 : 0)}${rrShort}`], '#167A65', '#FFFFFF', 1, 11.5));
     // Kein Schild auf der Einstiegslinie — sie muss frei sichtbar bleiben (Wunsch des Nutzers)
-    svg.appendChild(svgPill(cx, slLabelY, [`Stop ${px(d.slPrice)} · ${distLabel(d.slPrice, d.entryPrice)} · −${usd(slAmount, slAmount < 100 ? 2 : 0)}`], '#401616', '#FFB3AB', 0.92));
+    svg.appendChild(svgPill(cx, slLabelY + (ySl<yEntry ? -2 : 2), [`Stop ${px(d.slPrice)} · ${distLabel(d.slPrice, d.entryPrice)} · −${usd(slAmount, slAmount < 100 ? 2 : 0)}`], '#B23B3B', '#FFFFFF', 1, 11.5));
   }
   function handleCircle(x,y){
     const c = document.createElementNS(NS_SVG,'circle');
@@ -3079,11 +3118,12 @@
     c.setAttribute('fill','#131722'); c.setAttribute('stroke','#4FC3F7'); c.setAttribute('stroke-width','1.3');
     return c;
   }
-  function svgPill(cx, cy, lines, bg, textColor, bgOpacity){
+  function svgPill(cx, cy, lines, bg, textColor, bgOpacity, fontSize){
     const g = document.createElementNS(NS_SVG,'g');
-    const fontSize=10, lineH=12, padX=7, padY=3;
+    fontSize = fontSize || 10;
+    const lineH = Math.round(fontSize*1.2), padX = 7, padY = fontSize > 10 ? 4 : 3;
     const maxLen = Math.max(...lines.map(l=>l.length));
-    const w = maxLen*5.5 + padX*2, h = lines.length*lineH + padY*2 - 1;
+    const w = maxLen*fontSize*0.56 + padX*2, h = lines.length*lineH + padY*2 - 1;
     const rect = document.createElementNS(NS_SVG,'rect');
     rect.setAttribute('x', cx-w/2); rect.setAttribute('y', cy-h/2);
     rect.setAttribute('width', w); rect.setAttribute('height', h);
@@ -6258,8 +6298,9 @@
       const id = findDrawingHit(pt.x, pt.y);
       if(!id) return;
       const d = state.drawings.find(dd=>dd.id===id);
-      if(!d || d.type!=='text') return;
-      editTextDrawing(d);
+      if(!d) return;
+      if(d.type==='text') editTextDrawing(d);
+      else if(LABELABLE[d.type]) editDrawingLabel(d);
     });
   })();
 
