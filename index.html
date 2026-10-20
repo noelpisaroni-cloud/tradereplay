@@ -3057,7 +3057,7 @@
     if(!bars || !bars.length){
       const msg = 'Keine Kursdaten verfügbar für '+(SYMBOL_NAME[symbol]||symbol)+' ('+(TF_NAME[tf]||tf)+'). Prüfe deine Internetverbindung.';
       window.dispatchEvent(new ErrorEvent('error', { message: msg }));
-      try{ alert(msg); }catch(e){}
+      showToast(msg, 7000);
       return false;
     }
 
@@ -3926,7 +3926,7 @@
   }
   function saveStrategyFromEditor(){
     const name = els.stratNameInput.value.trim();
-    if(!name){ alert('Bitte einen Namen für die Strategie eingeben.'); return; }
+    if(!name){ showToast('Bitte einen Namen für die Strategie eingeben.'); return; }
     const checklist = collectEditorChecklist();
     if(state.editingStrategyId){
       const s = findStrategy(state.editingStrategyId);
@@ -3938,9 +3938,12 @@
     renderActiveStrategySelect();
     closeStrategyEditor();
   }
+  let stratDeleteArmedUntil = 0;
   function deleteStrategyFromEditor(){
     if(!state.editingStrategyId) return;
-    if(!confirm('Diese Strategie wirklich löschen? Bereits geloggte Trades behalten ihren Strategienamen, verlieren aber den Link zur Checkliste.')) return;
+    // confirm() erscheint in der Claude-App nicht — deshalb zweimal tippen zum Loeschen
+    if(Date.now() > stratDeleteArmedUntil){ stratDeleteArmedUntil = Date.now() + 4000; showToast('Nochmal auf „Löschen“ tippen, um die Strategie wirklich zu löschen. Bereits geloggte Trades behalten ihren Strategienamen.', 4000); return; }
+    stratDeleteArmedUntil = 0;
     state.strategies = state.strategies.filter(s=>s.id!==state.editingStrategyId);
     saveStrategies();
     if(state.activeStrategyId===state.editingStrategyId){ state.activeStrategyId=''; state.activeChecklist={}; }
@@ -4057,15 +4060,15 @@
     const price = bar.close;
     if(sizeMode === 'risk'){
       const rs = computeRiskSizing(side, price);
-      if(!rs.ok){ alert(rs.msg); return; }
+      if(!rs.ok){ showToast(rs.msg, 6500); return; }
       els.qtyInput.value = rs.notional.toFixed(2);
     }
     const notional = parseFloat(els.qtyInput.value);
     const leverage = parseFloat(els.leverageSelect.value) || 1;
-    if(!notional || notional<=0){ alert('Bitte eine gültige Positionsgröße eingeben.'); return; }
+    if(!notional || notional<=0){ showToast('Bitte eine gültige Positionsgröße eingeben.', 5000); return; }
     const margin = notional/leverage;
     if(margin > state.balance + 1e-9){
-      alert('Nicht genug Kontostand für diese Positionsgröße bei diesem Hebel.\nBenötigte Marge: '+usd(margin)+'\nVerfügbar: '+usd(state.balance));
+      showToast('Nicht genug Kontostand für diese Positionsgröße bei diesem Hebel. Benötigte Marge: '+usd(margin)+' · verfügbar: '+usd(state.balance), 7000);
       return;
     }
     const qty = notional/price;
@@ -4122,25 +4125,26 @@
   function placeLimitOrder(side){
     if(state.position || state.pendingOrder || state.ended || state.reviewing) return;
     const limitPrice = parseFloat(els.limitPriceInput.value);
-    if(!limitPrice || limitPrice<=0){ alert('Bitte einen gültigen Limit-Preis eingeben.'); return; }
+    if(!limitPrice || limitPrice<=0){ showToast('Bitte einen gültigen Limit-Preis eingeben (Feld „Limit-Preis“ im Order-Feld).', 5500); return; }
     if(sizeMode === 'risk'){
       const rs = computeRiskSizing(side, limitPrice);
-      if(!rs.ok){ alert(rs.msg); return; }
+      if(!rs.ok){ showToast(rs.msg, 6500); return; }
       els.qtyInput.value = rs.notional.toFixed(2);
     }
     const notional = parseFloat(els.qtyInput.value);
     const leverage = parseFloat(els.leverageSelect.value) || 1;
-    if(!notional || notional<=0){ alert('Bitte eine gültige Positionsgröße eingeben.'); return; }
+    if(!notional || notional<=0){ showToast('Bitte eine gültige Positionsgröße eingeben.', 5000); return; }
     const margin = notional/leverage;
     if(margin > state.balance + 1e-9){
-      alert('Nicht genug Kontostand für diese Positionsgröße bei diesem Hebel.\nBenötigte Marge: '+usd(margin)+'\nVerfügbar: '+usd(state.balance));
+      showToast('Nicht genug Kontostand für diese Positionsgröße bei diesem Hebel. Benötigte Marge: '+usd(margin)+' · verfügbar: '+usd(state.balance), 7000);
       return;
     }
     const tpOn = els.tpEnabled.checked, slOn = els.slEnabled.checked;
     const tpPct = parseFloat(els.tpPct.value), slPct = parseFloat(els.slPct.value);
     const tpPrice = resolveDraftOrPct('tp', side, limitPrice, tpOn, tpPct);
     const slPrice = resolveDraftOrPct('sl', side, limitPrice, slOn, slPct);
-    state.pendingOrder = { side, limitPrice, notional, leverage, margin, tpPrice, slPrice, balanceAtEntry: state.balance, ...snapshotActiveStrategy() };
+    const dir = state.data.length ? (limitPrice < currentBar().close ? 'below' : 'above') : null;
+    state.pendingOrder = { side, limitPrice, dir, notional, leverage, margin, tpPrice, slPrice, balanceAtEntry: state.balance, ...snapshotActiveStrategy() };
     clearDrafts();
     drawPendingOrderLine();
     updateAccountUI();
@@ -4160,20 +4164,25 @@
   function checkPendingOrderAgainstBar(bar){
     const o = state.pendingOrder;
     if(!o) return;
-    if(bar.low<=o.limitPrice && bar.high>=o.limitPrice) fillPendingOrder(bar.time);
+    // Springt der Kurs ueber den Limit-Preis hinweg (Luecke), wird zum Eroeffnungskurs ausgefuehrt.
+    // dir = ob der Preis beim Platzieren unter ('below') oder ueber ('above') dem Kurs lag.
+    if(o.dir === 'below'){ if(bar.low <= o.limitPrice) fillPendingOrder(bar.time, Math.min(o.limitPrice, bar.open)); }
+    else if(o.dir === 'above'){ if(bar.high >= o.limitPrice) fillPendingOrder(bar.time, Math.max(o.limitPrice, bar.open)); }
+    else if(bar.low<=o.limitPrice && bar.high>=o.limitPrice) fillPendingOrder(bar.time);
   }
-  function fillPendingOrder(fillTime){
+  function fillPendingOrder(fillTime, fillPrice){
     const o = state.pendingOrder;
     if(!o) return;
-    const qty = o.notional/o.limitPrice;
+    const px = (typeof fillPrice === 'number' && isFinite(fillPrice) && fillPrice > 0) ? fillPrice : o.limitPrice;
+    const qty = o.notional/px;
     const entryFee = o.notional*state.feePct/100;
-    const liqPrice = o.leverage>1 ? (o.side==='long' ? o.limitPrice*(1-1/o.leverage) : o.limitPrice*(1+1/o.leverage)) : null;
+    const liqPrice = o.leverage>1 ? (o.side==='long' ? px*(1-1/o.leverage) : px*(1+1/o.leverage)) : null;
     state.position = {
       side:o.side, qty, notional:o.notional, leverage:o.leverage, margin:o.margin,
-      entryPrice:o.limitPrice, entryFee, entryTime:fillTime,
+      entryPrice:px, entryFee, entryTime:fillTime,
       tpPrice:o.tpPrice, slPrice:o.slPrice, liqPrice,
-      tpPct: o.tpPrice!=null ? Math.abs(o.tpPrice-o.limitPrice)/o.limitPrice*100 : null,
-      slPct: o.slPrice!=null ? Math.abs(o.slPrice-o.limitPrice)/o.limitPrice*100 : null,
+      tpPct: o.tpPrice!=null ? Math.abs(o.tpPrice-px)/px*100 : null,
+      slPct: o.slPrice!=null ? Math.abs(o.slPrice-px)/px*100 : null,
       balanceAtEntry: o.balanceAtEntry!=null ? o.balanceAtEntry : state.balance, note:'',
       strategyId:o.strategyId||null, strategyName:o.strategyName||null, checklist:o.checklist||[]
     };
@@ -4250,19 +4259,20 @@
     const pos = state.position;
     if(!pos) return;
     let reason=null, price=null;
+    // Kurs-Luecken (z. B. Forex-Wochenende): eroeffnet die Kerze schon jenseits von Stop oder Ziel,
+    // wird zum Eroeffnungskurs ausgefuehrt — beim Stop schlechter, beim Ziel besser, wie im echten Markt.
+    const open = bar.open;
     if(pos.side==='long'){
       const stopBarrier = pos.liqPrice!=null ? Math.max(pos.slPrice ?? -Infinity, pos.liqPrice) : pos.slPrice;
-      if(stopBarrier!=null && bar.low <= stopBarrier){
-        reason = (pos.liqPrice!=null && stopBarrier===pos.liqPrice && stopBarrier>=(pos.slPrice ?? -Infinity)) ? 'liquidation' : 'sl';
-        price = applySlippage(stopBarrier, 'long');
-      }
+      const stopReason = () => (pos.liqPrice!=null && stopBarrier===pos.liqPrice && stopBarrier>=(pos.slPrice ?? -Infinity)) ? 'liquidation' : 'sl';
+      if(pos.tpPrice!=null && open >= pos.tpPrice && !(stopBarrier!=null && open <= stopBarrier)){ reason='tp'; price=open; }
+      else if(stopBarrier!=null && bar.low <= stopBarrier){ reason = stopReason(); price = applySlippage(Math.min(stopBarrier, open), 'long'); }
       else if(pos.tpPrice!=null && bar.high >= pos.tpPrice){ reason='tp'; price=pos.tpPrice; }
     } else {
       const stopBarrier = pos.liqPrice!=null ? Math.min(pos.slPrice ?? Infinity, pos.liqPrice) : pos.slPrice;
-      if(stopBarrier!=null && bar.high >= stopBarrier){
-        reason = (pos.liqPrice!=null && stopBarrier===pos.liqPrice && stopBarrier<=(pos.slPrice ?? Infinity)) ? 'liquidation' : 'sl';
-        price = applySlippage(stopBarrier, 'short');
-      }
+      const stopReason = () => (pos.liqPrice!=null && stopBarrier===pos.liqPrice && stopBarrier<=(pos.slPrice ?? Infinity)) ? 'liquidation' : 'sl';
+      if(pos.tpPrice!=null && open <= pos.tpPrice && !(stopBarrier!=null && open >= stopBarrier)){ reason='tp'; price=open; }
+      else if(stopBarrier!=null && bar.high >= stopBarrier){ reason = stopReason(); price = applySlippage(Math.max(stopBarrier, open), 'short'); }
       else if(pos.tpPrice!=null && bar.low <= pos.tpPrice){ reason='tp'; price=pos.tpPrice; }
     }
     if(reason) closePosition(price, bar.time, reason);
