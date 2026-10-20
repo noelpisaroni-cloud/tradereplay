@@ -1356,10 +1356,10 @@
                   <button class="btn icon" id="sessionSettingsBtn" data-menu-btn="sessionMenu" aria-haspopup="true" aria-expanded="false" title="Session-Einstellungen"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
                   <div class="menu-pop right up" id="sessionMenu" hidden>
                     <div class="menu-title">Session-Einstellungen</div>
-                    <label class="menu-field"><span>Kerzen pro Session</span><input type="number" id="sessionLenInput" min="150" max="3500" step="50" value="1000"></label>
+                    <label class="menu-field"><span>Kerzen pro Session</span><input type="number" id="sessionLenInput" min="150" max="20000" step="100" value="8000"></label>
                     <p class="menu-note">So viele Kerzen kannst du pro Session durchhandeln (mehr = längere Session, mehr Historie bleibt verdeckt).</p>
                     <div class="menu-sep"></div>
-                    <label class="menu-item"><input type="checkbox" id="allTfToggle" checked><span>Alle Zeitrahmen nutzbar</span></label>
+                    <label class="menu-item"><input type="checkbox" id="allTfToggle"><span>Alle Zeitrahmen nutzbar</span></label>
                     <p class="menu-note">An: Zufalls-Sessions kommen nur aus dem Zeitraum, in dem alle 7 Zeitrahmen Daten haben &ndash; dann kannst du in jeder Session frei zwischen 1m und 1T wechseln. Aus: Sessions k&ouml;nnen auch aus &auml;lterer Zeit kommen (dort fehlen feine Zeitrahmen wie 1m/5m). Bei Krypto mit Live-Daten (Desktop-App mit Internet) ist das nicht nötig &ndash; dort kannst du immer frei wechseln.</p>
                   </div>
                 </div>
@@ -1716,13 +1716,14 @@
   "use strict";
 
   const MIN_REPLAY = 150;
-  const DEFAULT_REPLAY_TAIL = 1000;
+  // Maximum zum Lernen (Wunsch des Nutzers): so viele Replay-Kerzen wie die Daten hergeben
+  const DEFAULT_REPLAY_TAIL = 8000;
   // Moeglichst viele Kerzen pro Session (zum Lernen): mit Live-Daten so viel
   // Vorgeschichte, mit eingebauten Daten bis zu 75 % der vorhandenen Historie —
   // das letzte Viertel bleibt Spielraum, damit jede neue Zufalls-Session woanders landet.
   const LIVE_HISTORY_BARS = 8000;
   const BUNDLE_WINDOW_SHARE = 0.75;
-  const MIN_WARMUP_FRACTION = 0.7;
+  const MIN_WARMUP_FRACTION = 0.3;   // 30 % Vorgeschichte reicht fuer Indikatoren und Ueberblick
   const SYMBOL_NAME = {
     BTCUSDT:'BTC/USDT', ETHUSDT:'ETH/USDT', BNBUSDT:'BNB/USDT', SOLUSDT:'SOL/USDT', XRPUSDT:'XRP/USDT',
     DOGEUSDT:'DOGE/USDT', ADAUSDT:'ADA/USDT', AVAXUSDT:'AVAX/USDT', LINKUSDT:'LINK/USDT', LTCUSDT:'LTC/USDT',
@@ -3536,7 +3537,7 @@
   // on every page load is a real burden on memory-constrained mobile
   // browsers, so it's deferred until a live fetch has actually failed.
   const TF_MS = { '1m':60000, '5m':300000, '15m':900000, '30m':1800000, '1h':3600000, '4h':14400000, '1d':86400000 };
-  const FETCH_BAR_CAP = 12000;
+  const FETCH_BAR_CAP = 20000;
   const earliestCache = {};
 
   const loadedBundleFiles = {};
@@ -3717,8 +3718,9 @@
   // Symbols schon mindestens 120 Kerzen Vorlauf hat (die feinen TFs reichen nur Wochen
   // zurueck, 1h/4h/1T Jahre). Liegt der Replay-Start dahinter, klappt der spaetere
   // Zeitrahmen-Wechsel in der Session garantiert.
-  const ALL_TF_KEY = 'tradereplay_all_tf_v1';
-  try{ if(localStorage.getItem(ALL_TF_KEY) === '0') els.allTfToggle.checked = false; }catch(e){}
+  // v2: standardmaessig AUS — sonst begrenzte der kurze 1m-Zeitraum die Session auf wenige hundert Kerzen
+  const ALL_TF_KEY = 'tradereplay_all_tf_v2';
+  try{ els.allTfToggle.checked = localStorage.getItem(ALL_TF_KEY) === '1'; }catch(e){}
   els.allTfToggle.addEventListener('change', ()=>{
     try{ localStorage.setItem(ALL_TF_KEY, els.allTfToggle.checked ? '1' : '0'); }catch(e){}
   });
@@ -4163,7 +4165,7 @@
           newFetchEnd = endMs;
         }catch(e){
           liveHealth.failedAt = Date.now();
-          window.dispatchEvent(new ErrorEvent('error', { message:'Live-Daten für '+(TF_NAME[newTf]||newTf)+' konnten nicht geladen werden (Internetverbindung?) — Wechsel abgebrochen, du bist weiter auf '+(TF_NAME[oldTf]||oldTf)+'.' }));
+          showToast('Live-Daten für '+(TF_NAME[newTf]||newTf)+' konnten nicht geladen werden (Internetverbindung?) — du bist weiter auf '+(TF_NAME[oldTf]||oldTf)+'.', 7000);
           return;
         } finally {
           showDataLoading(false);
@@ -4172,8 +4174,7 @@
         await ensureBundledData(state.symbol, newTf);
         const raw = (window.OHLC && window.OHLC[state.symbol+'_'+newTf]) || [];
         if(!raw.length){
-          const msg = 'Keine Kursdaten verfügbar für '+(SYMBOL_NAME[state.symbol]||state.symbol)+' ('+(TF_NAME[newTf]||newTf)+') beim Wechsel des Zeitrahmens.';
-          window.dispatchEvent(new ErrorEvent('error', { message: msg }));
+          showToast('Keine Kursdaten verfügbar für '+(SYMBOL_NAME[state.symbol]||state.symbol)+' ('+(TF_NAME[newTf]||newTf)+') – du bleibst auf '+(TF_NAME[oldTf]||oldTf)+'.', 7000);
           return;
         }
         // window.OHLC entries are raw [ts_ms,o,h,l,c,v] arrays (as bundled) —
@@ -4192,8 +4193,9 @@
       // timeframe's session completely untouched.
       let cursorIdx = findBarIndexAtOrBeforeClock(fullArr, newTf, clockMs);
       if(cursorIdx < 0){
-        const msg = (TF_NAME[newTf]||newTf)+' hat an diesem Punkt noch keine Kursdaten (reicht nur bis '+fmtTime(fullArr[0].time)+' UTC zurück) — Wechsel abgebrochen, du bist weiter auf '+(TF_NAME[oldTf]||oldTf)+'.';
-        window.dispatchEvent(new ErrorEvent('error', { message: msg }));
+        // Kein Fehler-Kasten: freundlicher Hinweis, die Session bleibt unveraendert
+        showToast((TF_NAME[newTf]||newTf)+' gibt es zu diesem Zeitpunkt noch nicht (Daten erst ab '+fmtTime(fullArr[0].time)+'). Du bleibst auf '+(TF_NAME[oldTf]||oldTf)+'. Tipp: Unten im ⚙ „Alle Zeitrahmen nutzbar“ einschalten – dann gehen 1m/5m immer, die Sessions sind aber kürzer.', 9000);
+        setActive(document.getElementById('tfTabs'), oldTf, 'tf');
         return;
       }
       let splitIdx = findBarIndexAtOrBeforeClock(fullArr, newTf, startClockMs);
@@ -7123,7 +7125,8 @@
     // 300 und 400 waren fruehere Standardwerte; solche Sessions bekommen fuer die naechste
     // neue Session den neuen Standard (die gespeicherte Session selbst bleibt unveraendert).
     state.sessionLen = (save.sessionLen && save.sessionLen !== 300 && save.sessionLen !== 400) ? save.sessionLen : DEFAULT_REPLAY_TAIL;
-    els.sessionLenInput.value = state.sessionLen;
+    // Die naechste neue Session bekommt mindestens den (grossen) Standard, auch wenn diese alte kleiner war
+    els.sessionLenInput.value = Math.max(state.sessionLen, DEFAULT_REPLAY_TAIL);
     state.startingBalance = save.startingBalance!=null ? save.startingBalance : 10000;
     els.startCapital.value = state.startingBalance;
     state.balance = save.balance!=null ? save.balance : state.startingBalance;
