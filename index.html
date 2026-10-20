@@ -1016,7 +1016,7 @@
     html[data-layout="pro"] .brand span{ display:none; }
     html[data-layout="pro"] .topbar .symbol-select{ width:180px; }
     html[data-layout="pro"] .order-col{ width:280px; }
-    html[data-layout="pro"] .session-bar .session-label, html[data-layout="pro"] #restartSessionBtn{ display:none; }
+    html[data-layout="pro"] .session-bar .session-label{ display:none; }
   }
   @media (max-width:999.98px){
     html[data-layout="pro"] body{ padding-bottom:calc(58px + env(safe-area-inset-bottom, 0px)); }
@@ -2939,7 +2939,7 @@
     const range = vb && vb.pMax > vb.pMin ? vb.pMax - vb.pMin : pt.price * 0.02;
     let slDist = recentAtr(14) * 1.5;
     if(!(slDist > 0)) slDist = range * 0.08;
-    slDist = Math.min(Math.max(slDist, range * 0.07), range * 0.25);   // gut greifbar, aber nicht riesig
+    slDist = Math.min(Math.max(slDist, range * 0.07), range * 0.12);   // gut greifbar, aber nicht riesig
     const tpDist = slDist * 2;
     const tpPrice = isShort ? pt.price - tpDist : pt.price + tpDist;
     const slPrice = isShort ? pt.price + slDist : pt.price - slDist;
@@ -3006,13 +3006,9 @@
 
     const tpLabelY = yTp<yEntry ? yTp-13 : yTp+13;
     const slLabelY = ySl<yEntry ? ySl-13 : ySl+13;
-    svg.appendChild(svgPill(cx, tpLabelY, [`Ziel ${px(d.tpPrice)} · ${distLabel(d.tpPrice, d.entryPrice)} · +${usd(tpAmount, tpAmount < 100 ? 2 : 0)}`], '#123B33', '#8FE3C8', 0.92));
-    const riskPctAcc = state.balance > 0 ? slAmount / state.balance * 100 : 0;
-    const centerLines = [`${isLong ? 'Long' : 'Short'} · R/R ${rr != null ? '1:' + rr.toFixed(2).replace('.', ',') : '–'}`,
-      `Größe ${usd(qty * d.entryPrice, 0)} · Risiko ${usd(slAmount, slAmount < 100 ? 2 : 0)} (${riskPctAcc.toFixed(1).replace('.', ',')} %)`];
-    // Zweite Zeile (Groesse/Risiko) nur, wenn die Box hoch genug ist — sonst verdeckt das Schild die Box
-    const boxH = Math.abs(yTp - ySl);
-    svg.appendChild(svgPill(cx, yEntry, boxH > 90 ? centerLines : [centerLines[0] + ' · Risiko ' + usd(slAmount, slAmount < 100 ? 2 : 0)], '#1E222D', '#E3E6EC', 0.85));
+    const rrShort = rr != null ? ' · R/R 1:' + rr.toFixed(2).replace('.', ',') : '';
+    svg.appendChild(svgPill(cx, tpLabelY, [`Ziel ${px(d.tpPrice)} · ${distLabel(d.tpPrice, d.entryPrice)} · +${usd(tpAmount, tpAmount < 100 ? 2 : 0)}${rrShort}`], '#123B33', '#8FE3C8', 0.92));
+    // Kein Schild auf der Einstiegslinie — sie muss frei sichtbar bleiben (Wunsch des Nutzers)
     svg.appendChild(svgPill(cx, slLabelY, [`Stop ${px(d.slPrice)} · ${distLabel(d.slPrice, d.entryPrice)} · −${usd(slAmount, slAmount < 100 ? 2 : 0)}`], '#401616', '#FFB3AB', 0.92));
   }
   function handleCircle(x,y){
