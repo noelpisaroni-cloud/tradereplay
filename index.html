@@ -449,6 +449,13 @@
   .slot-pills button.used:not(.active){ color:var(--ink); border-color:var(--line-strong, var(--line)); font-weight:600; }
   .slot-pills{ flex-wrap:wrap; gap:3px; }
   .slot-pills button{ width:26px; height:26px; font-size:11.5px; }
+  .ff-menu{ min-width:250px; }
+  .date-sess-btn{ width:100%; height:32px; margin:2px 0 4px; font-size:12.5px; justify-content:center; }
+  #dateSessInput{ color-scheme:dark; }
+  .ff-menu .ff-item{ width:100%; text-align:left; background:none; border:none; color:var(--ink); border-radius:7px; cursor:pointer; }
+  .ff-menu .ff-item:hover{ background:var(--panel-hover, rgba(255,255,255,.06)); }
+  .ff-menu .ff-item span{ display:flex; justify-content:space-between; gap:12px; width:100%; }
+  .ff-menu .ff-item small{ color:var(--ink-soft); font-variant-numeric:tabular-nums; }
   .sess-ov-btn{ height:28px; padding:0 10px; font-size:12px; margin-left:6px; white-space:nowrap; }
   /* Kompakter Session-Waehler (oeffnet die Uebersicht) — die 10 Kreise nur, wenn wirklich Platz ist */
   .sess-pick{ display:none; align-items:center; gap:7px; height:30px; padding:0 11px; font-size:12.5px; font-weight:600; max-width:230px; white-space:nowrap; border:1px solid var(--line); }
@@ -1379,6 +1386,19 @@
               <button id="stepBackBtn" title="Eine Kerze zurück (Pfeil links)">⏮<span class="rb-lbl"> Zurück</span></button>
               <button class="play" id="playPauseBtn" title="Leertaste">▶<span class="rb-lbl"> Play</span></button>
               <button id="stepBtn" title="Nächste Kerze (Pfeil rechts)"><span class="rb-lbl">Nächste Kerze </span>⏭</button>
+              <div class="menu-wrap ff-wrap">
+                <button id="ffBtn" data-menu-btn="ffMenu" aria-haspopup="true" aria-expanded="false" title="Vorspulen bis zur nächsten Session-Eröffnung">⏩<span class="rb-lbl"> Vorspulen</span></button>
+                <div class="menu-pop ff-menu" id="ffMenu" hidden>
+                  <div class="menu-title">Vorspulen bis … <small>(Uhrzeit Berlin)</small></div>
+                  <button class="menu-item ff-item" data-ff="asia"><span>Asia-Eröffnung<small>01:00</small></span></button>
+                  <button class="menu-item ff-item" data-ff="frankfurt"><span>Frankfurt-Eröffnung<small>08:00</small></span></button>
+                  <button class="menu-item ff-item" data-ff="london"><span>London-Eröffnung<small>09:00</small></span></button>
+                  <button class="menu-item ff-item" data-ff="nykz"><span>New-York-Killzone<small>13:00</small></span></button>
+                  <button class="menu-item ff-item" data-ff="ny"><span>New-York-Eröffnung<small>14:30</small></span></button>
+                  <button class="menu-item ff-item" data-ff="day"><span>Nächster Tag<small>00:00</small></span></button>
+                  <p class="menu-note">Offene Trades, TP/SL, Limit-Orders und Alarme laufen dabei mit – passiert etwas, stoppt das Vorspulen sofort.</p>
+                </div>
+              </div>
               <select id="speedSelect" title="Abspielgeschwindigkeit">
                 <option value="1400">0.5x</option>
                 <option value="700" selected>1x</option>
@@ -1407,6 +1427,10 @@
                     <div class="menu-title">Session-Einstellungen</div>
                     <label class="menu-field"><span>Kerzen pro Session</span><input type="number" id="sessionLenInput" min="150" max="50000" step="100" value="50000"></label>
                     <p class="menu-note">So viele Kerzen kannst du pro Session durchhandeln (mehr = längere Session, mehr Historie bleibt verdeckt).</p>
+                    <div class="menu-sep"></div>
+                    <label class="menu-field"><span>Session ab Datum</span><input type="date" id="dateSessInput"></label>
+                    <button class="btn date-sess-btn" id="dateSessBtn" type="button">▶ Session an diesem Tag starten</button>
+                    <p class="menu-note" id="dateSessNote">Startet im aktuellen Platz eine neue Session genau ab diesem Tag (00:00 UTC) – z. B. für einen bestimmten NFP-Tag.</p>
                     <div class="menu-sep"></div>
                     <label class="menu-item"><input type="checkbox" id="allTfToggle"><span>Alle Zeitrahmen nutzbar</span></label>
                     <p class="menu-note">An: Zufalls-Sessions kommen nur aus dem Zeitraum, in dem alle 7 Zeitrahmen Daten haben &ndash; dann kannst du in jeder Session frei zwischen 1m und 1T wechseln. Aus: Sessions k&ouml;nnen auch aus &auml;lterer Zeit kommen (dort fehlen feine Zeitrahmen wie 1m/5m). Bei Krypto mit Live-Daten (Desktop-App mit Internet) ist das nicht nötig &ndash; dort kannst du immer frei wechseln.</p>
@@ -3972,7 +3996,7 @@
     state.replayCapBars = null;
 
     let bars = null, fetchEndTimeMs = null;
-    if(!isForexSymbol(symbol) && liveAllowed() && (!isRestore || opts.restoreEndTimeMs!=null)){
+    if(!isForexSymbol(symbol) && liveAllowed() && (!isRestore || opts.restoreEndTimeMs!=null) && opts.targetStartMs == null){
       showDataLoading(true);
       try{
         if(opts.randomizeWindow){
@@ -4029,7 +4053,24 @@
       showDataLoading(false);
       const key = symbol+'_'+tf, rawAll = window.OHLC && window.OHLC[key];
       let raw = rawAll, segOff = 0;
-      if(rawAll && rawAll.length && !isRestore){
+      if(rawAll && rawAll.length && !isRestore && opts.targetStartMs != null){
+        // Session ab Wunschdatum: Replay beginnt mit der ersten Kerze ab diesem Zeitpunkt, davor Vorlauf
+        let idx = -1, lo = 0, hi = rawAll.length - 1;
+        while(lo <= hi){ const mid = (lo + hi) >> 1; if(+rawAll[mid][0] >= opts.targetStartMs){ idx = mid; hi = mid - 1; } else lo = mid + 1; }
+        const seg = idx >= 0 ? segmentOfIndex(dataSegments(key, rawAll), idx) : null;
+        if(!seg || +rawAll[idx][0] - opts.targetStartMs > SEG_GAP_MS || seg[1] - idx < MIN_REPLAY){
+          showToast('Für ' + new Date(opts.targetStartMs).toLocaleDateString('de-DE', { timeZone:'UTC' }) + ' gibt es keine ' + (TF_NAME[tf] || tf) + '-Daten (oder zu wenige danach). Vorhanden: ' + segmentsText(key, rawAll) + '.', 9000);
+          return false;
+        }
+        const warm = Math.min(Math.round(BUNDLE_BAR_CAP * 0.3), idx - seg[0]);
+        const end = Math.min(seg[1], idx + Math.max(MIN_REPLAY, desired));
+        bars = rawAll.slice(idx - warm, end);
+        state.bundleOffset = idx - warm;
+        state.bundleT0 = +bars[0][0];
+        state.forcedSplit = warm;
+        raw = null;
+      }
+      if(rawAll && rawAll.length && !isRestore && opts.targetStartMs == null){
         // Eine neue Session liegt immer in EINEM zusammenhaengenden Abschnitt; zufaellig nach Laenge gewichtet.
         const segs = dataSegments(key, rawAll), ok = segs.filter(sg => sg[1] - sg[0] >= MIN_REPLAY * 3);
         let seg = segs[segs.length-1];
@@ -4407,9 +4448,12 @@
           setActive(document.getElementById('tfTabs'), oldTf, 'tf');
           return;
         }
-        fullArr = raw.slice(seg[0], seg[1]).map(toBarObject);
-        newBundleOffset = seg[0];
-        newBundleT0 = +raw[seg[0]][0];
+        // Fenster begrenzen (Speicher/Tempo, v. a. iPad): etwas Vorlauf vor dem Session-Start, bis zu BUNDLE_BAR_CAP Kerzen nach vorn
+        let si = li; while(si > seg[0] && +raw[si][0] > startClockMs) si--;
+        const w0 = Math.max(seg[0], si - 15000), w1 = Math.min(seg[1], li + 1 + BUNDLE_BAR_CAP);
+        fullArr = raw.slice(w0, w1).map(toBarObject);
+        newBundleOffset = w0;
+        newBundleT0 = +raw[w0][0];
       }
 
       // Different timeframes' bundled history reaches back by very different
@@ -4671,7 +4715,10 @@
   }
 
   // ---------- replay stepping ----------
-  function stepForward(){
+  // quiet = true: beim Vorspulen ohne die teuren Anzeigen pro Kerze (die kommen einmal am Ende).
+  // Liefert dann 'event', wenn etwas passiert ist (Trade zu, Order ausgefuehrt, Alarm).
+  function stepForward(quiet){
+    quiet = quiet === true;
     if(state.ended || state.reviewing) return false;
     const nextIdx = state.cursor+1;
     if(nextIdx >= state.data.length){ endSession(); return false; }
@@ -4689,7 +4736,7 @@
     }
     if(rsiSeries && state.rsiFull[state.cursor]!=null) rsiSeries.update({time:bar.time, value:state.rsiFull[state.cursor]});
     stepXInd(state.cursor);
-    renderIndLegend();
+    if(!quiet) renderIndLegend();
     const hadOrder = !!state.pendingOrder, hadPos = !!state.position, nJournal = state.journal.length;
     const prevClose = state.data[state.cursor-1] ? state.data[state.cursor-1].close : null;
     if(state.pendingOrder) checkPendingOrderAgainstBar(bar);
@@ -4705,13 +4752,55 @@
     alerts.forEach(p => events.push('🔔 Alarm: Kurs hat ' + px(p) + ' erreicht'));
     if(events.length){ if(state.playing) pause(); showToast(events.join(' · '), 5000); }
     state.equityHistory.push({ i: state.cursor, equity: computeEquity() });
-    updateAccountUI();
-    updateProgressUI();
-    refreshCompanion(false);
-    renderDrawings();
+    if(!quiet){
+      updateAccountUI();
+      updateProgressUI();
+      refreshCompanion(false);
+      renderDrawings();
+    }
     if(state.cursor >= state.data.length-1) endSession();
+    if(!quiet) saveState();
+    return quiet && events.length ? 'event' : true;
+  }
+
+  // ---------- Vorspulen bis zur naechsten Session-Eroeffnung (Uhrzeit Berlin) ----------
+  const FF_TARGETS = { asia:[60, 'Asia-Eröffnung'], frankfurt:[480, 'Frankfurt-Eröffnung'], london:[540, 'London-Eröffnung'], nykz:[780, 'New-York-Killzone'], ny:[870, 'New-York-Eröffnung'], day:[0, 'Nächster Tag'] };
+  function berlinOffsetMin(sec){ const p = berlinParts(sec); return Math.round((Date.UTC(p.year, p.month-1, p.day, p.hour, p.minute)/1000 - (sec - ((sec % 60) + 60) % 60)) / 60); }
+  // Erster Zeitpunkt NACH sec, an dem es in Berlin minuteOfDay Uhr ist (bei Forex nie am Wochenende).
+  function nextBerlinTime(sec, minuteOfDay){
+    const off = berlinOffsetMin(sec), local = sec + off*60;
+    let cand = Math.floor(local/86400)*86400 + minuteOfDay*60;
+    if(cand <= local) cand += 86400;
+    for(let k = 0; k < 8; k++){
+      const utc = cand - berlinOffsetMin(cand - off*60)*60;
+      const wd = new Date(cand*1000).getUTCDay();   // Wochentag in Berlin (cand ist Berlin-"Wanduhr")
+      if(isForexSymbol(state.symbol) && (wd === 6 || wd === 0)){ cand += 86400; continue; }
+      if(utc > sec) return utc;
+      cand += 86400;
+    }
+    return cand - off*60;
+  }
+  function fastForward(kind){
+    const tg = FF_TARGETS[kind];
+    if(!tg || state.ended || state.reviewing || !state.data.length) return;
+    pause();
+    const nxt = state.data[state.cursor+1];
+    if(!nxt){ endSession(); return; }
+    const target = nextBerlinTime(nxt.time, tg[0]);
+    let n = 0, hit = false;
+    while(state.cursor + 1 < state.data.length && state.data[state.cursor+1].time < target && n < 100000){
+      const r = stepForward(true);
+      n++;
+      if(r === 'event'){ hit = true; break; }
+      if(r === false || state.ended) break;
+    }
+    updateAccountUI(); updateProgressUI(); renderIndLegend(); refreshCompanion(true); renderDrawings(); updateStepControls();
+    try{ chart.timeScale().scrollToRealTime(); }catch(e){}
     saveState();
-    return true;
+    if(!hit && !state.ended){
+      const nb = state.data[state.cursor+1];
+      showToast('⏩ ' + n.toLocaleString('de-DE') + ' Kerze(n) vorgespult · als Nächstes: ' + tg[1] + (nb ? ' (' + fmtTimeY(nb.time) + ' UTC)' : ''), 4000);
+    }
   }
 
   const SPEED_MS = {}; // filled from select options
@@ -6198,11 +6287,74 @@
     loadDatasetAndStartSession({randomizeWindow:true}, true, false);
   }
   els.newSessionBtn.addEventListener('click', startNewSessionSmart);
+  // Session ab Wunschdatum (im Session-Menue): ersetzt wie "Neue Session" nur nach Rueckfrage eine gespielte Session.
+  function startDateSession(confirmed){
+    if(datasetLoadBusy || state.reviewing) return;
+    const v = document.getElementById('dateSessInput').value;
+    if(!/^\d{4}-\d\d-\d\d$/.test(v)){ showToast('Bitte zuerst ein Datum wählen.'); return; }
+    const ms = Date.parse(v + 'T00:00:00Z');
+    document.getElementById('sessionMenu').hidden = true;
+    const list = loadSessionGroups()[slotGroupKey(state.symbol, state.tf)] || [];
+    const curUsed = sessNonPristine(list[state.activeSlot]) || state.journal.length > 0 || !!state.position || state.cursor !== state.sessionSplit;
+    if(curUsed && confirmed !== true){
+      let free = -1;
+      for(let i = 0; i < SESSION_SLOTS; i++){ if(i !== state.activeSlot && !sessNonPristine(list[i])){ free = i; break; } }
+      const acts = [{ label: 'Ja, Session ' + (state.activeSlot + 1) + ' ersetzen', fn: () => startDateSession(true) }];
+      if(free >= 0) acts.unshift({ label: 'In freien Platz ' + (free + 1), fn: async () => { await switchToSlot(free); startDateSession(true); } });
+      showToast('Session ' + (state.activeSlot + 1) + ' ist schon gespielt. Durch eine neue Session ab ' + new Date(ms).toLocaleDateString('de-DE', { timeZone:'UTC' }) + ' ersetzen? Die Trades bleiben unter „Alle Trades“.', 9000, acts);
+      return;
+    }
+    (async () => {
+      datasetLoadBusy = true;
+      els.newSessionBtn.disabled = true; els.restartSessionBtn.disabled = true;
+      try{
+        const ok = await loadDataset({ targetStartMs: ms });
+        if(ok){
+          state.sessionSplit = state.forcedSplit | 0; state.forcedSplit = null;
+          state.sessionName = '';
+          newSession(false);
+          showToast('Neue Session ab ' + fmtDateY(state.data[state.sessionSplit].time) + ' · ' + (state.data.length - 1 - state.sessionSplit).toLocaleString('de-DE') + ' Kerzen', 5000);
+        }
+      } finally {
+        datasetLoadBusy = false;
+        els.newSessionBtn.disabled = false; els.restartSessionBtn.disabled = false;
+      }
+    })();
+  }
+  document.getElementById('dateSessBtn').addEventListener('click', () => startDateSession(false));
+  document.getElementById('sessionSettingsBtn').addEventListener('click', () => {
+    const key = state.symbol + '_' + state.tf, raw = window.OHLC && window.OHLC[key];
+    if(raw && raw.length){
+      const inp = document.getElementById('dateSessInput');
+      inp.min = new Date(+raw[0][0]).toISOString().slice(0, 10);
+      inp.max = new Date(+raw[raw.length-1][0]).toISOString().slice(0, 10);
+      document.getElementById('dateSessNote').textContent = 'Startet im aktuellen Platz eine neue Session genau ab diesem Tag (00:00 UTC) – z. B. für einen bestimmten NFP-Tag. ' + (TF_NAME[state.tf] || state.tf) + '-Daten: ' + segmentsText(key, raw) + '.';
+    }
+  });
   els.restartSessionBtn.addEventListener('click', ()=> newSession(false));
   els.endNewSessionBtn.addEventListener('click', startNewSessionSmart);
 
   els.playPauseBtn.addEventListener('click', ()=> state.playing ? pause() : play());
-  els.stepBtn.addEventListener('click', stepForward);
+  els.stepBtn.addEventListener('click', () => stepForward());
+  // Die Abspiel-Leiste ist verschiebbar: das Menue klappt dorthin auf, wo Platz ist
+  document.getElementById('ffBtn').addEventListener('click', () => {
+    const r = document.getElementById('ffBtn').getBoundingClientRect();
+    const menu = document.getElementById('ffMenu');
+    menu.classList.toggle('up', r.top > window.innerHeight / 2);
+    menu.style.left = '';
+    requestAnimationFrame(() => {
+      if(menu.hidden) return;
+      const m = menu.getBoundingClientRect(), over = m.right - (window.innerWidth - 8);
+      if(over > 0) menu.style.left = Math.round(-Math.min(over, m.left - 8)) + 'px';
+    });
+  }, true);
+  document.getElementById('ffMenu').addEventListener('click', e => {
+    const b = e.target.closest('[data-ff]');
+    if(!b) return;
+    document.getElementById('ffMenu').hidden = true;
+    document.getElementById('ffBtn').setAttribute('aria-expanded', 'false');
+    fastForward(b.dataset.ff);
+  });
   els.speedSelect.addEventListener('change', ()=>{
     state.speedMs = parseInt(els.speedSelect.value,10);
     if(state.playing){ pause(); play(); }
@@ -7623,6 +7775,7 @@
   document.getElementById('sessPickBtn').addEventListener('click', openSessionOverview);
   document.getElementById('sessOvCloseBtn').addEventListener('click', closeSessionOverview);
   document.getElementById('sessOvBackdrop').addEventListener('click', e => { if(e.target.id === 'sessOvBackdrop') closeSessionOverview(); });
+  document.addEventListener('keydown', e => { if(e.key === 'Escape' && !document.getElementById('sessOvBackdrop').hidden) closeSessionOverview(); });
   document.getElementById('sessOvBody').addEventListener('click', e => {
     const ob = e.target.closest('[data-sov-open]');
     if(ob){ closeSessionOverview(); switchToSlot(+ob.dataset.sovOpen); return; }
