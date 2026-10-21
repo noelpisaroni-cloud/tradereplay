@@ -1361,7 +1361,7 @@
                   <button class="btn icon" id="sessionSettingsBtn" data-menu-btn="sessionMenu" aria-haspopup="true" aria-expanded="false" title="Session-Einstellungen"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
                   <div class="menu-pop right up" id="sessionMenu" hidden>
                     <div class="menu-title">Session-Einstellungen</div>
-                    <label class="menu-field"><span>Kerzen pro Session</span><input type="number" id="sessionLenInput" min="150" max="20000" step="100" value="20000"></label>
+                    <label class="menu-field"><span>Kerzen pro Session</span><input type="number" id="sessionLenInput" min="150" max="50000" step="100" value="50000"></label>
                     <p class="menu-note">So viele Kerzen kannst du pro Session durchhandeln (mehr = längere Session, mehr Historie bleibt verdeckt).</p>
                     <div class="menu-sep"></div>
                     <label class="menu-item"><input type="checkbox" id="allTfToggle"><span>Alle Zeitrahmen nutzbar</span></label>
@@ -1723,7 +1723,7 @@
 
   const MIN_REPLAY = 150;
   // Maximum zum Lernen (Wunsch des Nutzers): so viele Replay-Kerzen wie die Daten hergeben
-  const DEFAULT_REPLAY_TAIL = 20000;
+  const DEFAULT_REPLAY_TAIL = 50000;
   // Moeglichst viele Kerzen pro Session (zum Lernen): mit Live-Daten so viel
   // Vorgeschichte, mit eingebauten Daten bis zu 75 % der vorhandenen Historie —
   // das letzte Viertel bleibt Spielraum, damit jede neue Zufalls-Session woanders landet.
@@ -2423,7 +2423,8 @@
   // ausdruecklich geloescht wurde. Bei gleicher Zeichnung gewinnt die Fassung von "mine".
   function sameSessionWindow(a, b){
     return !!(a && b) && a.symbol === b.symbol && a.tf === b.tf && (a.sessionSplit|0) === (b.sessionSplit|0)
-      && (a.dataLen|0) === (b.dataLen|0) && (a.bundleOffset ?? null) === (b.bundleOffset ?? null) && (a.fetchEndTimeMs ?? null) === (b.fetchEndTimeMs ?? null);
+      && (a.dataLen|0) === (b.dataLen|0) && (a.bundleOffset ?? null) === (b.bundleOffset ?? null) && (a.fetchEndTimeMs ?? null) === (b.fetchEndTimeMs ?? null)
+      && (a.bundleT0 == null || b.bundleT0 == null || a.bundleT0 === b.bundleT0);
   }
   // Welcher Stand derselben Session ist die Grundlage? Fortschritt springt nie automatisch zurueck:
   // es gewinnt der weiter abgespielte Stand — ausser der andere wurde bewusst neu gestartet.
@@ -3543,7 +3544,8 @@
   // on every page load is a real burden on memory-constrained mobile
   // browsers, so it's deferred until a live fetch has actually failed.
   const TF_MS = { '1m':60000, '5m':300000, '15m':900000, '30m':1800000, '1h':3600000, '4h':14400000, '1d':86400000 };
-  const FETCH_BAR_CAP = 20000;
+  const FETCH_BAR_CAP = 20000;   // Live-Abruf (Binance)
+  const BUNDLE_BAR_CAP = 50000;  // eingebaute Daten: so viele Kerzen hoechstens pro Session-Fenster
   const earliestCache = {};
 
   const loadedBundleFiles = {};
@@ -3610,18 +3612,75 @@
     LINKUSDT:'sym_LINKUSDT.js', LTCUSDT:'sym_LTCUSDT.js', DOTUSDT:'sym_DOTUSDT.js', PAXGUSDT:'sym_PAXGUSDT.js'
   };
   [...['EURUSD','GBPUSD','USDJPY','USDCHF','AUDUSD','USDCAD','NZDUSD','EURGBP','EURJPY','EURCHF','EURAUD','EURCAD','EURNZD','GBPJPY','GBPCHF','GBPAUD','GBPCAD','GBPNZD','AUDJPY','AUDCAD','AUDCHF','AUDNZD','CADJPY','CADCHF','CHFJPY','NZDJPY','NZDCAD','NZDCHF']].forEach(p => { BUNDLE_FILE_FOR_SYMBOL[p] = 'sym_' + p + '.js'; });
+  // Langzeit-Archiv (echte OANDA-Minutendaten, daraus alle Zeitrahmen gebaut): wird VOR die eingebauten
+  // Daten gehaengt. Kompakt gespeichert (Abstaende in Punkten), je Datei hoechstens ~3 MB fuers iPad.
+  // Zwischen Archiv und neueren Daten liegt eine Luecke — Sessions bleiben immer in EINEM Abschnitt.
+  const EXT_DATA = { EURUSD: { '1m':1, '5m':2, '15m':2, '30m':1, '1h':1, '4h':1, '1d':1 } };
+  const OHLC_BASE = {};   // key -> Anzahl vorangestellter Archiv-Kerzen (fuer alte Sessions, deren Fenster-Index davor gezaehlt wurde)
+  const extMerged = {};
+  function decodeExt(ch){
+    const out = new Array(ch.n), d = ch.d, sc = ch.sc, st = ch.st;
+    let t = ch.t0 - st, pc = ch.p0, k = 0;
+    for(let i = 0; i < d.length; i += 5){
+      t += (d[i] + 1) * st;
+      const o = pc + d[i+1], c = o + d[i+2], h = (o > c ? o : c) + d[i+3], l = (o < c ? o : c) - d[i+4];
+      out[k++] = [t, o/sc, h/sc, l/sc, c/sc, 0];
+      pc = c;
+    }
+    out.length = k;
+    return out;
+  }
+  function mergeExt(symbol, tf){
+    const key = symbol + '_' + tf, parts = window.OHLC_X && window.OHLC_X[key];
+    if(extMerged[key] || !parts) return;
+    const recent = window.OHLC[key] || [];
+    const firstRecent = recent.length ? +recent[0][0] : Infinity;
+    const ext = [];
+    for(const p of parts){ if(!p) continue; const rows = decodeExt(p); for(let i = 0; i < rows.length; i++) if(rows[i][0] < firstRecent) ext.push(rows[i]); }
+    window.OHLC[key] = ext.length ? ext.concat(recent) : recent;
+    OHLC_BASE[key] = ext.length;
+    extMerged[key] = true;
+    delete window.OHLC_X[key];
+    try{ delete compBarsCache[key]; }catch(e){}
+    delete segCache[key];
+    Object.keys(activityThresholdCache).forEach(k => { if(k.indexOf(key + '|') === 0) delete activityThresholdCache[k]; });
+  }
   function ensureBundledData(symbol, tf){
     window.OHLC = window.OHLC || {};
-    if(window.OHLC[symbol+'_'+tf]) return Promise.resolve();
+    const key = symbol + '_' + tf, extParts = EXT_DATA[symbol] && EXT_DATA[symbol][tf];
+    if(window.OHLC[key] && (!extParts || extMerged[key])) return Promise.resolve();
     const file = BUNDLE_FILE_FOR_SYMBOL[symbol];
     if(!file) return Promise.resolve();
-    return loadBundleFileOnce(file)
+    const base = window.OHLC[key] ? Promise.resolve() : loadBundleFileOnce(file)
       .catch(e => {
-        const msg = 'Bundle-Ladefehler ('+file+' für '+symbol+'_'+tf+'): ' + (e && e.message ? e.message : e);
+        const msg = 'Bundle-Ladefehler ('+file+' für '+key+'): ' + (e && e.message ? e.message : e);
         console.warn(msg);
         window.dispatchEvent(new ErrorEvent('error', { message: msg }));
       });
+    if(!extParts) return base;
+    return base.then(async () => {
+      try{
+        for(let i = 0; i < extParts; i++) await loadBundleFileOnce('x_' + key + '_' + i + '.js');
+        mergeExt(symbol, tf);
+      }catch(e){ console.warn('Archiv-Daten für ' + key + ' nicht geladen:', e && e.message ? e.message : e); }
+    });
   }
+  // Zusammenhaengende Abschnitte der Daten (getrennt durch Luecken > 5 Tage, z. B. zwischen Archiv und neueren Daten)
+  const SEG_GAP_MS = 5*86400000;
+  const segCache = {};
+  function dataSegments(key, raw){
+    const c = segCache[key];
+    if(c && c.len === raw.length && c.first === raw[0][0]) return c.segs;
+    const segs = []; let s0 = 0;
+    for(let i = 1; i < raw.length; i++){ if(raw[i][0] - raw[i-1][0] > SEG_GAP_MS){ segs.push([s0, i]); s0 = i; } }
+    if(raw.length) segs.push([s0, raw.length]);
+    segCache[key] = { len:raw.length, first:raw.length ? raw[0][0] : 0, segs };
+    return segs;
+  }
+  function segmentOfIndex(segs, idx){ for(const sg of segs){ if(idx >= sg[0] && idx < sg[1]) return sg; } return segs[segs.length-1]; }
+  function rawIndexOfTime(raw, ms){ let lo = 0, hi = raw.length - 1; while(lo <= hi){ const mid = (lo + hi) >> 1, v = +raw[mid][0]; if(v === ms) return mid; if(v < ms) lo = mid + 1; else hi = mid - 1; } return -1; }
+  function fmtMonthYear(ms){ return new Date(ms).toLocaleDateString('de-DE', { month:'short', year:'numeric', timeZone:'UTC' }); }
+  function segmentsText(key, raw){ return dataSegments(key, raw).map(sg => fmtMonthYear(raw[sg[0]][0]) + ' – ' + fmtMonthYear(raw[sg[1]-1][0])).join(' und '); }
 
   // ---------- Live-Daten: Verfuegbarkeit merken ----------
   // Nach einem fehlgeschlagenen Live-Abruf (Sandbox/offline) gibt es 2 Minuten lang keine weiteren
@@ -3734,7 +3793,7 @@
     let t = 0;
     for(const tf of Object.keys(TF_MS)){
       const arr = window.OHLC && window.OHLC[symbol+'_'+tf];
-      if(arr && arr.length) t = Math.max(t, (+arr[0][0]) + 120*TF_MS[tf]);
+      if(arr && arr.length){ const sg = dataSegments(symbol+'_'+tf, arr); t = Math.max(t, (+arr[sg[sg.length-1][0]][0]) + 120*TF_MS[tf]); }
     }
     return t;
   }
@@ -3842,10 +3901,24 @@
       showDataLoading(true);
       await ensureBundledData(symbol, tf);
       showDataLoading(false);
-      const raw = window.OHLC && window.OHLC[symbol+'_'+tf];
+      const key = symbol+'_'+tf, rawAll = window.OHLC && window.OHLC[key];
+      let raw = rawAll, segOff = 0;
+      if(rawAll && rawAll.length && !isRestore){
+        // Eine neue Session liegt immer in EINEM zusammenhaengenden Abschnitt; zufaellig nach Laenge gewichtet.
+        const segs = dataSegments(key, rawAll), ok = segs.filter(sg => sg[1] - sg[0] >= MIN_REPLAY * 3);
+        let seg = segs[segs.length-1];
+        if(opts.randomizeWindow && !els.allTfToggle.checked && ok.length > 1){
+          const tot = ok.reduce((a, sg) => a + (sg[1] - sg[0]), 0);
+          let r = Math.random() * tot;
+          seg = ok[ok.length-1];
+          for(const sg of ok){ r -= sg[1] - sg[0]; if(r < 0){ seg = sg; break; } }
+        }
+        segOff = seg[0];
+        if(seg[0] !== 0 || seg[1] !== rawAll.length) raw = rawAll.slice(seg[0], seg[1]);
+      }
       if(raw && raw.length){
         const winBars = (isRestore && opts.restoreBarCount) ? opts.restoreBarCount
-          : Math.max(Math.min(raw.length, desired + 300), Math.min(FETCH_BAR_CAP, Math.floor(raw.length*BUNDLE_WINDOW_SHARE)));
+          : Math.max(Math.min(raw.length, desired + 300), Math.min(BUNDLE_BAR_CAP, Math.floor(raw.length*BUNDLE_WINDOW_SHARE)));
         // "Alle Zeitrahmen nutzbar": der Replay-Teil muss in den Zeitraum passen, in dem auch
         // 1m/5m Daten haben — sonst waere der Zeitrahmenwechsel waehrend der Session gesperrt.
         let commonStart = els.allTfToggle.checked ? commonHistoryStartMs(symbol) : 0;
@@ -3862,17 +3935,26 @@
         const tail = state.replayCapBars || desired;
         let offset;
         if(isRestore){
-          offset = Math.min(Math.max(0, opts.restoreBundleOffset|0), Math.max(0, raw.length-winBars));
+          if(opts.restoreBundleT0 != null){
+            offset = rawIndexOfTime(raw, +opts.restoreBundleT0);
+            if(offset < 0){
+              showToast('Die Kursdaten dieser Session konnten nicht geladen werden (Internet?). Bitte die App neu laden – die Session bleibt gespeichert.', 9000);
+              return false;
+            }
+          } else offset = (OHLC_BASE[key] || 0) + Math.max(0, opts.restoreBundleOffset|0);   // aeltere Session: Index ohne Archiv gezaehlt
+          offset = Math.min(offset, Math.max(0, raw.length-winBars));
         } else if(opts.randomizeWindow && raw.length>winBars){
           offset = pickActiveWindowOffset(symbol+'_'+tf, raw, winBars, tail, commonStart);
         } else {
           offset = Math.max(0, raw.length-winBars);
         }
         bars = raw.slice(offset, offset+winBars);
-        state.bundleOffset = offset;
+        state.bundleOffset = segOff + offset;
+        state.bundleT0 = bars.length ? +bars[0][0] : null;
       }
     } else {
       state.bundleOffset = null;
+      state.bundleT0 = null;
     }
     if(!bars || !bars.length){
       const msg = 'Keine Kursdaten verfügbar für '+(SYMBOL_NAME[symbol]||symbol)+' ('+(TF_NAME[tf]||tf)+'). Prüfe deine Internetverbindung.';
@@ -4158,7 +4240,7 @@
       const clockMs = currentClockMs();
       const startClockMs = state.data[state.sessionSplit].time*1000;
 
-      let fullArr, newFetchEnd = null;
+      let fullArr, newFetchEnd = null, newBundleOffset = null, newBundleT0 = null;
       if(liveSessionActive() && liveAllowed()){
         // Live-Session (Desktop-App mit Internet): das Fenster des neuen Zeitrahmens direkt von Binance holen —
         // dadurch klappt der Wechsel an JEDEM Zeitpunkt der Historie, nicht nur in den letzten Wochen.
@@ -4189,7 +4271,19 @@
         // window.OHLC entries are raw [ts_ms,o,h,l,c,v] arrays (as bundled) —
         // everything else in this app expects the named-field bar shape that
         // loadDataset() normally produces, so convert here too.
-        fullArr = raw.map(toBarObject);
+        // Nur der zusammenhaengende Abschnitt, in dem der Replay-Moment liegt (Archiv ODER neuere Daten).
+        const key = state.symbol+'_'+newTf, segs = dataSegments(key, raw);
+        let li = -1, lo = 0, hi = raw.length - 1;
+        while(lo <= hi){ const mid = (lo + hi) >> 1; if(+raw[mid][0] + (TF_MS[newTf]||900000) <= clockMs){ li = mid; lo = mid + 1; } else hi = mid - 1; }
+        const seg = li >= 0 ? segmentOfIndex(segs, li) : segs[0];
+        if(li < 0 || clockMs - (+raw[li][0]) > SEG_GAP_MS){
+          showToast((TF_NAME[newTf]||newTf)+' gibt es für diese Zeit ('+fmtMonthYear(clockMs)+') nicht. Vorhanden: '+segmentsText(key, raw)+'. Du bleibst auf '+(TF_NAME[oldTf]||oldTf)+'.', 9000);
+          setActive(document.getElementById('tfTabs'), oldTf, 'tf');
+          return;
+        }
+        fullArr = raw.slice(seg[0], seg[1]).map(toBarObject);
+        newBundleOffset = seg[0];
+        newBundleT0 = +raw[seg[0]][0];
       }
 
       // Different timeframes' bundled history reaches back by very different
@@ -4225,7 +4319,8 @@
       const prec = decimalsFor(state.data[state.data.length-1].close);
       candleSeries.applyOptions({ priceFormat:{ type:'price', precision:prec, minMove: Math.pow(10,-prec) } });
       state.fetchEndTimeMs = newFetchEnd;
-      state.bundleOffset = null;
+      state.bundleOffset = newBundleOffset;
+      state.bundleT0 = newBundleT0;
 
       setActive(document.getElementById('tfTabs'), state.tf, 'tf');
       els.chartTitle.textContent = SYMBOL_NAME[state.symbol] + ' · ' + TF_NAME[state.tf];
@@ -4629,9 +4724,17 @@
       Object.keys(data.sessions).forEach(key => {
         const inc = data.sessions[key];
         if(!Array.isArray(inc)) return;
+        if(LEGACY_GROUP_RE.test(key)){
+          // Backup aus der Zeit vor den Markt-Sessions
+          inc.forEach((p, slot) => {
+            const at = importLegacySession(groups, key, slot, p);
+            if(at >= 0){ addedSessions++; const mk = slotGroupKey(LEGACY_GROUP_RE.exec(key)[1]); cloudMarkSession(mk, at); if(mk === slotGroupKey(state.symbol, state.tf) && at === state.activeSlot) currentChanged = true; }
+          });
+          return;
+        }
         if(!Array.isArray(groups[key])) groups[key] = [];
         inc.forEach((p, slot) => {
-          if(!p || typeof p !== 'object' || slot >= SESSION_SLOTS) return;
+          if(!p || typeof p !== 'object' || slot >= 100) return;
           const cur = groups[key][slot];
           // Ein unbenutzter Platz (noch nichts gespielt) wird immer ersetzt, sonst gewinnt der neuere Stand.
           if(!cur || (!sessNonPristine(cur) && sessNonPristine(p)) || (p.savedAt || 0) > (cur.savedAt || 0)){
@@ -5717,6 +5820,7 @@
     if(compBarsCache[key]) return compBarsCache[key];
     const raw = window.OHLC && window.OHLC[key];
     if(!raw || !raw.length) return null;
+    if(EXT_DATA[symbol] && EXT_DATA[symbol][tf] && !extMerged[key]) return null;   // Archiv noch nicht geladen
     return (compBarsCache[key] = raw.map(r => ({ time:Math.floor(r[0]/1000), open:+r[1], high:+r[2], low:+r[3], close:+r[4], volume:+r[5] })));
   }
   // Live-Session: ein Fenster des zweiten Zeitrahmens direkt von Binance (rund um den Replay-Moment);
@@ -5787,6 +5891,12 @@
       return;
     }
     const j = findBarIndexAtOrBeforeClock(bars, tf, clock);
+    if(j >= 0 && clock - bars[j].time*1000 > SEG_GAP_MS){
+      comp.series.setData([]); comp.shown = -1; comp.key = '';
+      compShowMsg((TF_NAME[tf]||tf) + ' hat für diese Zeit (' + fmtMonthYear(clock) + ') keine Kursdaten. Wähle einen anderen Zeitrahmen.');
+      document.getElementById('compSub').textContent = '';
+      return;
+    }
     if(j < 0){
       comp.series.setData([]); comp.shown = -1; comp.key = '';
       compShowMsg((TF_NAME[tf]||tf) + ' hat an diesem Punkt noch keine Kursdaten (reicht nur bis ' + fmtTime(bars[0].time) + ' UTC zurück). Wähle einen anderen Zeitrahmen oder starte eine neue Session.');
@@ -5796,7 +5906,8 @@
     compShowMsg('');
     if(full || comp.key !== key || j < comp.shown || (j - comp.shown) > 400){
       comp.key = key;
-      const startIdx = Math.max(0, j - 2999);
+      let startIdx = j;
+      while(startIdx > 0 && j - startIdx < 2999 && (bars[startIdx].time - bars[startIdx-1].time)*1000 <= SEG_GAP_MS) startIdx--;
       comp.series.setData(bars.slice(startIdx, j+1).map(toCandlePoint));
       comp.shown = j;
       const prec = decimalsFor(bars[j].close);
@@ -7118,9 +7229,66 @@
   const SESSIONS_KEY = 'tradereplay_sessions_v1';
   const LAST_VIEW_KEY = 'tradereplay_last_view_v1';
 
-  function slotGroupKey(symbol, tf){ return symbol+'_'+tf; }
+  // 10 Sessions pro MARKT (nicht pro Zeitrahmen): der Zeitrahmen ist nur die Ansicht einer Session.
+  // Frueher hatte jeder Zeitrahmen eigene Plaetze — ein Zeitrahmenwechsel ueberschrieb dann den
+  // gleichnamigen Platz des anderen Zeitrahmens. Alte Plaetze werden einmalig uebernommen (siehe unten).
+  function slotGroupKey(symbol, tf){ return symbol + '_M'; }
+  const LEGACY_GROUP_RE = /^(.+)_(1m|5m|15m|30m|1h|4h|1d)$/;
+  const SESS_BACKUP_KEY = 'tradereplay_sessions_pre_market_v1';
+  function sessSameIdentity(a, b){
+    if(!a || !b) return false;
+    if(a.epoch && a.epoch === b.epoch) return true;
+    if(a.tf === b.tf && sameSessionWindow(a, b)) return true;
+    const ja = new Set((a.journal || []).map(j => j && j.closedAt).filter(x => x != null));
+    return (b.journal || []).some(j => j && ja.has(j.closedAt));
+  }
+  // Nimmt eine Session aus einem alten Zeitrahmen-Platz in die Markt-Plaetze auf. Dieselbe Session (z. B. die
+  // Kopie nach einem Zeitrahmenwechsel) wird nur durch einen neueren Stand ersetzt, eine andere bekommt einen
+  // freien Platz — bevorzugt ihre alte Nummer. Liefert den Platz oder -1.
+  function importLegacySession(groups, oldKey, slot, p){
+    const mt = LEGACY_GROUP_RE.exec(oldKey);
+    if(!mt || !p || typeof p !== 'object') return -1;
+    const sym = mt[1], tf = mt[2];
+    if(!SYMBOL_NAME[sym]) return -1;
+    p = Object.assign({}, p, { symbol:sym, tf: p.tf && TF_NAME[p.tf] ? p.tf : tf, mig:1 });
+    const mk = slotGroupKey(sym, tf);
+    const list = Array.isArray(groups[mk]) ? groups[mk] : (groups[mk] = []);
+    for(let j = 0; j < list.length; j++){
+      if(list[j] && sessNonPristine(list[j]) && sessSameIdentity(list[j], p)){
+        if((p.savedAt || 0) > (list[j].savedAt || 0)){ list[j] = p; return j; }
+        return -1;
+      }
+    }
+    if(!sessNonPristine(p)) return -1;
+    const free = i => i >= 0 && (!list[i] || !sessNonPristine(list[i]));
+    let at = (slot >= 0 && slot < SESSION_SLOTS && free(slot)) ? slot : -1;
+    for(let i = 0; at < 0 && i < SESSION_SLOTS; i++) if(free(i)) at = i;
+    if(at < 0) at = Math.max(list.length, SESSION_SLOTS);
+    list[at] = p;
+    return at;
+  }
+  function migrateSessionsToMarkets(groups){
+    const legacy = Object.keys(groups).filter(k => LEGACY_GROUP_RE.test(k));
+    if(!legacy.length) return false;
+    // Neueste zuerst: die zuletzt gespielte Session behaelt ihre Nummer
+    const entries = [];
+    legacy.forEach(k => (groups[k] || []).forEach((p, slot) => { if(p && sessNonPristine(p)) entries.push({ k, slot, p }); }));
+    entries.sort((a, b) => (b.p.savedAt || 0) - (a.p.savedAt || 0) || a.k.localeCompare(b.k) || a.slot - b.slot);
+    const backup = {};
+    legacy.forEach(k => { backup[k] = (groups[k] || []).map(p => p && sessNonPristine(p) ? p : null); delete groups[k]; });
+    entries.forEach(e => importLegacySession(groups, e.k, e.slot, e.p));
+    try{
+      let old = {}; try{ old = JSON.parse(localStorage.getItem(SESS_BACKUP_KEY) || '{}') || {}; }catch(e){}
+      Object.keys(backup).forEach(k => { if(backup[k].some(Boolean)) old[k] = backup[k]; });
+      localStorage.setItem(SESS_BACKUP_KEY, JSON.stringify(old));
+    }catch(e){ /* Speicher voll: die Sessions selbst sind ja uebernommen */ }
+    return true;
+  }
   function loadSessionGroups(){
-    try{ const raw = localStorage.getItem(SESSIONS_KEY); return raw ? JSON.parse(raw) : {}; }catch(e){ return {}; }
+    let g;
+    try{ const raw = localStorage.getItem(SESSIONS_KEY); g = raw ? JSON.parse(raw) : {}; }catch(e){ return {}; }
+    if(g && typeof g === 'object' && migrateSessionsToMarkets(g)) saveSessionGroups(g);
+    return g || {};
   }
   function thinEquity(arr, max){
     if(!Array.isArray(arr) || arr.length <= max) return arr;
@@ -7157,7 +7325,10 @@
       sessions: !!els.sessionsToggle.checked, asiaHl: !!els.asiaHlToggle.checked,
       pdhl: !!els.pdhlToggle.checked, weeklyOpen: !!els.weeklyOpenToggle.checked, fvg: !!els.fvgToggle.checked,
       xind: Object.keys(xSeries), volume: !!els.volumeToggle.checked,
-      fetchEndTimeMs: state.fetchEndTimeMs, bundleOffset: state.bundleOffset, dataLen: state.data.length
+      fetchEndTimeMs: state.fetchEndTimeMs, dataLen: state.data.length,
+      // bundleOffset bleibt wie frueher ohne Archiv gezaehlt (aeltere App-Versionen auf anderen Geraeten), bundleT0 ist eindeutig
+      bundleOffset: state.bundleOffset == null ? null : Math.max(0, state.bundleOffset - (OHLC_BASE[state.symbol+'_'+state.tf] || 0)),
+      bundleT0: state.bundleOffset == null ? null : (state.bundleT0 ?? null)
     };
   }
 
@@ -7195,7 +7366,8 @@
     const list = groups[key] || [];
     const el = document.getElementById('sessionSlotTabs');
     el.innerHTML = '';
-    for(let i=0;i<SESSION_SLOTS;i++){
+    const count = Math.max(SESSION_SLOTS, list.length);
+    for(let i=0;i<count;i++){
       const b = document.createElement('button');
       b.textContent = String(i+1);
       const used = sessNonPristine(list[i]);
@@ -7214,7 +7386,12 @@
   // series / lines / drafts left over from whichever slot was showing before
   // are cleared first — otherwise switching slots would leave stale overlays.
   async function applySessionPayload(save){
-    const ok = await loadDataset({ restoreEndTimeMs: save.fetchEndTimeMs!=null ? save.fetchEndTimeMs : null, restoreBundleOffset: save.bundleOffset, restoreBarCount: save.dataLen });
+    if(save && save.tf && TF_NAME[save.tf] && save.tf !== state.tf){
+      state.tf = save.tf;
+      setActive(document.getElementById('tfTabs'), state.tf, 'tf');
+      els.chartTitle.textContent = SYMBOL_NAME[state.symbol] + ' · ' + TF_NAME[state.tf];
+    }
+    const ok = await loadDataset({ restoreEndTimeMs: save.fetchEndTimeMs!=null ? save.fetchEndTimeMs : null, restoreBundleOffset: save.bundleOffset, restoreBundleT0: save.bundleT0 ?? null, restoreBarCount: save.dataLen });
     if(!ok) return false;
 
     const len = state.data.length;
@@ -7314,8 +7491,8 @@
     // repoints state.activeSlot at each slot it fills in, so reading it back
     // afterwards would show whichever slot happened to be generated last
     // instead of the one the caller actually asked to end up viewing.
-    const wantSlot = Math.min(Math.max(0, state.activeSlot|0), SESSION_SLOTS-1);
     const list = loadSessionGroups()[key] || [];
+    const wantSlot = Math.min(Math.max(0, state.activeSlot|0), Math.max(SESSION_SLOTS, list.length)-1);
     for(let i=0;i<SESSION_SLOTS;i++){
       if(list[i]) continue;
       // Live-Modus (Krypto mit Internet): jede neue Session kostet Netzwerk-Anfragen — nur den gewuenschten
@@ -7538,11 +7715,42 @@
   }
   // Gleicht lokale Plaetze mit den Cloud-Metadaten ab. Liefert true, wenn der gerade angezeigte Platz
   // durch einen neueren Cloud-Stand ersetzt wurde (dann muss die Anzeige neu geladen werden).
+  // Geraete mit der alten App-Version speichern noch unter den alten Zeitrahmen-Plaetzen: deren neuere,
+  // gespielte Staende werden in die Markt-Plaetze uebernommen (jede Version nur einmal).
+  const LEGACY_IMPORTED_KEY = 'tradereplay_legacy_imported_v1';
+  async function cloudImportLegacy(metas){
+    let seen = {}; try{ seen = JSON.parse(lsGet(LEGACY_IMPORTED_KEY) || '{}') || {}; }catch(e){}
+    let backup = {}; try{ backup = JSON.parse(lsGet(SESS_BACKUP_KEY) || '{}') || {}; }catch(e){}
+    let reapply = false, changed = false;
+    for(const id of Object.keys(metas)){
+      const m = metas[id];
+      if(!LEGACY_GROUP_RE.test(m.k) || !m.np) continue;
+      const known = Math.max(seen[id] || 0, ((backup[m.k] || [])[m.slot] || {}).savedAt || 0);
+      if((m.savedAt || 0) <= known) continue;
+      const d = await CLOUD.db.doc('sess/' + id).get();
+      seen[id] = m.savedAt || 0; changed = true;
+      if(!d.exists) continue;
+      const p = cloudDecodeSession(d.data());
+      if(!p) continue;
+      const g = loadSessionGroups();
+      const at = importLegacySession(g, m.k, m.slot, p);
+      if(at < 0) continue;
+      const mk = slotGroupKey(LEGACY_GROUP_RE.exec(m.k)[1]);
+      g[mk][at].savedAt = Date.now();
+      saveSessionGroups(g);
+      CLOUD.dirty[sessId(mk, at)] = { k:mk, slot:at };
+      if(mk === slotGroupKey(state.symbol, state.tf) && at === state.activeSlot && state.data.length) reapply = true;
+    }
+    if(changed) lsSet(LEGACY_IMPORTED_KEY, JSON.stringify(seen));
+    return reapply;
+  }
   async function cloudApplyMetas(metas, onlyKey){
+    const legacyReapply = onlyKey ? false : await cloudImportLegacy(metas);
     const groups = loadSessionGroups();
     const fetchIds = [], mergeIds = [];
     Object.keys(metas).forEach(id => {
       const m = metas[id];
+      if(LEGACY_GROUP_RE.test(m.k)) return;
       if(onlyKey && m.k !== onlyKey) return;
       if(sessCloudWins((groups[m.k] || [])[m.slot], m)) fetchIds.push(id);
     });
@@ -7559,7 +7767,7 @@
         }
       });
     });
-    let reapply = false;
+    let reapply = legacyReapply;
     for(const id of fetchIds){
       const m = metas[id];
       const d = await CLOUD.db.doc('sess/' + id).get();
@@ -7932,7 +8140,7 @@
     try{ const raw = localStorage.getItem(LAST_VIEW_KEY); lastView = raw ? JSON.parse(raw) : null; }catch(e){}
     if(lastView && lastView.symbol && lastView.tf && SYMBOL_NAME[lastView.symbol] && TF_NAME[lastView.tf]){
       state.symbol = lastView.symbol; state.tf = lastView.tf;
-      state.activeSlot = Math.min(Math.max(0, lastView.slot|0), SESSION_SLOTS-1);
+      state.activeSlot = Math.max(0, lastView.slot|0);
       document.getElementById('symbolSelect').value = state.symbol;
       setActive(document.getElementById('tfTabs'), state.tf, 'tf');
       els.chartTitle.textContent = SYMBOL_NAME[state.symbol] + ' · ' + TF_NAME[state.tf];
