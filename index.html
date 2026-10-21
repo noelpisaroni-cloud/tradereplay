@@ -446,6 +446,8 @@
   .slot-pills button{ width:28px; height:28px; border-radius:50%; border:1px solid var(--line); background:var(--panel-alt); color:var(--ink-soft); font-size:12px; font-weight:600; }
   .slot-pills button:hover{ border-color:var(--line-strong); color:var(--ink); }
   .slot-pills button.active{ background:var(--accent-soft); border-color:rgba(76,141,255,.5); color:var(--accent-text); }
+  .slot-pills button.used:not(.active){ color:var(--ink); border-color:var(--line-strong, var(--line)); font-weight:600; }
+  .slot-pills{ flex-wrap:wrap; }
   .session-actions{ display:flex; align-items:center; gap:8px; }
 
   /* ---------- Menues / Popovers ---------- */
@@ -653,6 +655,9 @@
   .draw-btn.armed{ color:var(--down) !important; background:var(--down-soft) !important; }
   .app-toast{ position:fixed; left:50%; transform:translateX(-50%); bottom:calc(20px + env(safe-area-inset-bottom, 0px)); z-index:9500; max-width:min(480px, calc(100vw - 32px)); padding:11px 16px; border-radius:10px; background:var(--panel); color:var(--ink); border:1px solid var(--line-strong, var(--line)); box-shadow:0 12px 32px -10px rgba(0,0,0,.6); font-size:13px; line-height:1.45; text-align:center; }
   .app-toast[hidden]{ display:none; }
+  .app-toast{ pointer-events:none; }
+  .app-toast .toast-actions{ display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin-top:9px; pointer-events:auto; }
+  .app-toast .toast-actions .btn{ pointer-events:auto; }
   /* ---------- Start-Anzeige ---------- */
   .boot-banner{ position:fixed; left:50%; top:42%; transform:translate(-50%,-50%); z-index:9000; width:min(440px,88vw);
     background:rgba(14,17,23,.96); border:1px solid var(--line); border-radius:14px; padding:18px 20px; color:var(--ink);
@@ -1356,7 +1361,7 @@
                   <button class="btn icon" id="sessionSettingsBtn" data-menu-btn="sessionMenu" aria-haspopup="true" aria-expanded="false" title="Session-Einstellungen"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
                   <div class="menu-pop right up" id="sessionMenu" hidden>
                     <div class="menu-title">Session-Einstellungen</div>
-                    <label class="menu-field"><span>Kerzen pro Session</span><input type="number" id="sessionLenInput" min="150" max="20000" step="100" value="8000"></label>
+                    <label class="menu-field"><span>Kerzen pro Session</span><input type="number" id="sessionLenInput" min="150" max="20000" step="100" value="20000"></label>
                     <p class="menu-note">So viele Kerzen kannst du pro Session durchhandeln (mehr = längere Session, mehr Historie bleibt verdeckt).</p>
                     <div class="menu-sep"></div>
                     <label class="menu-item"><input type="checkbox" id="allTfToggle"><span>Alle Zeitrahmen nutzbar</span></label>
@@ -1555,6 +1560,7 @@
       <div class="strat-filter-row">
         <label>Instrument <select id="histFilterSymbol" class="full"><option value="all">Alle</option></select></label>
         <label>Zeitrahmen <select id="histFilterTf" class="full"><option value="all">Alle</option></select></label>
+        <label>Session <select id="histFilterSlot" class="full"><option value="all">Alle</option></select></label>
         <label>Setup <select id="histFilterSetup" class="full"><option value="all">Alle</option></select></label>
         <label>Gefühl <select id="histFilterEmo" class="full"><option value="all">Alle</option></select></label>
         <label>Ergebnis <select id="histFilterRes" class="full"><option value="all">Alle</option><option value="win">Gewinner</option><option value="loss">Verlierer</option><option value="open">Noch nicht bewertet</option></select></label>
@@ -1563,7 +1569,7 @@
       </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Geschlossen</th><th>Markt</th><th>Richtung</th><th>Einstieg</th><th>Ausstieg</th><th>Grund</th><th>Strategie</th><th>Journal</th><th>PnL</th><th></th></tr></thead>
+          <thead><tr><th>Nr.</th><th>Geschlossen</th><th>Markt</th><th>Richtung</th><th>Einstieg</th><th>Ausstieg</th><th>Grund</th><th>Strategie</th><th>Journal</th><th>PnL</th><th></th></tr></thead>
           <tbody id="historyBody"></tbody>
         </table>
       </div>
@@ -1717,7 +1723,7 @@
 
   const MIN_REPLAY = 150;
   // Maximum zum Lernen (Wunsch des Nutzers): so viele Replay-Kerzen wie die Daten hergeben
-  const DEFAULT_REPLAY_TAIL = 8000;
+  const DEFAULT_REPLAY_TAIL = 20000;
   // Moeglichst viele Kerzen pro Session (zum Lernen): mit Live-Daten so viel
   // Vorgeschichte, mit eingebauten Daten bis zu 75 % der vorhandenen Historie —
   // das letzte Viertel bleibt Spielraum, damit jede neue Zufalls-Session woanders landet.
@@ -4063,8 +4069,11 @@
       const replay = Math.min(desired, maxReplay);
       return Math.max(0, len - 1 - replay);
     }
-    const lo = Math.max(MIN_REPLAY, Math.floor(desired*0.75));
-    const hi = Math.min(maxReplay, Math.ceil(desired*1.25));
+    // Mehr gewuenscht als die Daten hergeben (Standard: Maximum): jede Session laeuft bis ans Datenende
+    // und startet an einem anderen Datum — 55–100 % der moeglichen Replay-Kerzen.
+    const full = desired >= maxReplay;
+    const lo = full ? Math.max(MIN_REPLAY, Math.floor(maxReplay*0.55)) : Math.max(MIN_REPLAY, Math.floor(desired*0.75));
+    const hi = full ? maxReplay : Math.min(maxReplay, Math.ceil(desired*1.25));
     const replay = hi>lo ? lo + Math.floor(Math.random()*(hi-lo)) : Math.min(desired, maxReplay);
     return Math.max(0, len - 1 - replay);
   }
@@ -4531,7 +4540,7 @@
   // Der Browser-Speicher fasst nur wenige MB: Zeichnungen fuer den Rueckblick behalten nur die
   // neuesten Trades. Wird es trotzdem zu viel, werden sie schrittweise bei aelteren Trades weggelassen,
   // statt dass die ganze Historie nicht mehr gespeichert werden kann.
-  const REVIEW_DRAWINGS_KEEP = 400;
+  const REVIEW_DRAWINGS_KEEP = 1000;
   function stripReviewDrawings(t){
     if(t && t.review && Array.isArray(t.review.drawings) && t.review.drawings.length) t.review = { ...t.review, drawings:[], drawingsDropped:true };
   }
@@ -5134,7 +5143,11 @@
       strategyId: pos.strategyId||null, strategyName: pos.strategyName||null, checklist,
       rrRatio, riskPct, positionPct, rMultiple, score, grade, feedback,
       note: (pos.note||els.posNoteInput.value||'').trim(),
-      symbol:state.symbol, tf:state.tf, partialFrac: frac || null
+      symbol:state.symbol, tf:state.tf, partialFrac: frac || null,
+      // Zurueckverfolgbar: aus welcher Session (Platz 1–10), Kontostand davor/danach, TP/SL beim Ausstieg
+      slot: state.activeSlot + 1, tpPrice: pos.tpPrice ?? null, slPrice: pos.slPrice ?? null,
+      balanceBefore: state.balance - netPnl, balanceAfter: state.balance,
+      sessionStartTime: state.data[state.sessionSplit] ? state.data[state.sessionSplit].time : null
     };
     let closedAt = Date.now();
     if(closedAt <= lastClosedAt) closedAt = lastClosedAt + 1;
@@ -5916,9 +5929,28 @@
   // slice of the bundled fallback data — see loadDataset). "Session neu
   // starten" intentionally does NOT re-fetch: it replays the exact same
   // already-loaded window again from its start.
-  els.newSessionBtn.addEventListener('click', ()=> loadDatasetAndStartSession({randomizeWindow:true}, true, false));
+  // "Neue Zufalls-Session" ersetzt eine gespielte Session nicht aus Versehen: dann zweimal tippen.
+  // Welchen der 10 Plaetze man nutzt, waehlt man selbst unten bei "Session 1–10".
+  let newSessArmedUntil = 0;
+  function startNewSessionSmart(){
+    if(datasetLoadBusy || state.reviewing) return;
+    const list = loadSessionGroups()[slotGroupKey(state.symbol, state.tf)] || [];
+    const curUsed = sessNonPristine(list[state.activeSlot]) || state.journal.length > 0 || !!state.position || state.cursor !== state.sessionSplit;
+    if(curUsed && Date.now() > newSessArmedUntil){
+      newSessArmedUntil = Date.now() + 8000;
+      let free = -1;
+      for(let i = 0; i < SESSION_SLOTS; i++){ if(i !== state.activeSlot && !sessNonPristine(list[i])){ free = i; break; } }
+      const acts = [{ label: 'Ja, Session ' + (state.activeSlot + 1) + ' ersetzen', fn: startNewSessionSmart }];
+      if(free >= 0) acts.unshift({ label: 'Freien Platz ' + (free + 1) + ' nehmen', fn: () => switchToSlot(free) });
+      showToast('Session ' + (state.activeSlot + 1) + ' ist schon gespielt. Ersetzen? Die Trades bleiben unter „Alle Trades“. Oder unten einen anderen Platz (1–' + SESSION_SLOTS + ') wählen.', 8000, acts);
+      return;
+    }
+    newSessArmedUntil = 0;
+    loadDatasetAndStartSession({randomizeWindow:true}, true, false);
+  }
+  els.newSessionBtn.addEventListener('click', startNewSessionSmart);
   els.restartSessionBtn.addEventListener('click', ()=> newSession(false));
-  els.endNewSessionBtn.addEventListener('click', ()=> loadDatasetAndStartSession({randomizeWindow:true}, true, false));
+  els.endNewSessionBtn.addEventListener('click', startNewSessionSmart);
 
   els.playPauseBtn.addEventListener('click', ()=> state.playing ? pause() : play());
   els.stepBtn.addEventListener('click', stepForward);
@@ -6594,10 +6626,20 @@
 
   // ---------- kurze Hinweise (alert() erscheint in der Claude-App nicht) ----------
   let toastTimer = null;
-  function showToast(msg, ms){
+  // actions: optionale Knoepfe [{label, fn}] in der Meldung (die Meldung selbst laesst Klicks durch).
+  function showToast(msg, ms, actions){
     const t = document.getElementById('appToast');
     if(!t) return;
     t.textContent = msg; t.hidden = false;
+    if(actions && actions.length){
+      const row = document.createElement('div'); row.className = 'toast-actions';
+      actions.forEach(a => {
+        const b = document.createElement('button'); b.type = 'button'; b.className = 'btn'; b.textContent = a.label;
+        b.addEventListener('click', ev => { ev.stopPropagation(); t.hidden = true; clearTimeout(toastTimer); a.fn(); });
+        row.appendChild(b);
+      });
+      t.appendChild(row);
+    }
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => { t.hidden = true; }, ms || 3800);
   }
@@ -6950,11 +6992,14 @@
   function tradesCsv(list){
     const esc = v => { const t = v == null ? '' : String(v); return /[";\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t; };
     const num = v => v == null || !isFinite(v) ? '' : String(Math.round(v * 1e6) / 1e6).replace('.', ',');
-    const head = ['Geschlossen','Markt','Zeitrahmen','Richtung','Einstieg Zeit','Einstieg Kurs','Ausstieg Zeit','Ausstieg Kurs','Grund','Größe €','Hebel','PnL €','R','Strategie','Setups','Gefühl','Plan','Fehler','Bewertung','Warum rein','Lehre'];
+    const nr = new Map(state.tradeHistory.map((t, i) => [t.closedAt, i + 1]));
+    const head = ['Nr.','Geschlossen','Markt','Zeitrahmen','Session','Session-Start','Richtung','Einstieg Zeit','Einstieg Kurs','Ausstieg Zeit','Ausstieg Kurs','TP','SL','Grund','Teil-Ausstieg','Größe €','Hebel','PnL €','R','Konto vorher €','Konto nachher €','Strategie','Setups','Gefühl','Plan','Fehler','Bewertung','Warum rein','Lehre'];
     const rows = list.map(t => { const j = t.j || {}; return [
-      t.closedAt ? new Date(t.closedAt).toLocaleString('de-DE') : '', SYMBOL_NAME[t.symbol] || t.symbol || '', TF_NAME[t.tf] || t.tf || '', t.side === 'long' ? 'Long' : 'Short',
-      t.entryTime != null ? fmtTimeY(t.entryTime) : '', num(t.entryPrice), t.exitTime != null ? fmtTimeY(t.exitTime) : '', num(t.exitPrice), REASON_LABEL[t.reason] || t.reason || '',
-      num(t.notional), t.leverage || '', num(t.pnl), num(t.rMultiple), t.strategyName || '', (j.setups || []).join(', '), TJ_EMO_LABEL[j.emotion] || '', TJ_PLAN_LABEL[j.plan] || '',
+      nr.get(t.closedAt) || '', t.closedAt ? new Date(t.closedAt).toLocaleString('de-DE') : '', SYMBOL_NAME[t.symbol] || t.symbol || '', TF_NAME[t.tf] || t.tf || '',
+      t.slot || '', t.sessionStartTime != null ? fmtTimeY(t.sessionStartTime) : '', t.side === 'long' ? 'Long' : 'Short',
+      t.entryTime != null ? fmtTimeY(t.entryTime) : '', num(t.entryPrice), t.exitTime != null ? fmtTimeY(t.exitTime) : '', num(t.exitPrice),
+      num(t.tpPrice != null ? t.tpPrice : t.review && t.review.tp), num(t.slPrice != null ? t.slPrice : t.review && t.review.sl), REASON_LABEL[t.reason] || t.reason || '',
+      t.partialFrac ? Math.round(t.partialFrac * 100) + ' %' : '', num(t.notional), t.leverage || '', num(t.pnl), num(t.rMultiple), num(t.balanceBefore), num(t.balanceAfter), t.strategyName || '', (j.setups || []).join(', '), TJ_EMO_LABEL[j.emotion] || '', TJ_PLAN_LABEL[j.plan] || '',
       (j.mistakes || []).join(', '), j.rating || '', t.note || '', j.lesson || '' ].map(esc).join(';'); });
     return '\ufeff' + head.join(';') + '\n' + rows.join('\n');
   }
@@ -6968,15 +7013,55 @@
     sel.innerHTML = '<option value="all">Alle</option>' + values.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(nameOf(v))}</option>`).join('');
     sel.value = values.includes(keep) ? keep : 'all';
   }
+  // Wo liegt ein Trade heute noch? closedAt -> {symbol, tf, slot} aus allen gespeicherten Sessions.
+  function tradeSessionIndex(){
+    const map = new Map(), groups = loadSessionGroups();
+    for(const key in groups){
+      (groups[key] || []).forEach((p, i) => {
+        if(p && Array.isArray(p.journal)) p.journal.forEach(j => { if(j && j.closedAt != null) map.set(j.closedAt, { symbol:p.symbol, tf:p.tf, slot:i }); });
+      });
+    }
+    return map;
+  }
+  async function openTradeSession(t){
+    if(!t) return;
+    if(state.reviewing) await exitReview();
+    if(datasetLoadBusy){ showToast('Einen Moment – die App lädt noch.'); return; }
+    const loc = tradeSessionIndex().get(t.closedAt);
+    if(!loc || !SYMBOL_NAME[loc.symbol] || !TF_NAME[loc.tf]){
+      showToast('Diese Session wurde inzwischen durch eine neue ersetzt. Der Trade selbst ist hier gespeichert – mit „Ansehen“ siehst du ihn im Chart.', 7000);
+      return;
+    }
+    const list = loadSessionGroups()[slotGroupKey(loc.symbol, loc.tf)] || [];
+    if(!list[loc.slot]) return;
+    pause();
+    saveState();
+    datasetLoadBusy = true;
+    try{
+      state.symbol = loc.symbol; state.tf = loc.tf; state.activeSlot = loc.slot;
+      document.getElementById('symbolSelect').value = state.symbol;
+      setActive(document.getElementById('tfTabs'), state.tf, 'tf');
+      els.chartTitle.textContent = SYMBOL_NAME[state.symbol] + ' · ' + TF_NAME[state.tf];
+      await applySessionPayload(list[loc.slot]);
+      renderSessionSlotsUI();
+      persistLastView();
+    } finally { datasetLoadBusy = false; }
+    try{ window.scrollTo({ top:0, behavior:'smooth' }); }catch(e){}
+    showToast('Session ' + (loc.slot + 1) + ' · ' + SYMBOL_NAME[loc.symbol] + ' · ' + TF_NAME[loc.tf] + ' geöffnet – du kannst dort weiter traden.', 5000);
+  }
   function renderHistoryTab(){
     const all = state.tradeHistory;
+    const where = tradeSessionIndex();
+    const slotOf = t => { const w = where.get(t.closedAt); return w ? w.slot + 1 : (t.slot || null); };
     fillFilterSelect(histFilterSymbolEl, [...new Set(all.map(t => t.symbol).filter(Boolean))].sort(), v => SYMBOL_NAME[v] || v);
     fillFilterSelect(histFilterTfEl, Object.keys(TF_NAME).filter(tf => all.some(t => t.tf === tf)), v => TF_NAME[v] || v);
     const setupEl = document.getElementById('histFilterSetup'), emoEl = document.getElementById('histFilterEmo'), resEl = document.getElementById('histFilterRes');
     fillFilterSelect(setupEl, [...new Set(all.flatMap(t => (t.j && t.j.setups) || []))].sort(), v => v);
     fillFilterSelect(emoEl, TJ_EMOTIONS.map(e => e[0]).filter(k => all.some(t => t.j && t.j.emotion === k)), v => TJ_EMO_LABEL[v] || v);
-    const fs = histFilterSymbolEl.value, ft = histFilterTfEl.value, fSet = setupEl.value, fEmo = emoEl.value, fRes = resEl.value;
-    const list = all.filter(t => (fs === 'all' || t.symbol === fs) && (ft === 'all' || t.tf === ft)
+    const slotEl = document.getElementById('histFilterSlot');
+    fillFilterSelect(slotEl, [...new Set(all.map(slotOf).filter(Boolean))].sort((a, b) => a - b).map(String), v => 'Session ' + v);
+    const fs = histFilterSymbolEl.value, ft = histFilterTfEl.value, fSet = setupEl.value, fEmo = emoEl.value, fRes = resEl.value, fSlot = slotEl.value;
+    const list = all.filter(t => (fs === 'all' || t.symbol === fs) && (ft === 'all' || t.tf === ft) && (fSlot === 'all' || String(slotOf(t)) === fSlot)
       && (fSet === 'all' || (t.j && (t.j.setups || []).includes(fSet))) && (fEmo === 'all' || (t.j && t.j.emotion === fEmo))
       && (fRes === 'all' || (fRes === 'win' ? (t.pnl || 0) > 0 : fRes === 'loss' ? (t.pnl || 0) <= 0 : !tjHasEntry(t)))).slice().reverse();
     histLastList = list;
@@ -6984,12 +7069,14 @@
     document.getElementById('histNote').textContent = list.length ? `${list.length} Trade(s) · Summe ${usdSigned(pnl)}` : '';
     const body = document.getElementById('historyBody');
     if(!list.length){
-      body.innerHTML = '<tr><td colspan="10"><div class="empty">Noch keine Trades. Jeder Trade, den du schließt, erscheint hier – über alle Sessions und Märkte hinweg.</div></td></tr>';
+      body.innerHTML = '<tr><td colspan="11"><div class="empty">Noch keine Trades. Jeder Trade, den du schließt, erscheint hier – über alle Sessions und Märkte hinweg.</div></td></tr>';
     } else {
+      const nrOf = new Map(all.map((t, i) => [t, i + 1]));
       body.innerHTML = list.slice(0, histShown).map(t => `
         <tr>
+          <td class="num">${nrOf.get(t)}</td>
           <td class="num">${t.closedAt ? new Date(t.closedAt).toLocaleString('de-DE', { day:'2-digit', month:'2-digit', year:'2-digit', hour:'2-digit', minute:'2-digit' }) : '–'}</td>
-          <td>${escapeHtml(SYMBOL_NAME[t.symbol] || t.symbol || '–')} · ${escapeHtml(TF_NAME[t.tf] || t.tf || '')}</td>
+          <td>${escapeHtml(SYMBOL_NAME[t.symbol] || t.symbol || '–')} · ${escapeHtml(TF_NAME[t.tf] || t.tf || '')}${slotOf(t) ? ' · <b>S' + slotOf(t) + '</b>' : ''}</td>
           <td><span class="chip ${t.side}">${t.side === 'long' ? 'Long' : 'Short'}</span></td>
           <td class="num">${t.entryTime != null ? fmtTimeY(t.entryTime) : '–'} · ${t.entryPrice != null ? px(t.entryPrice) : ''}</td>
           <td class="num">${t.exitTime != null ? fmtTimeY(t.exitTime) : '–'} · ${t.exitPrice != null ? px(t.exitPrice) : ''}</td>
@@ -6997,7 +7084,7 @@
           <td>${t.strategyName ? escapeHtml(t.strategyName) : '–'}</td>
           <td>${tjCellHtml(t)}</td>
           <td class="num ${(t.pnl || 0) >= 0 ? 'up-txt' : 'down-txt'}">${usdSigned(t.pnl || 0)}</td>
-          <td style="white-space:nowrap"><button class="btn tj-edit" data-tj-open="${escapeHtml(histKey(t))}" title="Journal bearbeiten">✎ Journal</button> <button class="btn review-btn" data-rv-key="${escapeHtml(histKey(t))}">Ansehen</button></td>
+          <td style="white-space:nowrap"><button class="btn tj-edit" data-tj-open="${escapeHtml(histKey(t))}" title="Journal bearbeiten">✎ Journal</button> <button class="btn review-btn" data-rv-key="${escapeHtml(histKey(t))}" title="Trade im Chart ansehen (Einstieg, Ausstieg, TP/SL, Zeichnungen)">Ansehen</button>${where.has(t.closedAt) ? ` <button class="btn" data-sess-key="${escapeHtml(histKey(t))}" title="Die Session öffnen, in der dieser Trade war">↪ Session</button>` : ''}</td>
         </tr>`).join('');
     }
     document.getElementById('historyMoreBtn').hidden = list.length <= histShown;
@@ -7006,7 +7093,7 @@
   histFilterSymbolEl.addEventListener('change', () => { histShown = HIST_PAGE; renderHistoryTab(); });
   histFilterTfEl.addEventListener('change', () => { histShown = HIST_PAGE; renderHistoryTab(); });
   let histLastList = [];
-  ['histFilterSetup','histFilterEmo','histFilterRes'].forEach(id => document.getElementById(id).addEventListener('change', () => { histShown = HIST_PAGE; renderHistoryTab(); }));
+  ['histFilterSetup','histFilterEmo','histFilterRes','histFilterSlot'].forEach(id => document.getElementById(id).addEventListener('change', () => { histShown = HIST_PAGE; renderHistoryTab(); }));
   document.getElementById('histCsvBtn').addEventListener('click', () => {
     const list = histLastList.length ? histLastList.slice().reverse() : state.tradeHistory.slice();
     if(!list.length){ showToast('Noch keine Trades zum Exportieren.'); return; }
@@ -7014,6 +7101,8 @@
   });
   document.getElementById('historyMoreBtn').addEventListener('click', () => { histShown += HIST_PAGE; renderHistoryTab(); });
   document.getElementById('historyBody').addEventListener('click', e => {
+    const sb = e.target.closest('[data-sess-key]');
+    if(sb){ const t = state.tradeHistory.find(x => histKey(x) === sb.dataset.sessKey); if(t) openTradeSession(t); return; }
     const b = e.target.closest('[data-rv-key]');
     if(!b) return;
     const t = state.tradeHistory.find(x => histKey(x) === b.dataset.rvKey);
@@ -7025,7 +7114,7 @@
   // (each its own historical window, balance, journal, drawings, cursor) so a
   // trader can switch between several prepared rounds on the same pair instead
   // of a single slot that "Neue Zufalls-Session" would otherwise overwrite.
-  const SESSION_SLOTS = 5;
+  const SESSION_SLOTS = 10;
   const SESSIONS_KEY = 'tradereplay_sessions_v1';
   const LAST_VIEW_KEY = 'tradereplay_last_view_v1';
 
@@ -7033,8 +7122,20 @@
   function loadSessionGroups(){
     try{ const raw = localStorage.getItem(SESSIONS_KEY); return raw ? JSON.parse(raw) : {}; }catch(e){ return {}; }
   }
+  function thinEquity(arr, max){
+    if(!Array.isArray(arr) || arr.length <= max) return arr;
+    const step = Math.ceil(arr.length / max);
+    return arr.filter((e, i) => i % step === 0 || i === arr.length - 1);
+  }
+  let storageWarned = false;
   function saveSessionGroups(groups){
-    try{ localStorage.setItem(SESSIONS_KEY, JSON.stringify(groups)); }catch(e){ /* storage full/unavailable — practice just won't persist */ }
+    try{ localStorage.setItem(SESSIONS_KEY, JSON.stringify(groups)); return; }catch(e){}
+    // Speicher voll: alle Sessions verkleinern (Equity-Kurve grober, Markierungen werden beim Laden neu gebaut)
+    for(const max of [400, 120]){
+      Object.keys(groups).forEach(k => (groups[k] || []).forEach(p => { if(p){ p.equityHistory = thinEquity(p.equityHistory, max); if(max <= 120) delete p.markers; } }));
+      try{ localStorage.setItem(SESSIONS_KEY, JSON.stringify(groups)); return; }catch(e){}
+    }
+    if(!storageWarned){ storageWarned = true; try{ showToast('Der Speicher im Browser ist voll – bitte unter „Strategien“ ein Backup exportieren. Die Cloud speichert weiter.', 8000); }catch(e){} }
   }
   function persistLastView(){
     if(state.reviewing) return;
@@ -7048,7 +7149,7 @@
       sessionLen:state.sessionLen, startingBalance:state.startingBalance, balance:state.balance,
       feePct:state.feePct, slippagePct:state.slippagePct, ended:state.ended,
       position:state.position, pendingOrder:state.pendingOrder,
-      journal:state.journal.map(j => j.review ? { ...j, review:undefined } : j), equityHistory:state.equityHistory,
+      journal:state.journal.map(j => j.review ? { ...j, review:undefined } : j), equityHistory:thinEquity(state.equityHistory, 1500),
       drawings:state.drawings, drawTomb:state.drawTomb, epoch:state.epoch, draftTp:state.draftTp, draftSl:state.draftSl,
       activeStrategyId:state.activeStrategyId, activeChecklist:state.activeChecklist,
       markers, ma20: !!els.ma20Toggle.checked, ma50: !!els.ma50Toggle.checked,
@@ -7097,8 +7198,9 @@
     for(let i=0;i<SESSION_SLOTS;i++){
       const b = document.createElement('button');
       b.textContent = String(i+1);
-      b.className = i===state.activeSlot ? 'active' : '';
-      b.title = list[i] ? ('Session '+(i+1)) : ('Session '+(i+1)+' (neu)');
+      const used = sessNonPristine(list[i]);
+      b.className = (i===state.activeSlot ? 'active' : '') + (used ? ' used' : '');
+      b.title = used ? ('Session '+(i+1)+' (gespielt)') : ('Session '+(i+1)+' (frei)');
       b.addEventListener('click', ()=> switchToSlot(i));
       el.appendChild(b);
     }
