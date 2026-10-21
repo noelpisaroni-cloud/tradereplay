@@ -447,7 +447,46 @@
   .slot-pills button:hover{ border-color:var(--line-strong); color:var(--ink); }
   .slot-pills button.active{ background:var(--accent-soft); border-color:rgba(76,141,255,.5); color:var(--accent-text); }
   .slot-pills button.used:not(.active){ color:var(--ink); border-color:var(--line-strong, var(--line)); font-weight:600; }
-  .slot-pills{ flex-wrap:wrap; }
+  .slot-pills{ flex-wrap:wrap; gap:3px; }
+  .slot-pills button{ width:26px; height:26px; font-size:11.5px; }
+  .sess-ov-btn{ height:28px; padding:0 10px; font-size:12px; margin-left:6px; white-space:nowrap; }
+  /* Kompakter Session-Waehler (oeffnet die Uebersicht) — die 10 Kreise nur, wenn wirklich Platz ist */
+  .sess-pick{ display:none; align-items:center; gap:7px; height:30px; padding:0 11px; font-size:12.5px; font-weight:600; max-width:230px; white-space:nowrap; border:1px solid var(--line); }
+  .sess-pick #sessPickLbl{ overflow:hidden; text-overflow:ellipsis; }
+  .sess-pick .sp-caret{ color:var(--ink-soft); font-size:10px; }
+  .sess-pick .sp-dot{ width:7px; height:7px; border-radius:50%; background:var(--line-strong, var(--line)); flex:none; }
+  .sess-pick .sp-dot.used{ background:var(--accent); }
+  @media (max-width:1699.98px){
+    .session-slots .slot-pills, .session-slots .sess-ov-btn{ display:none !important; }
+    .session-slots .sess-pick{ display:inline-flex; }
+  }
+  .sess-ov-panel{ width:min(780px,100%); }
+  .sov-list{ display:flex; flex-direction:column; gap:8px; }
+  .sov-card{ display:grid; grid-template-columns:auto 1fr auto; gap:12px; align-items:center; padding:10px 12px; background:var(--panel-alt); border:1px solid var(--line); border-radius:10px; }
+  .sov-card.active{ border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent); }
+  .sov-num{ width:34px; height:34px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:700; font-size:13px; background:var(--panel); border:1px solid var(--line); color:var(--ink-soft); }
+  .sov-card.used .sov-num{ color:var(--ink); border-color:var(--line-strong, var(--line)); }
+  .sov-card.active .sov-num{ background:var(--accent-soft); color:var(--accent-text); border-color:transparent; }
+  .sov-main{ min-width:0; }
+  .sov-title{ font-weight:600; font-size:13.5px; display:flex; gap:6px; align-items:center; flex-wrap:wrap; }
+  .sov-tag{ font-size:10.5px; font-weight:600; padding:2px 7px; border-radius:99px; background:var(--panel); border:1px solid var(--line); color:var(--ink-soft); }
+  .sov-tag.on{ color:var(--accent-text); border-color:rgba(76,141,255,.5); }
+  .sov-tag.end{ color:var(--amber); }
+  .sov-meta{ font-size:11.5px; color:var(--ink-soft); margin-top:3px; }
+  .sov-bar{ height:4px; border-radius:2px; background:var(--line); margin-top:7px; overflow:hidden; }
+  .sov-bar i{ display:block; height:100%; background:var(--accent); }
+  .sov-stats{ font-size:12px; display:flex; gap:12px; flex-wrap:wrap; margin-top:6px; }
+  .sov-stats b{ font-weight:700; }
+  .sov-actions{ display:flex; flex-direction:column; gap:6px; }
+  .sov-actions .btn{ height:28px; padding:0 10px; font-size:12px; white-space:nowrap; border:1px solid var(--line); }
+  .sov-actions .btn.sov-open{ background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600; }
+  .sov-name-input{ background:var(--panel); border:1px solid var(--accent); color:var(--ink); border-radius:6px; padding:4px 7px; font-size:13px; width:min(260px,100%); }
+  .sov-h{ font-size:11.5px; font-weight:700; color:var(--ink-soft); margin:18px 0 8px; text-transform:uppercase; letter-spacing:.05em; }
+  .sov-mkt{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:8px 0; border-bottom:1px solid var(--line); font-size:12.5px; }
+  .sov-mkt .name{ font-weight:600; min-width:90px; }
+  .sov-mkt .btn{ height:26px; padding:0 9px; font-size:11.5px; }
+  .sov-note{ font-size:11.5px; color:var(--ink-soft); margin:0 0 12px; }
+  @media (max-width:600px){ .sov-card{ grid-template-columns:auto 1fr; } .sov-actions{ grid-column:1/-1; flex-direction:row; } .sess-ov-btn{ margin-left:0; } }
   .session-actions{ display:flex; align-items:center; gap:8px; }
 
   /* ---------- Menues / Popovers ---------- */
@@ -1053,6 +1092,8 @@
     html[data-layout="pro"] .topbar .symbol-select{ width:180px; }
     html[data-layout="pro"] .order-col{ width:280px; }
     html[data-layout="pro"] .session-bar .session-label{ display:none; }
+    html[data-layout="pro"] .range-bar .pro-clock{ display:none; }
+    html[data-layout="pro"] .range-bar{ overflow:hidden; min-width:0; }
   }
   @media (max-width:999.98px){
     html[data-layout="pro"] body{ padding-bottom:calc(58px + env(safe-area-inset-bottom, 0px)); }
@@ -1242,6 +1283,7 @@
                 <label class="menu-item"><input type="checkbox" id="pdhlToggle"><span>Vortages-Hoch/Tief<small>PDH / PDL</small></span></label>
                 <label class="menu-item"><input type="checkbox" id="weeklyOpenToggle"><span>Wochen-Eröffnung</span></label>
                 <label class="menu-item"><input type="checkbox" id="fvgToggle"><span>Fair Value Gaps (FVG)<small>Offene Lücken aus 3 Kerzen – grün = bullisch, rot = bärisch; endet, sobald gefüllt</small></span></label>
+                <label class="menu-item"><input type="checkbox" id="trailsToggle" checked><span>Trade-Spuren<small>Deine Trades dieser Session im Chart: Linie Einstieg → Ausstieg mit TP/SL-Zone und Nummer</small></span></label>
               </div>
             </div>
             <button class="tool-btn" id="compBtn" title="Zweiten Zeitrahmen neben dem Chart anzeigen (z. B. 1h für die Richtung, 5m für den Einstieg)">
@@ -1352,7 +1394,9 @@
             <div class="session-bar">
               <div class="session-slots">
                 <span class="session-label">Session</span>
+                <button class="btn sess-pick" id="sessPickBtn" type="button" title="Session wählen – alle Sessions im Überblick"><span class="sp-dot" id="sessPickDot"></span><span id="sessPickLbl">Session 1</span><span class="sp-caret">▾</span></button>
                 <div class="slot-pills" id="sessionSlotTabs"></div>
+                <button class="btn sess-ov-btn" id="sessOverviewBtn" type="button" title="Alle Sessions im Überblick: Zeitraum, Fortschritt, Trades, Gewinn – und Namen vergeben">☰ Übersicht</button>
               </div>
               <div class="session-actions">
                 <button class="btn" id="newSessionBtn" title="Neue Zufalls-Session aus dem aktuellen Markt starten"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg>Neue Zufalls-Session</button>
@@ -1628,7 +1672,7 @@
       <h4>Indikatoren</h4>
       <p>Unter <b>Indikatoren</b> gibt es gleitende Durchschnitte (MA, EMA 9/21/50/200), VWAP, Supertrend, Bollinger-Bänder und Volumen im Chart sowie RSI, MACD, Stochastik und ATR als eigene Bereiche darunter. Oben links im Chart stehen die aktiven Indikatoren mit ihrem aktuellen Wert. Deine Auswahl wird pro Session gespeichert.</p>
       <h4>Zeitrahmen &amp; Sessions</h4>
-      <p>Du kannst jederzeit den Zeitrahmen wechseln &ndash; Position, Kontostand und Zeichnungen bleiben erhalten, es geht am selben Zeitpunkt weiter. Pro Markt und Zeitrahmen gibt es 5 Session-Pl&auml;tze (die Kreise unter dem Chart).</p>
+      <p>Du kannst jederzeit den Zeitrahmen wechseln &ndash; Position, Kontostand und Zeichnungen bleiben erhalten, es geht am selben Zeitpunkt weiter. Pro Markt gibt es <b>10 Sessions</b>, jede mit eigenem Zeitraum, Konto, Trades und Zeichnungen &ndash; der Zeitrahmen ist nur die Ansicht. Unter dem Chart auf <b>Session ▾</b> tippen: die &Uuml;bersicht zeigt Start-Datum, Fortschritt, Trades und Gewinn jeder Session, dort kannst du sie &ouml;ffnen und benennen. Im Chart sind deine Trades nummeriert (#1, #2 …) mit Linie von Einstieg zu Ausstieg; im Journal springt <b>📍 Im Chart</b> genau zu einem Trade, unter <b>Alle Trades</b> &ouml;ffnet <b>↪ Session</b> die Session, in der er war.</p>
       <p>Mit <b>2. Chart</b> (oben rechts im Chart) siehst du einen zweiten Zeitrahmen daneben &ndash; z. B. 1h f&uuml;r die Richtung und 5m f&uuml;r den Einstieg. Er l&auml;uft im selben Replay mit, zeigt die gerade entstehende Kerze und spiegelt Einstieg/TP/SL als Linien.</p>
       <h4>Auf mehreren Geräten (Cloud)</h4>
       <p>Diese Webversion speichert Sessions, Trade-Journal und Strategien <b>auf dem Gerät und in dem Browser</b>, in dem du spielst. Zum Übertragen auf ein anderes Gerät nutze <b>Backup exportieren</b> und dort <b>Backup importieren</b>. Tipp fürs iPad: In Safari auf Teilen &rarr; <i>Zum Home-Bildschirm</i> tippen, dann startet TradeReplay wie eine App im Vollbild.</p>
@@ -1639,11 +1683,20 @@
       <h4>Speichern</h4>
       <p>Dein Fortschritt (Position, Order, Journal, Zeichnungen) wird automatisch lokal gespeichert und bleibt beim Schlie&szlig;en erhalten, bis du eine neue Session startest.</p>
       <h4>Daten &amp; Hinweise</h4>
-      <p>Echte historische Kursdaten: Krypto/Gold-Token von Binance Spot (12 Instrumente), Forex von Yahoo Finance (28 Paare der 8 Hauptw&auml;hrungen, indikative Kurse; 1m &asymp; 4 Wochen, 5&ndash;30m &asymp; 2 Monate, 1h/4h/1T &asymp; 3 Jahre &ndash; bei EUR/USD, GBP/USD, AUD/USD und NZD/USD ist die 1-Minuten-Kerze aus den Minuten-Kursen gebildet). Stop-Loss &amp; Liquidation ber&uuml;cksichtigen konfigurierbare Slippage (Take-Profit f&uuml;llt exakt wie eine Limit-Order). Simuliert werden <b>kein</b> echtes Orderbuch und keine variable, marktabh&auml;ngige Slippage &ndash; reale Ausf&uuml;hrung kann in schnellen M&auml;rkten schlechter sein. Historische Performance ist keine Garantie f&uuml;r zuk&uuml;nftige Ergebnisse; dies ist keine Anlageberatung.</p>
+      <p>Echte historische Kursdaten: Krypto/Gold-Token von Binance Spot (12 Instrumente), Forex von Yahoo Finance (28 Paare der 8 Hauptw&auml;hrungen, indikative Kurse; 1m &asymp; 4 Wochen, 5&ndash;30m &asymp; 2 Monate, 1h/4h/1T &asymp; 3 Jahre &ndash; bei EUR/USD, GBP/USD, AUD/USD und NZD/USD ist die 1-Minuten-Kerze aus den Minuten-Kursen gebildet). <b>Langzeit-Archiv</b> f&uuml;r EUR/USD, GBP/USD, AUD/USD, USD/CAD und EUR/JPY: echte OANDA-Minutenkurse 2005&ndash;Mai 2020 (&uuml;ber <i>FutureSharks/financial-data</i>), daraus alle Zeitrahmen gebildet; f&uuml;r BTC: Bitstamp-Minutenkurse 2013&ndash;2026 (&bdquo;Zielak (mczielinski), Bitcoin Historical Data, Kaggle&ldquo;, CC BY-SA 4.0, und Bitstamp-API-Daten &uuml;ber <i>ff137/bitstamp-btcusd-minute-data</i>, CC BY 4.0). Eine Session liegt immer ganz im Archiv oder ganz in den neueren Daten. Stop-Loss &amp; Liquidation ber&uuml;cksichtigen konfigurierbare Slippage (Take-Profit f&uuml;llt exakt wie eine Limit-Order). Simuliert werden <b>kein</b> echtes Orderbuch und keine variable, marktabh&auml;ngige Slippage &ndash; reale Ausf&uuml;hrung kann in schnellen M&auml;rkten schlechter sein. Historische Performance ist keine Garantie f&uuml;r zuk&uuml;nftige Ergebnisse; dies ist keine Anlageberatung.</p>
     </div>
   </div>
 </div>
 
+<div class="modal-backdrop" id="sessOvBackdrop" hidden>
+  <div class="modal-panel sess-ov-panel" role="dialog" aria-labelledby="sessOvTitle">
+    <div class="modal-head">
+      <h3 id="sessOvTitle">Meine Sessions</h3>
+      <button class="mini-btn" id="sessOvCloseBtn" title="Schließen">✕</button>
+    </div>
+    <div class="modal-body" id="sessOvBody"></div>
+  </div>
+</div>
 <div class="modal-backdrop" id="tjBackdrop" hidden>
   <div class="modal-panel tj-panel" role="dialog" aria-labelledby="tjTitle">
     <div class="modal-head">
@@ -3390,11 +3443,77 @@
     }
   }
 
+  // Trade-Spuren: jeder abgeschlossene Trade dieser Session als Linie von Einstieg zu Ausstieg, dazu
+  // blass die TP-/SL-Zone (falls gesetzt) — so sieht man im Chart genau, wo welcher Trade war.
+  const TRAILS_KEY = 'tradereplay_trails_v1';
+  let focusTrade = null, focusTimer = null;
+  function trailsOn(){ try{ return localStorage.getItem(TRAILS_KEY) !== '0'; }catch(e){ return true; } }
+  function renderTradeTrails(svg){
+    if(!state.data.length || !state.journal.length || (!trailsOn() && focusTrade == null)) return;
+    const nowT = state.data[state.cursor] ? state.data[state.cursor].time : Infinity;
+    const at = t => { const i = barIndexAtOrBefore(t); return i >= 0 ? state.data[i].time : null; };
+    const { nr } = tradeNumbers();
+    state.journal.forEach((t, i) => {
+      const focus = focusTrade != null && t.closedAt === focusTrade;
+      if(!focus && !trailsOn()) return;
+      const eT = at(t.entryTime), xT = at(t.exitTime);
+      if(eT == null || xT == null || xT > nowT) return;
+      const x1 = xFromTimeRobust(eT), x2 = xFromTimeRobust(xT), y1 = yFromPriceRobust(t.entryPrice), y2 = yFromPriceRobust(t.exitPrice);
+      if(x1 == null || x2 == null || y1 == null || y2 == null) return;
+      const w = Math.max(6, x2 - x1);
+      const tp = t.tpPrice != null ? t.tpPrice : (t.review && t.review.tp), sl = t.slPrice != null ? t.slPrice : (t.review && t.review.sl);
+      const zone = (price, fill) => { const y = yFromPriceRobust(price); if(y == null) return; const r = document.createElementNS(NS_SVG, 'rect');
+        r.setAttribute('x', x1); r.setAttribute('y', Math.min(y, y1)); r.setAttribute('width', w); r.setAttribute('height', Math.max(1, Math.abs(y - y1)));
+        r.setAttribute('fill', fill); r.setAttribute('pointer-events', 'none'); svg.appendChild(r); };
+      if(tp != null) zone(tp, focus ? 'rgba(38,166,154,0.22)' : 'rgba(38,166,154,0.09)');
+      if(sl != null) zone(sl, focus ? 'rgba(239,83,80,0.22)' : 'rgba(239,83,80,0.09)');
+      const col = (t.pnl || 0) >= 0 ? '#26A69A' : '#EF5350';
+      const ln = document.createElementNS(NS_SVG, 'line');
+      ln.setAttribute('x1', x1); ln.setAttribute('y1', y1); ln.setAttribute('x2', x2); ln.setAttribute('y2', y2);
+      ln.setAttribute('stroke', col); ln.setAttribute('stroke-width', focus ? 2.6 : 1.4); ln.setAttribute('stroke-dasharray', '5 4');
+      ln.setAttribute('pointer-events', 'none'); ln.setAttribute('data-trail', String(nr[i]));
+      svg.appendChild(ln);
+      [[x1, y1], [x2, y2]].forEach(([cx, cy]) => { const c = document.createElementNS(NS_SVG, 'circle'); c.setAttribute('cx', cx); c.setAttribute('cy', cy); c.setAttribute('r', focus ? 4 : 2.6); c.setAttribute('fill', col); c.setAttribute('pointer-events', 'none'); svg.appendChild(c); });
+      if(focus){
+        const txt = '#' + nr[i] + ' ' + (t.side === 'long' ? 'Long' : 'Short') + ' · ' + (REASON_SHORT[t.reason] || t.reason) + ' · ' + pnlShort(t.pnl) + (t.rMultiple != null && isFinite(t.rMultiple) ? ' · ' + t.rMultiple.toFixed(1).replace('.', ',') + ' R' : '');
+        const g = document.createElementNS(NS_SVG, 'g'); g.setAttribute('pointer-events', 'none'); g.setAttribute('data-trail-label', '1');
+        const tx = document.createElementNS(NS_SVG, 'text'); tx.textContent = txt; tx.setAttribute('font-size', '12'); tx.setAttribute('font-weight', '700'); tx.setAttribute('fill', '#fff');
+        const bw = txt.length * 6.9 + 16, bx = Math.max(4, Math.min((x1 + x2)/2 - bw/2, container.clientWidth - bw - 70)), by = Math.max(4, Math.min(y1, y2) - 30);
+        const bg = document.createElementNS(NS_SVG, 'rect'); bg.setAttribute('x', bx); bg.setAttribute('y', by); bg.setAttribute('width', bw); bg.setAttribute('height', 22); bg.setAttribute('rx', 6); bg.setAttribute('fill', col);
+        tx.setAttribute('x', bx + 8); tx.setAttribute('y', by + 15);
+        g.appendChild(bg); g.appendChild(tx); svg.appendChild(g);
+      }
+    });
+  }
+  // Springt im Chart zu einem Trade dieser Session und hebt ihn hervor.
+  function focusTradeInChart(idx){
+    const t = state.journal[idx];
+    if(!t || !state.data.length) return;
+    const iE = barIndexAtOrBefore(t.entryTime), iX = barIndexAtOrBefore(t.exitTime);
+    if(iE < 0 || iX < 0) return;
+    const pad = Math.max(20, Math.round((iX - iE) * 0.8));
+    const from = Math.max(0, iE - pad) - state.sessionStart, to = Math.min(state.cursor, iX + pad) - state.sessionStart + 3;
+    try{ chart.timeScale().setVisibleLogicalRange({ from, to }); }catch(e){}
+    focusTrade = t.closedAt;
+    clearTimeout(focusTimer);
+    focusTimer = setTimeout(() => { focusTrade = null; renderDrawings(); }, 12000);
+    requestAnimationFrame(renderDrawings);
+    try{ document.getElementById('chartContainer').scrollIntoView({ behavior:'smooth', block:'nearest' }); }catch(e){}
+  }
+
+  (function(){
+    const tt = document.getElementById('trailsToggle');
+    if(!tt) return;
+    tt.checked = trailsOn();
+    tt.addEventListener('change', () => { try{ localStorage.setItem(TRAILS_KEY, tt.checked ? '1' : '0'); }catch(e){} scheduleRenderDrawings(); });
+  })();
+
   function renderDrawings(){
     syncCompLines();
     const svg = els.drawOverlay;
     while(svg.firstChild) svg.removeChild(svg.firstChild);
     renderSessionsAndLevels(svg);
+    renderTradeTrails(svg);
     renderRiskRewardZone(svg);
     // Jede Zeichnung in eine eigene Gruppe — so laesst sich pruefen, dass wirklich jede gezeichnet wird.
     state.drawings.forEach(d => { const g = document.createElementNS(NS_SVG,'g'); g.setAttribute('data-did', d.id); svg.appendChild(g); renderOne(g, d); });
@@ -3615,7 +3734,14 @@
   // Langzeit-Archiv (echte OANDA-Minutendaten, daraus alle Zeitrahmen gebaut): wird VOR die eingebauten
   // Daten gehaengt. Kompakt gespeichert (Abstaende in Punkten), je Datei hoechstens ~3 MB fuers iPad.
   // Zwischen Archiv und neueren Daten liegt eine Luecke — Sessions bleiben immer in EINEM Abschnitt.
-  const EXT_DATA = { EURUSD: { '1m':1, '5m':2, '15m':2, '30m':1, '1h':1, '4h':1, '1d':1 } };
+  const EXT_DATA = {
+    EURUSD: { '1m':1, '5m':2, '15m':2, '30m':1, '1h':1, '4h':1, '1d':1 },
+    GBPUSD: { '1m':1, '5m':1, '15m':2, '30m':1, '1h':1, '4h':1, '1d':1 },
+    AUDUSD: { '1m':1, '5m':1, '15m':2, '30m':1, '1h':1, '4h':1, '1d':1 },
+    USDCAD: { '1m':1, '5m':1, '15m':2, '30m':1, '1h':1, '4h':1, '1d':1 },
+    EURJPY: { '1m':1, '5m':1, '15m':2, '30m':1, '1h':1, '4h':1, '1d':1 },
+    BTCUSDT: { '1m':1, '5m':1, '15m':2, '30m':1, '1h':1, '4h':1, '1d':1 }
+  };
   const OHLC_BASE = {};   // key -> Anzahl vorangestellter Archiv-Kerzen (fuer alte Sessions, deren Fenster-Index davor gezaehlt wurde)
   const extMerged = {};
   function decodeExt(ch){
@@ -4166,7 +4292,7 @@
     const len = state.data.length;
     state.sessionStart = 0;
     state.sessionLen = Math.max(MIN_REPLAY, parseInt(els.sessionLenInput.value,10) || DEFAULT_REPLAY_TAIL);
-    if(pickNewSplit) state.sessionSplit = pickSessionSplit(len, useDefault);
+    if(pickNewSplit){ state.sessionSplit = pickSessionSplit(len, useDefault); state.sessionName = ''; }
     state.cursor = state.sessionSplit;
     state.replayClockMs = null;
     state.startingBalance = parseFloat(els.startCapital.value) || 10000;
@@ -5323,15 +5449,26 @@
     positionLines = {};
   }
 
+  // Ein- und Ausstiegs-Markierungen tragen die Trade-Nummer (#1, #2 …) — dieselbe wie im Journal.
   function addEntryMarker(time, side){
-    markers.push({ time, position: side==='long'?'belowBar':'aboveBar', color: side==='long'?'#26A69A':'#EF5350', shape: side==='long'?'arrowUp':'arrowDown', text: side==='long'?'Long':'Short' });
+    rebuildTradeMarkers();
     candleSeries.setMarkers(markers);
   }
   const REASON_LABEL = { tp:'Take-Profit', sl:'Stop-Loss', manual:'Manuell', end:'Session-Ende', liquidation:'Liquidation', partial:'Teilweise' };
+  const REASON_SHORT = { tp:'TP', sl:'SL', manual:'Exit', end:'Ende', liquidation:'Liq.', partial:'Teil' };
   function addExitMarker(time, pnl, reason){
-    const color = pnl>=0 ? '#26A69A' : '#EF5350';
-    markers.push({ time, position:'inBar', color, shape:'circle', text: (REASON_LABEL[reason]||reason) });
+    rebuildTradeMarkers();
     candleSeries.setMarkers(markers);
+  }
+  // Nummer je Trade: Teil-Ausstiege teilen die Nummer ihres Einstiegs.
+  function tradeNumbers(){
+    const byEntry = new Map(), nr = [];
+    state.journal.forEach((t, i) => { const k = t.entryTime + '|' + t.side; if(!byEntry.has(k)) byEntry.set(k, byEntry.size + 1); nr[i] = byEntry.get(k); });
+    return { nr, byEntry };
+  }
+  function pnlShort(v){
+    const a = Math.abs(v || 0);
+    return ((v || 0) >= 0 ? '+' : '−') + (a >= 10000 ? Math.round(a/1000) + 'k' : a >= 1000 ? (a/1000).toFixed(1).replace('.', ',') + 'k' : String(Math.round(a))) + ' €';
   }
 
   // ---------- UI rendering ----------
@@ -5482,9 +5619,10 @@
       body.innerHTML = '<tr><td colspan="14"><div class="empty">Noch keine geschlossenen Trades in dieser Session.</div></td></tr>';
       return;
     }
+    const { nr } = tradeNumbers();
     body.innerHTML = state.journal.map((t,idx) => `
-      <tr>
-        <td class="num">${idx+1}</td>
+      <tr data-jrow="${idx}">
+        <td class="num"><b>#${nr[idx]}</b>${t.partialFrac ? '<small class="muted"> Teil</small>' : ''}</td>
         <td><span class="chip ${t.side}">${t.side==='long'?'Long':'Short'}</span></td>
         <td class="num">${fmtTime(t.entryTime)}</td>
         <td class="num">${fmtTime(t.exitTime)}</td>
@@ -5497,7 +5635,7 @@
         <td>${scoreBadgeHtml(t.score, t.grade, t.feedback)}</td>
         <td>${tjCellHtml(t)}</td>
         <td class="num ${t.pnl>=0?'up-txt':'down-txt'}">${usdSigned(t.pnl)}</td>
-        <td style="white-space:nowrap"><button class="btn tj-edit" data-tj-open="${escapeHtml(histKey(t))}" title="Journal: Setup, Gefühl, Fehler, Bewertung">✎ Journal</button> <button class="btn review-btn" data-rv-journal="${idx}" title="Trade im Chart ansehen – mit deinen Zeichnungen">Ansehen</button></td>
+        <td style="white-space:nowrap"><button class="btn tj-edit" data-tj-open="${escapeHtml(histKey(t))}" title="Journal: Setup, Gefühl, Fehler, Bewertung">✎ Journal</button> <button class="btn" data-focus-journal="${idx}" title="Im Chart zu diesem Trade springen (Einstieg → Ausstieg wird hervorgehoben)">📍 Im Chart</button> <button class="btn review-btn" data-rv-journal="${idx}" title="Trade im Chart ansehen – mit deinen Zeichnungen">Ansehen</button></td>
       </tr>`).reverse().join('');
   }
 
@@ -6813,16 +6951,18 @@
     const nowT = state.data[state.cursor] ? state.data[state.cursor].time : Infinity;
     const at = t => { const i = barIndexAtOrBefore(t); return i >= 0 ? state.data[i].time : null; };
     const list = [{ time: state.data[state.sessionSplit].time, position:'aboveBar', color:'#E0A438', shape:'circle', text:'▶ Replay-Start' }];
-    const entryMk = (time, side) => ({ time, position: side==='long'?'belowBar':'aboveBar', color: side==='long'?'#26A69A':'#EF5350', shape: side==='long'?'arrowUp':'arrowDown', text: side==='long'?'Long':'Short' });
+    const entryMk = (time, side, n) => ({ time, position: side==='long'?'belowBar':'aboveBar', color: side==='long'?'#26A69A':'#EF5350', shape: side==='long'?'arrowUp':'arrowDown', text: '#' + n + ' ' + (side==='long'?'Long':'Short') });
     const seenEntry = new Set();
-    state.journal.forEach(t => {
+    const { nr, byEntry } = tradeNumbers();
+    state.journal.forEach((t, i) => {
       const eT = at(t.entryTime), xT = at(t.exitTime);
-      if(eT != null && eT <= nowT && !seenEntry.has(t.entryTime + t.side)){ seenEntry.add(t.entryTime + t.side); list.push(entryMk(eT, t.side)); }
-      if(xT != null && xT <= nowT) list.push({ time:xT, position:'inBar', color: t.pnl>=0 ? '#26A69A' : '#EF5350', shape:'circle', text: REASON_LABEL[t.reason] || t.reason });
+      if(eT != null && eT <= nowT && !seenEntry.has(t.entryTime + t.side)){ seenEntry.add(t.entryTime + t.side); list.push(entryMk(eT, t.side, nr[i])); }
+      if(xT != null && xT <= nowT) list.push({ time:xT, position:'inBar', color: t.pnl>=0 ? '#26A69A' : '#EF5350', shape:'circle', text: '#' + nr[i] + ' ' + (REASON_SHORT[t.reason] || t.reason) + ' ' + pnlShort(t.pnl) });
     });
     if(state.position && !seenEntry.has(state.position.entryTime + state.position.side)){
       const eT = at(state.position.entryTime);
-      if(eT != null && eT <= nowT) list.push(entryMk(eT, state.position.side));
+      const k = state.position.entryTime + '|' + state.position.side;
+      if(eT != null && eT <= nowT) list.push(entryMk(eT, state.position.side, byEntry.has(k) ? byEntry.get(k) : byEntry.size + 1));
     }
     markers = list.sort((a, b) => a.time - b.time);
   }
@@ -6985,6 +7125,8 @@
   }
   document.getElementById('reviewExitBtn').addEventListener('click', exitReview);
   els.journalBody.addEventListener('click', e => {
+    const fb = e.target.closest('[data-focus-journal]');
+    if(fb){ focusTradeInChart(+fb.dataset.focusJournal); return; }
     const b = e.target.closest('[data-rv-journal]');
     if(!b) return;
     const j = state.journal[+b.dataset.rvJournal];
@@ -7158,6 +7300,8 @@
       persistLastView();
     } finally { datasetLoadBusy = false; }
     try{ window.scrollTo({ top:0, behavior:'smooth' }); }catch(e){}
+    const ji = state.journal.findIndex(j => j.closedAt === t.closedAt);
+    if(ji >= 0) setTimeout(() => focusTradeInChart(ji), 250);
     showToast('Session ' + (loc.slot + 1) + ' · ' + SYMBOL_NAME[loc.symbol] + ' · ' + TF_NAME[loc.tf] + ' geöffnet – du kannst dort weiter traden.', 5000);
   }
   function renderHistoryTab(){
@@ -7326,6 +7470,10 @@
       pdhl: !!els.pdhlToggle.checked, weeklyOpen: !!els.weeklyOpenToggle.checked, fvg: !!els.fvgToggle.checked,
       xind: Object.keys(xSeries), volume: !!els.volumeToggle.checked,
       fetchEndTimeMs: state.fetchEndTimeMs, dataLen: state.data.length,
+      name: state.sessionName || '',
+      tStart: state.data[state.sessionSplit] ? state.data[state.sessionSplit].time : null,
+      tNow: state.data[state.cursor] ? state.data[state.cursor].time : null,
+      tEnd: state.data.length ? state.data[state.data.length-1].time : null,
       // bundleOffset bleibt wie frueher ohne Archiv gezaehlt (aeltere App-Versionen auf anderen Geraeten), bundleT0 ist eindeutig
       bundleOffset: state.bundleOffset == null ? null : Math.max(0, state.bundleOffset - (OHLC_BASE[state.symbol+'_'+state.tf] || 0)),
       bundleT0: state.bundleOffset == null ? null : (state.bundleT0 ?? null)
@@ -7367,16 +7515,132 @@
     const el = document.getElementById('sessionSlotTabs');
     el.innerHTML = '';
     const count = Math.max(SESSION_SLOTS, list.length);
+    const cur = list[state.activeSlot];
+    document.getElementById('sessPickLbl').textContent = 'Session ' + (state.activeSlot + 1) + (cur && cur.name ? ' · ' + cur.name : '');
+    document.getElementById('sessPickDot').className = 'sp-dot' + (sessNonPristine(cur) ? ' used' : '');
+    document.getElementById('sessPickBtn').title = sessTitleLine(cur, state.activeSlot) + ' – tippen für alle Sessions';
     for(let i=0;i<count;i++){
       const b = document.createElement('button');
       b.textContent = String(i+1);
       const used = sessNonPristine(list[i]);
       b.className = (i===state.activeSlot ? 'active' : '') + (used ? ' used' : '');
-      b.title = used ? ('Session '+(i+1)+' (gespielt)') : ('Session '+(i+1)+' (frei)');
+      b.title = sessTitleLine(list[i], i);
       b.addEventListener('click', ()=> switchToSlot(i));
       el.appendChild(b);
     }
   }
+
+  // ---------- Session-Uebersicht: alle Plaetze eines Marktes (und gespielte anderer Maerkte) ----------
+  function fmtDateY(sec){ return new Date(sec*1000).toLocaleDateString('de-DE', { day:'2-digit', month:'2-digit', year:'numeric', timeZone:'UTC' }); }
+  function relTimeDe(ms){
+    const d = Date.now() - ms; if(!(d >= 0)) return '';
+    const m = Math.round(d/60000); if(m < 2) return 'gerade eben'; if(m < 60) return 'vor ' + m + ' Min';
+    const h = Math.round(m/60); if(h < 24) return 'vor ' + h + ' Std'; const t = Math.round(h/24); return t === 1 ? 'gestern' : 'vor ' + t + ' Tagen';
+  }
+  function sessSummary(p){
+    const j = (p && Array.isArray(p.journal)) ? p.journal : [];
+    const trades = new Set(j.map(t => t.entryTime + '|' + t.side)).size;
+    const wins = j.filter(t => (t.pnl || 0) > 0).length;
+    const pnl = j.reduce((a, t) => a + (t.pnl || 0), 0);
+    const done = p ? Math.max(0, (p.cursor|0) - (p.sessionSplit|0)) : 0;
+    const total = p ? Math.max(0, (p.dataLen|0) - 1 - (p.sessionSplit|0)) : 0;
+    return { trades, winPct: j.length ? Math.round(wins / j.length * 100) : null, pnl, done, total, pct: total ? done / total * 100 : 0 };
+  }
+  function sessTitleLine(p, i){
+    if(!p) return 'Session ' + (i+1) + ' (frei)';
+    const sm = sessSummary(p), parts = ['Session ' + (i+1) + (p.name ? ' „' + p.name + '“' : '')];
+    if(p.tf) parts.push(TF_NAME[p.tf] || p.tf);
+    if(p.tStart) parts.push('Start ' + fmtDateY(p.tStart));
+    parts.push(sessNonPristine(p) ? (sm.trades + ' Trade(s), ' + (sm.pnl >= 0 ? '+' : '') + Math.round(sm.pnl) + ' €') : 'frei');
+    return parts.join(' · ');
+  }
+  function renderSessionOverview(){
+    const body = document.getElementById('sessOvBody');
+    const groups = loadSessionGroups(), key = slotGroupKey(state.symbol, state.tf), list = groups[key] || [];
+    document.getElementById('sessOvTitle').textContent = 'Meine Sessions · ' + (SYMBOL_NAME[state.symbol] || state.symbol);
+    const count = Math.max(SESSION_SLOTS, list.length);
+    let html = '<p class="sov-note">Jede Session ist ein eigener Zeitraum mit eigenem Konto, eigenen Trades und Zeichnungen. Den Zeitrahmen kannst du in jeder Session frei wechseln. Tippe auf „Öffnen“, um weiterzuspielen.</p><div class="sov-list">';
+    for(let i = 0; i < count; i++){
+      const p = list[i], used = sessNonPristine(p), active = i === state.activeSlot;
+      const sm = sessSummary(p);
+      const title = p && p.name ? escapeHtml(p.name) : 'Session ' + (i+1);
+      const tags = [p && p.tf ? `<span class="sov-tag">${escapeHtml(TF_NAME[p.tf] || p.tf)}</span>` : '',
+        active ? '<span class="sov-tag on">offen</span>' : '', p && p.ended ? '<span class="sov-tag end">beendet</span>' : (used ? '<span class="sov-tag">gespielt</span>' : '<span class="sov-tag">frei</span>')].join('');
+      const meta = !p ? 'Noch nicht angelegt – beim Öffnen entsteht eine neue Session mit maximal vielen Kerzen.'
+        : [p.tStart ? 'Start ' + fmtDateY(p.tStart) : '', used && p.tNow ? 'jetzt ' + fmtDateY(p.tNow) : '', p.tEnd ? 'Daten bis ' + fmtDateY(p.tEnd) : '', used && (p.savedAt || 0) > 1e12 ? 'zuletzt ' + relTimeDe(p.savedAt) : ''].filter(Boolean).join(' · ');
+      const stats = p && !used ? `<div class="sov-stats"><span><b>${sm.total.toLocaleString('de-DE')}</b> Kerzen bereit</span></div>`
+        : p ? `<div class="sov-stats"><span>Kerze <b>${sm.done.toLocaleString('de-DE')}</b> / ${sm.total.toLocaleString('de-DE')}</span><span>Trades <b>${sm.trades}</b></span>${sm.winPct != null ? `<span>Treffer <b>${sm.winPct} %</b></span>` : ''}<span class="${sm.pnl >= 0 ? 'up-txt' : 'down-txt'}">PnL <b>${usdSigned(sm.pnl)}</b></span>${p.balance != null ? `<span>Konto <b>${usd(p.balance, 0)}</b></span>` : ''}</div><div class="sov-bar"><i style="width:${Math.min(100, sm.pct).toFixed(1)}%"></i></div>` : '';
+      html += `<div class="sov-card${used ? ' used' : ''}${active ? ' active' : ''}" data-sov-card="${i}">
+        <div class="sov-num">${i+1}</div>
+        <div class="sov-main"><div class="sov-title" data-sov-title="${i}">${title} ${tags}</div><div class="sov-meta">${meta}</div>${stats}</div>
+        <div class="sov-actions">${active ? '' : `<button class="btn sov-open" data-sov-open="${i}">Öffnen</button>`}${p ? `<button class="btn" data-sov-name="${i}" title="Dieser Session einen Namen geben (z. B. „London-Breakouts“)">✎ Name</button>` : ''}</div>
+      </div>`;
+    }
+    html += '</div>';
+    const others = Object.keys(groups).filter(k => /_M$/.test(k) && k !== key).map(k => ({ sym:k.slice(0, -2), list:groups[k] || [] }))
+      .filter(o => SYMBOL_NAME[o.sym] && o.list.some(sessNonPristine)).sort((a, b) => (SYMBOL_NAME[a.sym] || a.sym).localeCompare(SYMBOL_NAME[b.sym] || b.sym));
+    if(others.length){
+      html += '<div class="sov-h">Gespielte Sessions in anderen Märkten</div>';
+      others.forEach(o => {
+        html += `<div class="sov-mkt"><span class="name">${escapeHtml(SYMBOL_NAME[o.sym])}</span>` + o.list.map((p, i) => {
+          if(!sessNonPristine(p)) return '';
+          const sm = sessSummary(p);
+          return `<button class="btn" data-sov-mkt="${escapeHtml(o.sym)}|${i}" title="${escapeHtml(sessTitleLine(p, i))}">S${i+1}${p.name ? ' „' + escapeHtml(p.name) + '“' : ''} · ${escapeHtml(TF_NAME[p.tf] || p.tf || '')} · ${sm.trades} Tr. · <span class="${sm.pnl >= 0 ? 'up-txt' : 'down-txt'}">${(sm.pnl >= 0 ? '+' : '') + Math.round(sm.pnl)} €</span></button>`;
+        }).join('') + '</div>';
+      });
+    }
+    body.innerHTML = html;
+  }
+  function openSessionOverview(){
+    if(state.reviewing){ showToast('Erst den Rückblick beenden.'); return; }
+    saveState();
+    renderSessionOverview();
+    document.getElementById('sessOvBackdrop').hidden = false;
+  }
+  function closeSessionOverview(){ document.getElementById('sessOvBackdrop').hidden = true; }
+  function setSessionName(i, name){
+    name = String(name || '').trim().slice(0, 40);
+    const key = slotGroupKey(state.symbol, state.tf);
+    if(i === state.activeSlot){ state.sessionName = name; saveState(); }
+    else {
+      const g = loadSessionGroups(), p = (g[key] || [])[i];
+      if(!p) return;
+      p.name = name; p.savedAt = Date.now();
+      saveSessionGroups(g); cloudMarkSession(key, i);
+    }
+    renderSessionSlotsUI(); renderSessionOverview();
+  }
+  async function openMarketSlot(sym, i){
+    if(!SYMBOL_NAME[sym] || datasetLoadBusy) return;
+    saveState();
+    state.symbol = sym; state.activeSlot = i;
+    document.getElementById('symbolSelect').value = sym;
+    els.chartTitle.textContent = SYMBOL_NAME[state.symbol] + ' · ' + TF_NAME[state.tf];
+    datasetLoadBusy = true;
+    try{ await ensureSessionSlotsForCurrentSymbol(); } finally { datasetLoadBusy = false; }
+  }
+  document.getElementById('sessOverviewBtn').addEventListener('click', openSessionOverview);
+  document.getElementById('sessPickBtn').addEventListener('click', openSessionOverview);
+  document.getElementById('sessOvCloseBtn').addEventListener('click', closeSessionOverview);
+  document.getElementById('sessOvBackdrop').addEventListener('click', e => { if(e.target.id === 'sessOvBackdrop') closeSessionOverview(); });
+  document.getElementById('sessOvBody').addEventListener('click', e => {
+    const ob = e.target.closest('[data-sov-open]');
+    if(ob){ closeSessionOverview(); switchToSlot(+ob.dataset.sovOpen); return; }
+    const mb = e.target.closest('[data-sov-mkt]');
+    if(mb){ const [sym, i] = mb.dataset.sovMkt.split('|'); closeSessionOverview(); openMarketSlot(sym, +i); return; }
+    const nb = e.target.closest('[data-sov-name]');
+    if(nb){
+      const i = +nb.dataset.sovName, t = document.querySelector(`[data-sov-title="${i}"]`);
+      if(!t || t.querySelector('input')) return;
+      const p = (loadSessionGroups()[slotGroupKey(state.symbol, state.tf)] || [])[i];
+      t.innerHTML = '';
+      const inp = document.createElement('input'); inp.className = 'sov-name-input'; inp.maxLength = 40; inp.placeholder = 'Name, z. B. London-Breakouts'; inp.value = (p && p.name) || '';
+      t.appendChild(inp); inp.focus();
+      let done = false; const fin = save => { if(done) return; done = true; if(save) setSessionName(i, inp.value); else renderSessionOverview(); };
+      inp.addEventListener('keydown', ev => { if(ev.key === 'Enter'){ ev.preventDefault(); fin(true); } else if(ev.key === 'Escape'){ ev.preventDefault(); fin(false); } ev.stopPropagation(); });
+      inp.addEventListener('blur', () => fin(true));
+    }
+  });
 
   // Reproduces the EXACT historical window a saved session was showing —
   // Binance's klines for a fixed past range never change, so re-fetching it
@@ -7421,6 +7685,7 @@
     migrateDrawingTimes(state.drawings);
     state.drawTomb = Array.isArray(save.drawTomb) ? save.drawTomb.slice(-400) : [];
     state.epoch = save.epoch || 0;
+    state.sessionName = typeof save.name === 'string' ? save.name : '';
     slotSeen[sessId(slotGroupKey(state.symbol, state.tf), state.activeSlot)] = save.savedAt;
     state.position = save.position || null;
     state.pendingOrder = save.pendingOrder || null;
