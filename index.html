@@ -5006,6 +5006,7 @@
           const cur = groups[key][slot];
           // Ein unbenutzter Platz (noch nichts gespielt) wird immer ersetzt, sonst gewinnt der neuere Stand.
           if(!cur || (!sessNonPristine(cur) && sessNonPristine(p)) || (p.savedAt || 0) > (cur.savedAt || 0)){
+            if(cur && sessNonPristine(cur) && !sessSameIdentity(cur, p)) archiveSession(cur, key, slot, 'durch Backup-Import ersetzt');
             groups[key][slot] = p; addedSessions++;
             cloudMarkSession(key, slot);
             if(key === slotGroupKey(state.symbol, state.tf) && slot === state.activeSlot) currentChanged = true;
@@ -6339,6 +6340,7 @@
       return;
     }
     newSessArmedUntil = 0;
+    archiveCurrent('durch neue Session ersetzt');
     loadDatasetAndStartSession({randomizeWindow:true}, true, false);
   }
   els.newSessionBtn.addEventListener('click', startNewSessionSmart);
@@ -6363,6 +6365,7 @@
       datasetLoadBusy = true;
       els.newSessionBtn.disabled = true; els.restartSessionBtn.disabled = true;
       try{
+        archiveCurrent('durch Session ab ' + new Date(ms).toLocaleDateString('de-DE', { timeZone:'UTC' }) + ' ersetzt');
         const ok = await loadDataset({ targetStartMs: ms });
         if(ok){
           state.sessionSplit = state.forcedSplit | 0; state.forcedSplit = null;
@@ -6386,7 +6389,18 @@
       document.getElementById('dateSessNote').textContent = 'Startet im aktuellen Platz eine neue Session genau ab diesem Tag (00:00 UTC) – z. B. für einen bestimmten NFP-Tag. ' + (TF_NAME[state.tf] || state.tf) + '-Daten: ' + segmentsText(key, raw) + '.';
     }
   });
-  els.restartSessionBtn.addEventListener('click', ()=> newSession(false));
+  // Neustart nur nach Rueckfrage, wenn schon gespielt — der bisherige Stand kommt ins Archiv
+  function restartSessionSmart(confirmed){
+    if(datasetLoadBusy || state.reviewing) return;
+    const used = state.journal.length > 0 || !!state.position || !!state.pendingOrder || state.cursor !== state.sessionSplit;
+    if(used && confirmed !== true){
+      showToast('Session ' + (state.activeSlot + 1) + ' von vorn beginnen? Der jetzige Stand wird vorher im Archiv gesichert (Session-Übersicht).', 8000, [{ label:'Ja, neu starten', fn: () => restartSessionSmart(true) }]);
+      return;
+    }
+    if(used) archiveCurrent('neu gestartet');
+    newSession(false);
+  }
+  els.restartSessionBtn.addEventListener('click', () => restartSessionSmart(false));
   els.endNewSessionBtn.addEventListener('click', startNewSessionSmart);
 
   els.playPauseBtn.addEventListener('click', ()=> state.playing ? pause() : play());
@@ -7773,6 +7787,89 @@
     parts.push(sessNonPristine(p) ? (sm.trades + ' Trade(s), ' + (sm.pnl >= 0 ? '+' : '') + Math.round(sm.pnl) + ' €') : 'frei');
     return parts.join(' · ');
   }
+  // ---------- Archiv: nichts geht verloren ----------
+  // Bevor eine GESPIELTE Session ersetzt, neu gestartet oder von einem anderen Geraet ueberschrieben wird,
+  // landet ihr kompletter Stand (Trades, Zeichnungen, Fortschritt) hier — lokal und in der Cloud.
+  // In der Session-Uebersicht laesst sie sich jederzeit wiederherstellen.
+  const ARCHIVE_KEY = 'tradereplay_archive_v1', ARCHIVE_MAX = 40;
+  function loadArchive(){ try{ const a = JSON.parse(localStorage.getItem(ARCHIVE_KEY) || '[]'); return Array.isArray(a) ? a : []; }catch(e){ return []; } }
+  function saveArchive(a){
+    a = a.slice().sort((x, y) => (x.archivedAt || 0) - (y.archivedAt || 0)).slice(-ARCHIVE_MAX);
+    for(let n = a.length; n > 0; n = Math.floor(n * 0.8)){ try{ localStorage.setItem(ARCHIVE_KEY, JSON.stringify(a.slice(-n))); return; }catch(e){} }
+  }
+  function archiveIdFor(key, slot, p){ return (key + '__' + slot + '__' + (p.epoch || 0) + '__' + (p.savedAt || 0)).replace(/[^A-Za-z0-9_.-]/g, '_'); }
+  function archiveSession(p, key, slot, why){
+    if(!p || !sessNonPristine(p)) return;
+    let copy; try{ copy = JSON.parse(JSON.stringify(p)); }catch(e){ return; }
+    const id = archiveIdFor(key, slot, copy);
+    const a = loadArchive();
+    if(a.some(x => x.id === id)) return;
+    const entry = { id, k:key, slot, why: why || '', archivedAt: Date.now(), p: copy };
+    a.push(entry); saveArchive(a);
+    cloudArchivePush(entry);
+  }
+  function archiveCurrent(why){ if(state.data.length && !state.reviewing) archiveSession(buildSessionPayload(), slotGroupKey(state.symbol, state.tf), state.activeSlot, why); }
+  async function cloudArchivePush(entry){
+    if(!CLOUD || !CLOUD.on || !CLOUD.db) return;
+    try{
+      const enc = cloudEncodeSession(entry.k, entry.slot, entry.p);
+      if(!enc) return;
+      await CLOUD.db.doc('sarch/' + entry.id).set({ id:entry.id, k:entry.k, slot:entry.slot, why:entry.why, archivedAt:entry.archivedAt, savedAt:enc.savedAt, json:enc.json });
+    }catch(e){ console.warn('Archiv-Upload:', e && e.message ? e.message : e); }
+  }
+  // Archiv beider Geraete zusammenfuehren (beim vollen Cloud-Abgleich)
+  async function cloudSyncArchive(){
+    if(!CLOUD || !CLOUD.on || !CLOUD.db) return;
+    const snap = await CLOUD.db.collection('sarch').get();
+    const local = loadArchive(), have = new Set(local.map(x => x.id)), cloudIds = new Set();
+    let added = 0;
+    snap.docs.forEach(d => {
+      const m = d.data() || {}, id = m.id || d.id;
+      if(!id) return;
+      cloudIds.add(id);
+      if(have.has(id)) return;
+      const p = cloudDecodeSession(m);
+      if(!p) return;
+      local.push({ id, k:m.k, slot:m.slot, why:m.why || '', archivedAt:m.archivedAt || 0, p }); added++;
+    });
+    if(added) saveArchive(local);
+    for(const e of local){ if(!cloudIds.has(e.id)) await cloudArchivePush(e); }
+  }
+  function restoreArchived(id){
+    if(datasetLoadBusy){ showToast('Einen Moment – die App lädt noch.'); return; }
+    const e = loadArchive().find(x => x.id === id);
+    if(!e || !e.p) return;
+    const sym = String(e.k || '').replace(/_M$/, '');
+    if(!SYMBOL_NAME[sym]) return;
+    saveState();
+    const g = loadSessionGroups(), key = slotGroupKey(sym), list = Array.isArray(g[key]) ? g[key] : (g[key] = []);
+    let at = -1;
+    for(let i = 0; i < SESSION_SLOTS; i++){ if(!list[i] || !sessNonPristine(list[i])){ at = i; break; } }
+    if(at < 0) at = Math.max(SESSION_SLOTS, list.length);
+    list[at] = Object.assign({}, e.p, { savedAt: Date.now() });
+    saveSessionGroups(g);
+    cloudMarkSession(key, at);
+    closeSessionOverview();
+    showToast('Gesicherte Session wiederhergestellt: ' + SYMBOL_NAME[sym] + ' · Session ' + (at + 1), 5000);
+    if(sym !== state.symbol) openMarketSlot(sym, at);
+    else if(at !== state.activeSlot) switchToSlot(at);
+    else {
+      datasetLoadBusy = true;
+      applySessionPayload(list[at]).finally(() => { datasetLoadBusy = false; renderSessionSlotsUI(); persistLastView(); });
+    }
+  }
+  function archiveHtml(){
+    const a = loadArchive().slice().sort((x, y) => (y.archivedAt || 0) - (x.archivedAt || 0));
+    if(!a.length) return '<div class="sov-h">Archiv</div><p class="sov-note">Noch nichts gesichert. Wird eine gespielte Session ersetzt oder neu gestartet, landet sie automatisch hier – mit allen Trades und Zeichnungen.</p>';
+    return '<div class="sov-h">Archiv – gesicherte Sessions</div><p class="sov-note">Jede gespielte Session wird gesichert, bevor sie ersetzt, neu gestartet oder überschrieben wird. „Wiederherstellen“ legt sie in einen freien Platz ihres Marktes.</p><div class="sov-list">' + a.map(e => {
+      const p = e.p || {}, sm = sessSummary(p), sym = String(e.k || '').replace(/_M$/, '');
+      return `<div class="sov-card used"><div class="sov-num">⟲</div><div class="sov-main"><div class="sov-title">${escapeHtml(SYMBOL_NAME[sym] || sym)} · ${p.name ? escapeHtml(p.name) : 'Session ' + ((e.slot | 0) + 1)} <span class="sov-tag">${escapeHtml(TF_NAME[p.tf] || p.tf || '')}</span></div>
+        <div class="sov-meta">${p.tStart ? 'Start ' + fmtDateY(p.tStart) + ' · ' : ''}${p.tNow ? 'Stand ' + fmtDateY(p.tNow) + ' · ' : ''}gesichert ${new Date(e.archivedAt || 0).toLocaleString('de-DE', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })}${e.why ? ' · ' + escapeHtml(e.why) : ''}</div>
+        <div class="sov-stats"><span>Kerze <b>${sm.done.toLocaleString('de-DE')}</b></span><span>Trades <b>${sm.trades}</b></span><span class="${sm.pnl >= 0 ? 'up-txt' : 'down-txt'}">PnL <b>${usdSigned(sm.pnl)}</b></span><span>Zeichnungen <b>${(p.drawings || []).length}</b></span></div></div>
+        <div class="sov-actions"><button class="btn sov-open" data-arch-restore="${escapeHtml(e.id)}">Wiederherstellen</button></div></div>`;
+    }).join('') + '</div>';
+  }
+
   function renderSessionOverview(){
     const body = document.getElementById('sessOvBody');
     const groups = loadSessionGroups(), key = slotGroupKey(state.symbol, state.tf), list = groups[key] || [];
@@ -7808,6 +7905,7 @@
         }).join('') + '</div>';
       });
     }
+    html += archiveHtml();
     body.innerHTML = html;
   }
   function openSessionOverview(){
@@ -7844,6 +7942,8 @@
   document.getElementById('sessOvBackdrop').addEventListener('click', e => { if(e.target.id === 'sessOvBackdrop') closeSessionOverview(); });
   document.addEventListener('keydown', e => { if(e.key === 'Escape' && !document.getElementById('sessOvBackdrop').hidden) closeSessionOverview(); });
   document.getElementById('sessOvBody').addEventListener('click', e => {
+    const ab = e.target.closest('[data-arch-restore]');
+    if(ab){ restoreArchived(ab.dataset.archRestore); return; }
     const ob = e.target.closest('[data-sov-open]');
     if(ob){ closeSessionOverview(); switchToSlot(+ob.dataset.sovOpen); return; }
     const mb = e.target.closest('[data-sov-mkt]');
@@ -8286,6 +8386,7 @@
         if(mg.added){ p.savedAt = Date.now(); CLOUD.dirty[id] = { k:m.k, slot:m.slot }; }
       }
       if(!Array.isArray(g[m.k])) g[m.k] = [];
+      if(local && sessNonPristine(local) && !sessSameIdentity(local, p)) archiveSession(local, m.k, m.slot, 'von anderem Gerät ersetzt');
       g[m.k][m.slot] = p;
       saveSessionGroups(g);
       if(m.k === slotGroupKey(state.symbol, state.tf) && m.slot === state.activeSlot && state.data.length) reapply = true;
@@ -8327,6 +8428,7 @@
     const metas = {};
     snap.docs.forEach(d => { const m = d.data(); if(m && m.k != null) metas[sessId(m.k, m.slot)] = m; });
     const reapply = await cloudApplyMetas(metas, null);
+    try{ await cloudSyncArchive(); }catch(e){ console.warn('Archiv-Abgleich:', e && e.message ? e.message : e); }
     await cloudSyncStrategies();
     await cloudSyncHistory();
     return reapply;
