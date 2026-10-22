@@ -7916,6 +7916,8 @@
       && save.markers.every(m => m && typeof m.time === 'number' && isFinite(m.time));
     markers = validSavedMarkers ? save.markers
       : [{ time: state.data[sessionSplit].time, position:'aboveBar', color:'#E0A438', shape:'circle', text:'▶ Replay-Start' }];
+    // Markierungen immer aus dem Journal neu bauen (nummeriert #1, #2 … — auch fuer aeltere Sessions)
+    try{ rebuildTradeMarkers(); }catch(e){}
 
     els.endBanner.classList.toggle('show', state.ended);
     renderInitialChart();
