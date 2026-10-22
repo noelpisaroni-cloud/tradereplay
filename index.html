@@ -1700,6 +1700,8 @@
       <p>Mit <b>2. Chart</b> (oben rechts im Chart) siehst du einen zweiten Zeitrahmen daneben &ndash; z. B. 1h f&uuml;r die Richtung und 5m f&uuml;r den Einstieg. Er l&auml;uft im selben Replay mit, zeigt die gerade entstehende Kerze und spiegelt Einstieg/TP/SL als Linien.</p>
       <h4>Auf mehreren Geräten (Cloud)</h4>
       <p>Diese Webversion speichert Sessions, Trade-Journal und Strategien <b>auf dem Gerät und in dem Browser</b>, in dem du spielst. Zum Übertragen auf ein anderes Gerät nutze <b>Backup exportieren</b> und dort <b>Backup importieren</b>. Tipp fürs iPad: In Safari auf Teilen &rarr; <i>Zum Home-Bildschirm</i> tippen, dann startet TradeReplay wie eine App im Vollbild.</p>
+      <h4>Auf dem iPad</h4>
+      <p>Am zuverlässigsten in der <b>Claude-App</b> (dasselbe Konto wie am PC) oder in Safari mit angemeldetem Claude: Link öffnen &ndash; deine Sessions kommen automatisch über die Cloud. Lädt etwas nicht: oben auf <b>Cloud</b> tippen oder die Seite einmal neu laden. Verschieben einer TP/SL-Box: Box antippen (auswählen), dann die Fläche mit dem Finger ziehen.</p>
       <h4>Auswertung</h4>
       <p>Im Reiter <b>Analyse</b> (unter dem Chart) siehst du, in welcher Session, zu welcher Uhrzeit und an welchem Wochentag du Geld verdienst oder verlierst &ndash; &uuml;ber alle deine Sessions hinweg.</p>
       <h4>Tastatur</h4>
@@ -2145,7 +2147,8 @@
   let drawStart = null;
   let drawStartXY = null, drawAwaitSecond = false, drawPreviewPt = null;
   // Finger brauchen groessere Greifbereiche als die Maus (iPad, Handy).
-  const TOUCH_UI = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+  // iPad mit Tastatur/Trackpad meldet sich wie ein Mac — dann zaehlen die Touch-Punkte
+  const TOUCH_UI = !!((window.matchMedia && window.matchMedia('(pointer: coarse)').matches) || (navigator.maxTouchPoints || 0) > 1);
   // Rueckgaengig-Stapel fuer Zeichnungen: vor jeder Aenderung (neu, loeschen, alle loeschen,
   // verschieben, Text aendern) wird der Stand gemerkt — "Rueckgaengig" holt ihn zurueck.
   const drawUndo = [];
@@ -2381,25 +2384,67 @@
     if(!isFinite(minP) || !isFinite(maxP)) return null;
     return { t1:state.data[lo].time, t2:state.data[hi].time, pMin:minP, pMax:maxP };
   }
-  function clampTime(t){
-    const vb = visibleBoundsForClamp();
-    if(vb){
-      const span = Math.max((vb.t2-vb.t1)*0.3, state.barSeconds||900);
-      return Math.min(vb.t2+span, Math.max(vb.t1-span, t));
+  // Grenzen nur gegen kaputte Werte (z. B. eine Koordinaten-Panne mitten im Ziehen): der GANZE sichtbare
+  // Chart samt leerer Flaeche rechts/oben/unten ist erlaubt, plus eine Bildschirmbreite/-hoehe Reserve.
+  // Frueher lag die Grenze knapp um die sichtbaren Kerzen — Boxen, die man weiter schob, wurden dort
+  // zusammengequetscht und blieben "in der Luft" haengen.
+  function dragTimeBounds(){
+    const lr = chart.timeScale().getVisibleLogicalRange();
+    const bs = state.barSeconds || 900;
+    if(lr){
+      const a = timeFromLogical(lr.from), b = timeFromLogical(lr.to);
+      if(a != null && b != null && b > a){ const sp = Math.max(b - a, bs * 50); return { lo: a - sp, hi: b + sp }; }
     }
-    if(!state.data.length || !state.barSeconds) return t;
-    const margin = state.barSeconds*500;
-    return Math.min(state.data[state.data.length-1].time+margin, Math.max(state.data[0].time-margin, t));
+    if(!state.data.length) return null;
+    return { lo: state.data[0].time - bs*500, hi: state.data[state.data.length-1].time + bs*500 };
   }
-  function clampPrice(p){
-    const vb = visibleBoundsForClamp();
-    if(vb){
-      const span = Math.max((vb.pMax-vb.pMin)*0.3, vb.pMax*0.02, 1e-6);
-      return Math.min(vb.pMax+span, Math.max(Math.max(vb.pMin-span,1e-6), p));
+  function dragPriceBounds(){
+    const h = container.clientHeight;
+    const a = candleSeries.coordinateToPrice(0), b = candleSeries.coordinateToPrice(h);
+    if(a != null && b != null && isFinite(a) && isFinite(b) && a !== b){
+      const hi = Math.max(a, b), lo = Math.min(a, b), sp = hi - lo;
+      return { lo: Math.max(lo - sp, hi * 1e-3), hi: hi + sp };
     }
-    if(!state.data.length) return p;
+    const vb = visibleBoundsForClamp();
+    if(vb){ const sp = Math.max(vb.pMax - vb.pMin, vb.pMax * 0.02); return { lo: Math.max(vb.pMin - sp, vb.pMax * 1e-3), hi: vb.pMax + sp }; }
+    if(!state.data.length) return null;
     const ref = currentBar().close;
-    return Math.min(ref*100, Math.max(ref*0.01, p));
+    return { lo: ref * 0.01, hi: ref * 100 };
+  }
+  function clampTime(t){ const b = dragTimeBounds(); return b ? Math.min(b.hi, Math.max(b.lo, t)) : t; }
+  function clampPrice(p){ const b = dragPriceBounds(); return b ? Math.min(b.hi, Math.max(b.lo, p)) : p; }
+  // Verschieben einer ganzen Zeichnung: EIN gemeinsamer Versatz fuer alle Punkte — an der Grenze bleibt
+  // die Zeichnung stehen, sie wird nie gestaucht (frueher wurde jeder Punkt einzeln gekappt).
+  function clampShiftTime(times, dt){
+    const b = dragTimeBounds(); if(!b) return dt;
+    const mn = Math.min(...times), mx = Math.max(...times);
+    if(mx + dt > b.hi) dt = b.hi - mx;
+    if(mn + dt < b.lo) dt = b.lo - mn;
+    return dt;
+  }
+  // Zeitlich verschieben in KERZEN (wie TradingView): die Zeichnung bleibt genau unter Maus/Finger,
+  // auch ueber Wochenend-Luecken hinweg, und behaelt ihre Breite in Kerzen.
+  function shiftTimesByBars(times, grabL, x){
+    const lc = chart.timeScale().coordinateToLogical(x);
+    const ls = times.map(logicalFromTime);
+    if(lc == null || grabL == null || ls.some(v => v == null)) return null;
+    let dl = lc - grabL;
+    const lr = chart.timeScale().getVisibleLogicalRange();
+    if(lr){
+      const w = Math.max(lr.to - lr.from, 50), lo = lr.from - w, hi = lr.to + w;
+      const mn = Math.min(...ls), mx = Math.max(...ls);
+      if(mx + dl > hi) dl = hi - mx;
+      if(mn + dl < lo) dl = lo - mn;
+    }
+    const out = ls.map(v => timeFromLogical(v + dl));
+    return out.some(v => v == null) ? null : out;
+  }
+  function clampShiftPrice(prices, dp){
+    const b = dragPriceBounds(); if(!b) return dp;
+    const mn = Math.min(...prices), mx = Math.max(...prices);
+    if(mx + dp > b.hi) dp = b.hi - mx;
+    if(mn + dp < b.lo) dp = b.lo - mn;
+    return dp;
   }
   // Re-clamps every stored drawing to the same bounds a live drag enforces — fixes
   // anything already saved with an out-of-hand value (from before this existed, or
@@ -2419,10 +2464,14 @@
     const fixP = p => (typeof p === 'number' && isFinite(p) && p > ref/1000 && p < ref*1000) ? p : ref;
     const TWO_POINT = { rect:1, trendline:1, fib:1, measure:1 };
     state.drawings = state.drawings.filter(d => !(TWO_POINT[d.type] && (!d.p1 || !d.p2 || (d.p1.time === d.p2.time && d.p1.price === d.p2.price))));
+    const bs = state.barSeconds || 900;
     state.drawings.forEach(d => {
       if(d.type==='posbox'){
         d.t1=fixT(d.t1); d.t2=fixT(d.t2);
         d.entryPrice=fixP(d.entryPrice); d.tpPrice=fixP(d.tpPrice); d.slPrice=fixP(d.slPrice);
+        // Durch den frueheren Fehler auf null Breite gequetschte Boxen wieder normal breit machen
+        if(Math.abs(d.t2 - d.t1) < bs){ const r = Math.max(d.t1, d.t2); d.t1 = r - 25*bs; d.t2 = r; }
+        if(d.t1 > d.t2){ const x = d.t1; d.t1 = d.t2; d.t2 = x; }
       } else if(d.p1){
         d.p1.time=fixT(d.p1.time); d.p1.price=fixP(d.p1.price);
         if(d.p2){ d.p2.time=fixT(d.p2.time); d.p2.price=fixP(d.p2.price); }
@@ -2591,9 +2640,9 @@
     const barSec = state.barSeconds || 900;
     const step = barSec * (big ? 10 : 1) * direction;
     if(d.type==='posbox'){
-      d.t1 = clampTime(d.t1+step); d.t2 = clampTime(d.t2+step);
+      const dt = clampShiftTime([d.t1, d.t2], step); d.t1 += dt; d.t2 += dt;
     } else if(d.p2){
-      d.p1.time = clampTime(d.p1.time+step); d.p2.time = clampTime(d.p2.time+step);
+      const dt = clampShiftTime([d.p1.time, d.p2.time], step); d.p1.time += dt; d.p2.time += dt;
     } else if(d.p1){
       d.p1.time = clampTime(d.p1.time+step);
     }
@@ -3707,9 +3756,11 @@
   // (ueber den CDN jsDelivr bzw. GitHub Pages). Hilft z. B. auf dem iPad, wenn TradeReplay als Symbol auf dem
   // Home-Bildschirm laeuft und die Dateien der Claude-Seite dort nicht laden.
   const DATA_MIRRORS = ['https://cdn.jsdelivr.net/gh/noelpisaroni-cloud/tradereplay@main/', 'https://noelpisaroni-cloud.github.io/tradereplay/'];
-  async function loadScriptTag(src){
+  const DATA_MIRROR_EXT = 'https://cdn.jsdelivr.net/gh/noelpisaroni-cloud/tradereplay@redesign/';
+  async function loadScriptTag(src, noMirror){
     const isRel = !/^https?:/.test(src);
-    const sources = isRel ? [[src, 20000], [DATA_MIRRORS[0] + src, 45000], [src, 45000], [DATA_MIRRORS[1] + src, 45000], [DATA_MIRRORS[0] + src + '?r=' + Date.now(), 60000]] : [[src, 60000], [src, 45000], [src, 45000]];
+    // Archiv-Dateien (x_*): hier, sonst aus dem Arbeitszweig des Repos — klappt beides nicht, geht es ohne Archiv weiter
+    const sources = noMirror ? [[src, 30000], [DATA_MIRROR_EXT + src, 45000], [src, 60000]] : isRel ? [[src, 20000], [DATA_MIRRORS[0] + src, 45000], [src, 45000], [DATA_MIRRORS[1] + src, 45000], [DATA_MIRRORS[0] + src + '?r=' + Date.now(), 60000]] : [[src, 60000], [src, 45000], [src, 45000]];
     const MAX = sources.length;
     let last = null;
     for(let n = 1; n <= MAX; n++){
@@ -3730,7 +3781,7 @@
   }
   function loadBundleFileOnce(file){
     if(loadedBundleFiles[file]) return loadedBundleFiles[file];
-    const p = loadScriptTag(file).catch(e => {
+    const p = loadScriptTag(file, /^x_/.test(file)).catch(e => {
       delete loadedBundleFiles[file];
       throw e;
     });
@@ -4132,6 +4183,7 @@
 
     state.fetchEndTimeMs = fetchEndTimeMs;
     state.data = bars.map(r => ({ time: Math.floor(r[0]/1000), open:+r[1], high:+r[2], low:+r[3], close:+r[4], volume:+r[5] }));
+    state.dataSym = symbol;
     state.smaFull = { 20: sma(state.data, 20), 50: sma(state.data, 50) };
     state.bbFull = bollinger(state.data, 20, 2);
     state.rsiFull = rsi(state.data, 14);
@@ -4720,6 +4772,7 @@
   function stepForward(quiet){
     quiet = quiet === true;
     if(state.ended || state.reviewing) return false;
+    if(!quiet && busyBlocked()) return false;
     const nextIdx = state.cursor+1;
     if(nextIdx >= state.data.length){ endSession(); return false; }
     state.cursor = nextIdx;
@@ -4782,7 +4835,7 @@
   }
   function fastForward(kind){
     const tg = FF_TARGETS[kind];
-    if(!tg || state.ended || state.reviewing || !state.data.length) return;
+    if(!tg || state.ended || state.reviewing || !state.data.length || busyBlocked()) return;
     pause();
     const nxt = state.data[state.cursor+1];
     if(!nxt){ endSession(); return; }
@@ -5209,8 +5262,10 @@
     return eq;
   }
 
+  // Waehrend neue Kursdaten laden (Markt-/Session-Wechsel), steht noch der alte Chart da: keine Trades/Schritte
+  function busyBlocked(){ if(!datasetLoadBusy || state.reviewing) return false; showToast('Einen Moment – die Kursdaten laden noch.', 2000); return true; }
   function openPosition(side){
-    if(state.position || state.pendingOrder || state.ended || state.reviewing) return;
+    if(state.position || state.pendingOrder || state.ended || state.reviewing || busyBlocked()) return;
     const bar = currentBar();
     const price = bar.close;
     if(sizeMode === 'risk'){
@@ -5278,7 +5333,7 @@
   // the assumed entry, since — unlike a market order — that entry price is exact.
   let pendingOrderLine = null;
   function placeLimitOrder(side){
-    if(state.position || state.pendingOrder || state.ended || state.reviewing) return;
+    if(state.position || state.pendingOrder || state.ended || state.reviewing || busyBlocked()) return;
     const limitPrice = parseFloat(els.limitPriceInput.value);
     if(!limitPrice || limitPrice<=0){ showToast('Bitte einen gültigen Limit-Preis eingeben (Feld „Limit-Preis“ im Order-Feld).', 5500); return; }
     if(sizeMode === 'risk'){
@@ -5499,7 +5554,7 @@
   // laeuft mit denselben TP/SL weiter. Marge, Gebuehr und Groesse werden anteilig aufgeteilt.
   function closePartial(frac){
     const pos = state.position;
-    if(!pos || state.reviewing || !(frac > 0)) return;
+    if(!pos || state.reviewing || !(frac > 0) || busyBlocked()) return;
     const bar = currentBar();
     if(frac >= 0.999 || pos.notional*(1-frac) < 1){ closePosition(bar.close, bar.time, 'manual'); return; }
     const part = { ...pos, qty:pos.qty*frac, notional:pos.notional*frac, margin:pos.margin*frac, entryFee:pos.entryFee*frac };
@@ -6437,7 +6492,7 @@
     chart.timeScale().setVisibleLogicalRange({ from, to: to+2 });
   });
   els.closePosBtn.addEventListener('click', ()=>{
-    if(!state.position) return;
+    if(!state.position || busyBlocked()) return;
     const bar = currentBar();
     closePosition(bar.close, bar.time, 'manual');
   });
@@ -6572,7 +6627,7 @@
         if(pbHit.mode==='move'){
           const d = state.drawings.find(dd=>dd.id===pbHit.id);
           const t = timeFromXRobust(pt.x), p = priceFromYRobust(pt.y);
-          moveGrab = { time:t, price:p, t1:d.t1, t2:d.t2, entry:d.entryPrice, tp:d.tpPrice, sl:d.slPrice };
+          moveGrab = { time:t, price:p, l:chart.timeScale().coordinateToLogical(pt.x), t1:d.t1, t2:d.t2, entry:d.entryPrice, tp:d.tpPrice, sl:d.slPrice };
         }
         setChartInteractive(false);
         if(e.cancelable) e.preventDefault();
@@ -6584,7 +6639,7 @@
         if(genHit.mode==='move'){
           const d = state.drawings.find(dd=>dd.id===genHit.id);
           const t = timeFromXRobust(pt.x), p = priceFromYRobust(pt.y);
-          moveGrab = { time:t, price:p, p1:{ time:d.p1.time, price:d.p1.price }, p2: d.p2 ? { time:d.p2.time, price:d.p2.price } : null };
+          moveGrab = { time:t, price:p, l:chart.timeScale().coordinateToLogical(pt.x), p1:{ time:d.p1.time, price:d.p1.price }, p2: d.p2 ? { time:d.p2.time, price:d.p2.price } : null };
         }
         setChartInteractive(false);
         if(e.cancelable) e.preventDefault();
@@ -6610,15 +6665,21 @@
         if(!d){ dragging=null; return; }
         if(dragging.mode==='tp'){ const p=priceFromYRobust(pt.y); if(p!=null&&p>0) d.tpPrice=clampPrice(p); }
         else if(dragging.mode==='sl'){ const p=priceFromYRobust(pt.y); if(p!=null&&p>0) d.slPrice=clampPrice(p); }
-        else if(dragging.mode==='entry'){ const p=priceFromYRobust(pt.y); if(p!=null&&p>0) d.entryPrice=clampPrice(p); }
-        else if(dragging.mode==='left'){ const t=timeFromXRobust(pt.x); if(t!=null) d.t1=clampTime(t); }
-        else if(dragging.mode==='right'){ const t=timeFromXRobust(pt.x); if(t!=null) d.t2=clampTime(t); }
+        else if(dragging.mode==='entry'){
+          // Einstieg bleibt zwischen Stop und Ziel — sonst kippte die Box
+          const p=priceFromYRobust(pt.y);
+          if(p!=null&&p>0){ const lo=Math.min(d.tpPrice,d.slPrice), hi=Math.max(d.tpPrice,d.slPrice), m=(hi-lo)*0.02; d.entryPrice=Math.min(hi-m, Math.max(lo+m, p)); }
+        }
+        else if(dragging.mode==='left'){ const t=timeFromXRobust(pt.x); if(t!=null) d.t1=Math.min(clampTime(t), d.t2 - (state.barSeconds||900)); }
+        else if(dragging.mode==='right'){ const t=timeFromXRobust(pt.x); if(t!=null) d.t2=Math.max(clampTime(t), d.t1 + (state.barSeconds||900)); }
         else if(dragging.mode==='move' && moveGrab){
           const t=timeFromXRobust(pt.x), p=priceFromYRobust(pt.y);
           if(t!=null && p!=null){
-            const dt=t-moveGrab.time, dp=p-moveGrab.price;
-            d.t1=clampTime(moveGrab.t1+dt); d.t2=clampTime(moveGrab.t2+dt);
-            d.entryPrice=clampPrice(moveGrab.entry+dp); d.tpPrice=clampPrice(moveGrab.tp+dp); d.slPrice=clampPrice(moveGrab.sl+dp);
+            const dp = clampShiftPrice([moveGrab.entry, moveGrab.tp, moveGrab.sl], p-moveGrab.price);
+            const nt = shiftTimesByBars([moveGrab.t1, moveGrab.t2], moveGrab.l, pt.x);
+            if(nt){ d.t1 = nt[0]; d.t2 = Math.max(nt[1], nt[0] + (state.barSeconds||900)); }
+            else { const dt = clampShiftTime([moveGrab.t1, moveGrab.t2], t-moveGrab.time); d.t1=moveGrab.t1+dt; d.t2=moveGrab.t2+dt; }
+            d.entryPrice=moveGrab.entry+dp; d.tpPrice=moveGrab.tp+dp; d.slPrice=moveGrab.sl+dp;
           }
         }
         renderDrawings();
@@ -6657,9 +6718,12 @@
         } else if(dragging.mode==='move' && moveGrab){
           const t=timeFromXRobust(pt.x), p=priceFromYRobust(pt.y);
           if(t!=null && p!=null){
-            const dt=t-moveGrab.time, dp=p-moveGrab.price;
-            d.p1.time=clampTime(moveGrab.p1.time+dt); d.p1.price=clampPrice(moveGrab.p1.price+dp);
-            if(moveGrab.p2){ d.p2.time=clampTime(moveGrab.p2.time+dt); d.p2.price=clampPrice(moveGrab.p2.price+dp); }
+            const pts = moveGrab.p2 ? [moveGrab.p1, moveGrab.p2] : [moveGrab.p1];
+            const dp = clampShiftPrice(pts.map(q => q.price), p-moveGrab.price);
+            let nt = shiftTimesByBars(pts.map(q => q.time), moveGrab.l, pt.x);
+            if(!nt){ const dt = clampShiftTime(pts.map(q => q.time), t-moveGrab.time); nt = pts.map(q => q.time + dt); }
+            d.p1.time=nt[0]; d.p1.price=moveGrab.p1.price+dp;
+            if(moveGrab.p2){ d.p2.time=nt[1]; d.p2.price=moveGrab.p2.price+dp; }
           }
         }
         renderDrawings();
@@ -7022,7 +7086,7 @@
     // or pending order exists, so no extra guard is needed here.
     else if(e.key==='b' || e.key==='B'){ e.preventDefault(); state.orderType==='limit' ? placeLimitOrder('long') : openPosition('long'); }
     else if(e.key==='s' || e.key==='S'){ e.preventDefault(); state.orderType==='limit' ? placeLimitOrder('short') : openPosition('short'); }
-    else if(e.key==='x' || e.key==='X'){ e.preventDefault(); if(state.position){ const bar=currentBar(); closePosition(bar.close, bar.time, 'manual'); } }
+    else if(e.key==='x' || e.key==='X'){ e.preventDefault(); if(state.position && !busyBlocked()){ const bar=currentBar(); closePosition(bar.close, bar.time, 'manual'); } }
   });
 
   // ---------- kurze Hinweise (alert() erscheint in der Claude-App nicht) ----------
@@ -7129,7 +7193,7 @@
   }
   function updateStepBackBtn(){ const btn = document.getElementById('stepBackBtn'); if(btn) btn.classList.toggle('is-blocked', !canStepBack()); }
   function stepBack(){
-    if(state.reviewing || !state.data.length) return;
+    if(state.reviewing || !state.data.length || busyBlocked()) return;
     if(state.position || state.pendingOrder){ showToast('Zurück geht nur ohne offene Position oder Order. Schließe sie zuerst.'); return; }
     if(state.cursor <= stepBackFloor()){
       showToast(state.cursor > state.sessionSplit ? 'Weiter zurück geht nicht: Hier hast du deinen letzten Trade geschlossen.' : 'Du bist schon am Replay-Start.');
@@ -7205,7 +7269,7 @@
     removePositionLines(); removePendingOrderLine(); clearDrafts();
     state.position = null; state.pendingOrder = null;
     state.symbol = got.sym; state.tf = got.tf;
-    state.data = got.bars; state.sessionStart = 0; state.sessionSplit = 0; state.cursor = got.bars.length-1; state.ended = false;
+    state.data = got.bars; state.dataSym = got.sym; state.sessionStart = 0; state.sessionSplit = 0; state.cursor = got.bars.length-1; state.ended = false;
     state.barSeconds = barSecondsFor(state.data, state.tf);
     state.smaFull = { 20: sma(state.data, 20), 50: sma(state.data, 50) };
     state.bbFull = bollinger(state.data, 20, 2);
@@ -7237,6 +7301,7 @@
     mk(rv.sl, '#EF5350', LS.Dashed, 'SL', 2);
     updatePositionUI(); updatePendingOrderUI(); updateAccountUI(); updateStepControls();
     els.chartTitle.textContent = 'Rückblick · ' + SYMBOL_NAME[got.sym] + ' · ' + TF_NAME[got.tf];
+    setActive(document.getElementById('tfTabs'), got.tf, 'tf');   // Reiter zeigt den Zeitrahmen des Rückblicks
     const parts = [
       `<b>${isLong ? 'Long' : 'Short'}</b>`,
       `${fmtTimeY(t.entryTime)} → ${fmtTimeY(t.exitTime)} UTC`,
@@ -7645,6 +7710,8 @@
   }
   function saveState(){
     if(!state.data.length || state.reviewing || state.loadingData) return;
+    // Nie die Kerzen eines anderen Marktes unter diesem Markt speichern (z. B. waehrend eines Marktwechsels)
+    if(state.dataSym && state.dataSym !== state.symbol) return;
     const groups = loadSessionGroups();
     const key = slotGroupKey(state.symbol, state.tf);
     if(!Array.isArray(groups[key])) groups[key] = [];
@@ -7911,22 +7978,22 @@
     // instead of the one the caller actually asked to end up viewing.
     const list = loadSessionGroups()[key] || [];
     const wantSlot = Math.min(Math.max(0, state.activeSlot|0), Math.max(SESSION_SLOTS, list.length)-1);
-    for(let i=0;i<SESSION_SLOTS;i++){
-      if(list[i]) continue;
-      // Live-Modus (Krypto mit Internet): jede neue Session kostet Netzwerk-Anfragen — nur den gewuenschten
-      // Platz sofort erzeugen, die uebrigen entstehen beim ersten Anklicken. Ohne Live (Forex, Sandbox,
-      // offline) werden wie bisher alle 5 sofort angelegt (die Pruefung steht in jedem Durchlauf neu da,
-      // damit nach einem fehlgeschlagenen Live-Versuch automatisch auf "alle sofort" umgeschaltet wird).
-      if(i !== wantSlot && !isForexSymbol(state.symbol) && liveAllowed()) continue;
-      state.activeSlot = i;
+    // Nur der gewuenschte Platz wird sofort angelegt (je Session bis 50.000 Kerzen — alle auf einmal war auf
+    // dem iPad sehr langsam); die uebrigen entstehen beim ersten Antippen (switchToSlot).
+    let generated = false;
+    if(!list[wantSlot]){
+      state.activeSlot = wantSlot;
       const ok = await loadDataset({randomizeWindow:true});
-      if(!ok){ bootLog('Kursdaten für ' + state.symbol + ' nicht ladbar – Abbruch'); break; }
-      newSession(true, false);
-      cloudAutoGen = true; try{ saveState(); } finally { cloudAutoGen = false; }
+      if(!ok) bootLog('Kursdaten für ' + state.symbol + ' nicht ladbar');
+      else {
+        newSession(true, false);
+        cloudAutoGen = true; try{ saveState(); } finally { cloudAutoGen = false; }
+        generated = true;
+      }
     }
     state.activeSlot = wantSlot;
     const finalList = loadSessionGroups()[key] || [];
-    if(finalList[state.activeSlot]) await applySessionPayload(finalList[state.activeSlot]);
+    if(!generated && finalList[state.activeSlot]) await applySessionPayload(finalList[state.activeSlot]);
     renderSessionSlotsUI();
     persistLastView();
   }
