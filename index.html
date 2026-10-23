@@ -1147,56 +1147,8 @@
       <span>TradeReplay</span>
     </div>
     <select class="symbol-select" id="symbolSelect">
-      <optgroup label="Krypto Majors">
-        <option value="BTCUSDT" selected>Bitcoin (BTC/USDT)</option>
-        <option value="ETHUSDT">Ethereum (ETH/USDT)</option>
-        <option value="BNBUSDT">BNB (BNB/USDT)</option>
-        <option value="SOLUSDT">Solana (SOL/USDT)</option>
-        <option value="XRPUSDT">XRP (XRP/USDT)</option>
-      </optgroup>
-      <optgroup label="Krypto Altcoins">
-        <option value="DOGEUSDT">Dogecoin (DOGE/USDT)</option>
-        <option value="ADAUSDT">Cardano (ADA/USDT)</option>
-        <option value="AVAXUSDT">Avalanche (AVAX/USDT)</option>
-        <option value="LINKUSDT">Chainlink (LINK/USDT)</option>
-        <option value="LTCUSDT">Litecoin (LTC/USDT)</option>
-        <option value="DOTUSDT">Polkadot (DOT/USDT)</option>
-      </optgroup>
-      <optgroup label="Forex Majors">
-        <option value="EURUSD">Euro / US-Dollar (EUR/USD)</option>
-        <option value="GBPUSD">Pfund / US-Dollar (GBP/USD)</option>
-        <option value="USDJPY">US-Dollar / Yen (USD/JPY)</option>
-        <option value="USDCHF">US-Dollar / Franken (USD/CHF)</option>
-        <option value="AUDUSD">Aus-Dollar / US-Dollar (AUD/USD)</option>
-        <option value="USDCAD">US-Dollar / Kan-Dollar (USD/CAD)</option>
-        <option value="NZDUSD">NZ-Dollar / US-Dollar (NZD/USD)</option>
-      </optgroup>
-      <optgroup label="Forex Crosses">
-        <option value="EURGBP">Euro / Pfund (EUR/GBP)</option>
-        <option value="EURJPY">Euro / Yen (EUR/JPY)</option>
-        <option value="EURCHF">Euro / Franken (EUR/CHF)</option>
-        <option value="EURAUD">Euro / Aus-Dollar (EUR/AUD)</option>
-        <option value="EURCAD">Euro / Kan-Dollar (EUR/CAD)</option>
-        <option value="EURNZD">Euro / NZ-Dollar (EUR/NZD)</option>
-        <option value="GBPJPY">Pfund / Yen (GBP/JPY)</option>
-        <option value="GBPCHF">Pfund / Franken (GBP/CHF)</option>
-        <option value="GBPAUD">Pfund / Aus-Dollar (GBP/AUD)</option>
-        <option value="GBPCAD">Pfund / Kan-Dollar (GBP/CAD)</option>
-        <option value="GBPNZD">Pfund / NZ-Dollar (GBP/NZD)</option>
-        <option value="AUDJPY">Aus-Dollar / Yen (AUD/JPY)</option>
-        <option value="AUDCAD">Aus-Dollar / Kan-Dollar (AUD/CAD)</option>
-        <option value="AUDCHF">Aus-Dollar / Franken (AUD/CHF)</option>
-        <option value="AUDNZD">Aus-Dollar / NZ-Dollar (AUD/NZD)</option>
-        <option value="CADJPY">Kan-Dollar / Yen (CAD/JPY)</option>
-        <option value="CADCHF">Kan-Dollar / Franken (CAD/CHF)</option>
-        <option value="CHFJPY">Franken / Yen (CHF/JPY)</option>
-        <option value="NZDJPY">NZ-Dollar / Yen (NZD/JPY)</option>
-        <option value="NZDCAD">NZ-Dollar / Kan-Dollar (NZD/CAD)</option>
-        <option value="NZDCHF">NZ-Dollar / Franken (NZD/CHF)</option>
-      </optgroup>
-      <optgroup label="Metalle">
-        <option value="PAXGUSDT">Gold – XAU (PAXG/USDT)</option>
-      </optgroup>
+      <option value="EURUSD" selected>Euro / US-Dollar (EUR/USD)</option>
+      <option value="PAXGUSDT">Gold (XAU/USD)</option>
     </select>
     <div class="tabgroup" id="tfTabs">
       <button data-tf="1m">1m</button>
@@ -1244,7 +1196,7 @@
       <section class="panel chart-card">
         <div class="chart-head">
           <div class="chart-title-group">
-            <h2 id="chartTitle">BTC/USDT &middot; 15 Min</h2>
+            <h2 id="chartTitle">EUR/USD &middot; 15 Min</h2>
             <span class="price-now" id="priceNow">&ndash;</span>
             <span class="loading-badge" id="dataLoadingBadge" hidden>Lade Kursdaten…</span>
             <span class="src-tag" id="srcTag" hidden></span>
@@ -1709,7 +1661,7 @@
       <h4>Speichern</h4>
       <p>Dein Fortschritt (Position, Order, Journal, Zeichnungen) wird automatisch lokal gespeichert und bleibt beim Schlie&szlig;en erhalten, bis du eine neue Session startest.</p>
       <h4>Daten &amp; Hinweise</h4>
-      <p>Echte historische Kursdaten: Krypto/Gold-Token von Binance Spot (12 Instrumente), Forex von Yahoo Finance (28 Paare der 8 Hauptw&auml;hrungen, indikative Kurse; 1m &asymp; 4 Wochen, 5&ndash;30m &asymp; 2 Monate, 1h/4h/1T &asymp; 3 Jahre &ndash; bei EUR/USD, GBP/USD, AUD/USD und NZD/USD ist die 1-Minuten-Kerze aus den Minuten-Kursen gebildet). <b>Langzeit-Archiv</b> f&uuml;r EUR/USD, GBP/USD, AUD/USD, USD/CAD und EUR/JPY: echte OANDA-Minutenkurse 2005&ndash;Mai 2020 (&uuml;ber <i>FutureSharks/financial-data</i>), daraus alle Zeitrahmen gebildet; f&uuml;r BTC: Bitstamp-Minutenkurse 2013&ndash;2026 (&bdquo;Zielak (mczielinski), Bitcoin Historical Data, Kaggle&ldquo;, CC BY-SA 4.0, und Bitstamp-API-Daten &uuml;ber <i>ff137/bitstamp-btcusd-minute-data</i>, CC BY 4.0). Eine Session liegt immer ganz im Archiv oder ganz in den neueren Daten. Stop-Loss &amp; Liquidation ber&uuml;cksichtigen konfigurierbare Slippage (Take-Profit f&uuml;llt exakt wie eine Limit-Order). Simuliert werden <b>kein</b> echtes Orderbuch und keine variable, marktabh&auml;ngige Slippage &ndash; reale Ausf&uuml;hrung kann in schnellen M&auml;rkten schlechter sein. Historische Performance ist keine Garantie f&uuml;r zuk&uuml;nftige Ergebnisse; dies ist keine Anlageberatung.</p>
+      <p>Zwei Märkte mit maximal viel Historie: <b>EUR/USD</b> und <b>Gold (XAU/USD)</b>. Langzeit-Archiv: echte OANDA-Minutenkurse (EUR/USD 2005&ndash;Mai 2020, Gold 2006&ndash;Mai 2020, über <i>FutureSharks/financial-data</i>), daraus alle Zeitrahmen gebildet (1m ab 2019, 5m ab 2015/2016, 15m bis 1T ab 2005/2006). Neuere Daten: EUR/USD von Yahoo Finance (1h/4h/1T ab Ende 2023, kürzere Zeitrahmen die letzten Wochen), Gold über den Gold-Token PAXG (Binance). Eine Session liegt immer ganz im Archiv oder ganz in den neueren Daten. Stop-Loss &amp; Liquidation berücksichtigen konfigurierbare Slippage (Take-Profit füllt exakt wie eine Limit-Order). Simuliert werden <b>kein</b> echtes Orderbuch und keine variable, marktabhängige Slippage &ndash; reale Ausführung kann in schnellen Märkten schlechter sein. Historische Performance ist keine Garantie für zukünftige Ergebnisse; dies ist keine Anlageberatung.</p>
     </div>
   </div>
 </div>
@@ -1809,12 +1761,9 @@
   const LIVE_HISTORY_BARS = 8000;
   const BUNDLE_WINDOW_SHARE = 0.75;
   const MIN_WARMUP_FRACTION = 0.3;   // 30 % Vorgeschichte reicht fuer Indikatoren und Ueberblick
-  const SYMBOL_NAME = {
-    BTCUSDT:'BTC/USDT', ETHUSDT:'ETH/USDT', BNBUSDT:'BNB/USDT', SOLUSDT:'SOL/USDT', XRPUSDT:'XRP/USDT',
-    DOGEUSDT:'DOGE/USDT', ADAUSDT:'ADA/USDT', AVAXUSDT:'AVAX/USDT', LINKUSDT:'LINK/USDT', LTCUSDT:'LTC/USDT',
-    DOTUSDT:'DOT/USDT', PAXGUSDT:'XAU (Gold) /USDT',
-    EURUSD:'EUR/USD', GBPUSD:'GBP/USD', USDJPY:'USD/JPY', USDCHF:'USD/CHF', AUDUSD:'AUD/USD', USDCAD:'USD/CAD', NZDUSD:'NZD/USD', EURGBP:'EUR/GBP', EURJPY:'EUR/JPY', EURCHF:'EUR/CHF', EURAUD:'EUR/AUD', EURCAD:'EUR/CAD', EURNZD:'EUR/NZD', GBPJPY:'GBP/JPY', GBPCHF:'GBP/CHF', GBPAUD:'GBP/AUD', GBPCAD:'GBP/CAD', GBPNZD:'GBP/NZD', AUDJPY:'AUD/JPY', AUDCAD:'AUD/CAD', AUDCHF:'AUD/CHF', AUDNZD:'AUD/NZD', CADJPY:'CAD/JPY', CADCHF:'CAD/CHF', CHFJPY:'CHF/JPY', NZDJPY:'NZD/JPY', NZDCAD:'NZD/CAD', NZDCHF:'NZD/CHF'
-  };
+  // Nur noch die beiden Maerkte, die wirklich gehandelt werden — dafuer mit maximal viel Historie.
+  // (PAXGUSDT ist der interne Name fuer Gold: aeltere Daten echte XAU/USD-Kurse, neuere der Gold-Token PAXG.)
+  const SYMBOL_NAME = { EURUSD:'EUR/USD', PAXGUSDT:'Gold (XAU/USD)' };
   // Forex-Paare haben genau 6 Buchstaben (EURUSD), Krypto-Paare enden auf USDT (>=7).
   // Forex kommt nur aus den eingebauten Bundles (Yahoo Finance), nie vom Binance-Live-Abruf.
   const isForexSymbol = s => /^[A-Z]{6}$/.test(s);
@@ -1843,7 +1792,7 @@
   ].forEach(id => els[id] = document.getElementById(id));
 
   const state = {
-    symbol:'BTCUSDT', tf:'15m', data:[], sessionStart:0, cursor:0, replayClockMs:null,
+    symbol:'EURUSD', tf:'15m', data:[], sessionStart:0, cursor:0, replayClockMs:null,
     playing:false, timer:null, speedMs:700, ended:false,
     startingBalance:10000, balance:10000, feePct:0.05, slippagePct:0.05, sessionLen:1000, replayCapBars:null,
     position:null, pendingOrder:null, orderType:'market', journal:[], equityHistory:[],
@@ -1867,6 +1816,7 @@
       const spreadPct = FOREX_SPREAD_PIPS[symbol] * pip / FOREX_REF_PRICE[symbol] * 100;
       return { fee: +(spreadPct/2).toFixed(4), slip: +(spreadPct*0.6).toFixed(4), pips: FOREX_SPREAD_PIPS[symbol] };
     }
+    if(symbol === 'PAXGUSDT') return { fee: 0.004, slip: 0.005, pips: null, gold: true };   // Gold: Spread ca. 0,30 $
     return { fee: 0.05, slip: 0.05, pips: null };
   }
   function loadCustomCosts(){ try{ return JSON.parse(localStorage.getItem(COST_KEY) || '{}') || {}; }catch(e){ return {}; } }
@@ -1875,7 +1825,8 @@
     const d = defaultCostsFor(symbol), custom = !!loadCustomCosts()[symbol];
     document.getElementById('costNote').textContent =
       (d.pips ? 'Voreinstellung ' + SYMBOL_NAME[symbol] + ': typischer Spread ca. ' + String(d.pips).replace('.', ',') + ' Pips = ' + String(d.fee).replace('.', ',') + ' % Gebühr je Seite, ' + String(d.slip).replace('.', ',') + ' % Slippage.'
-              : 'Voreinstellung Krypto/Gold-Token: 0,05 % Gebühr je Seite, 0,05 % Slippage.')
+              : d.gold ? 'Voreinstellung Gold: typischer Spread ca. 0,30 $ = ' + String(d.fee).replace('.', ',') + ' % Gebühr je Seite, ' + String(d.slip).replace('.', ',') + ' % Slippage.'
+              : 'Voreinstellung: 0,05 % Gebühr je Seite, 0,05 % Slippage.')
       + (custom ? ' Du nutzt eigene Werte für diesen Markt.' : '');
   }
   function applyCostFields(symbol){
@@ -3186,6 +3137,7 @@
     return /JPY/.test(symbol) ? 0.01 : 0.0001;
   }
   function distLabel(a, b){
+    if(state.symbol === 'PAXGUSDT') return Math.abs(a - b).toFixed(2).replace('.', ',') + ' $';   // Gold: Abstand in Dollar
     const ps = pipSize(state.symbol);
     if(ps) return (Math.abs(a - b) / ps).toFixed(1).replace('.', ',') + ' Pips';
     return (Math.abs(a - b) / b * 100).toFixed(2).replace('.', ',') + ' %';
@@ -3800,22 +3752,13 @@
   // file). Splitting to one file per symbol cuts the worst case to ~5MB,
   // and switching timeframes for an already-loaded symbol never needs a
   // second file load at all.
-  const BUNDLE_FILE_FOR_SYMBOL = {
-    BTCUSDT:'sym_BTCUSDT.js', ETHUSDT:'sym_ETHUSDT.js', BNBUSDT:'sym_BNBUSDT.js', SOLUSDT:'sym_SOLUSDT.js',
-    XRPUSDT:'sym_XRPUSDT.js', DOGEUSDT:'sym_DOGEUSDT.js', ADAUSDT:'sym_ADAUSDT.js', AVAXUSDT:'sym_AVAXUSDT.js',
-    LINKUSDT:'sym_LINKUSDT.js', LTCUSDT:'sym_LTCUSDT.js', DOTUSDT:'sym_DOTUSDT.js', PAXGUSDT:'sym_PAXGUSDT.js'
-  };
-  [...['EURUSD','GBPUSD','USDJPY','USDCHF','AUDUSD','USDCAD','NZDUSD','EURGBP','EURJPY','EURCHF','EURAUD','EURCAD','EURNZD','GBPJPY','GBPCHF','GBPAUD','GBPCAD','GBPNZD','AUDJPY','AUDCAD','AUDCHF','AUDNZD','CADJPY','CADCHF','CHFJPY','NZDJPY','NZDCAD','NZDCHF']].forEach(p => { BUNDLE_FILE_FOR_SYMBOL[p] = 'sym_' + p + '.js'; });
+  const BUNDLE_FILE_FOR_SYMBOL = { EURUSD:'sym_EURUSD.js', PAXGUSDT:'sym_PAXGUSDT.js' };
   // Langzeit-Archiv (echte OANDA-Minutendaten, daraus alle Zeitrahmen gebaut): wird VOR die eingebauten
   // Daten gehaengt. Kompakt gespeichert (Abstaende in Punkten), je Datei hoechstens ~3 MB fuers iPad.
   // Zwischen Archiv und neueren Daten liegt eine Luecke — Sessions bleiben immer in EINEM Abschnitt.
   const EXT_DATA = {
-    EURUSD: { '1m':1, '5m':2, '15m':2, '30m':1, '1h':1, '4h':1, '1d':1 },
-    GBPUSD: { '1m':1, '5m':1, '15m':2, '30m':1, '1h':1, '4h':1, '1d':1 },
-    AUDUSD: { '1m':1, '5m':1, '15m':2, '30m':1, '1h':1, '4h':1, '1d':1 },
-    USDCAD: { '1m':1, '5m':1, '15m':2, '30m':1, '1h':1, '4h':1, '1d':1 },
-    EURJPY: { '1m':1, '5m':1, '15m':2, '30m':1, '1h':1, '4h':1, '1d':1 },
-    BTCUSDT: { '1m':1, '5m':1, '15m':2, '30m':1, '1h':1, '4h':1, '1d':1 }
+    EURUSD: { '1m':2, '5m':2, '15m':2, '30m':1, '1h':1, '4h':1, '1d':1 },
+    PAXGUSDT: { '1m':2, '5m':2, '15m':2, '30m':1, '1h':1, '4h':1, '1d':1 }   // Gold: echte XAU/USD-Kurse 2006–2020 + PAXG
   };
   const OHLC_BASE = {};   // key -> Anzahl vorangestellter Archiv-Kerzen (fuer alte Sessions, deren Fenster-Index davor gezaehlt wurde)
   const extMerged = {};
@@ -3890,6 +3833,7 @@
   if(window.claude && typeof window.claude.use === 'function'){ liveHealth.failedAt = Date.now() + 3.15e11; }   // Claude-Fenster: kein Live-Abruf
   const LIVE_RETRY_MS = 120000;
   function liveAllowed(){ return Date.now() - liveHealth.failedAt > LIVE_RETRY_MS; }
+  const LIVE_SYMBOLS = {};
   // Eine "Live-Session" wurde mit Binance-Daten geladen (state.fetchEndTimeMs gesetzt); Forex nie.
   function liveSessionActive(){ return state.fetchEndTimeMs != null && !isForexSymbol(state.symbol); }
   function toBarObject(r){ return { time:Math.floor(r[0]/1000), open:+r[1], high:+r[2], low:+r[3], close:+r[4], volume:+r[5] }; }
@@ -4047,7 +3991,8 @@
     state.replayCapBars = null;
 
     let bars = null, fetchEndTimeMs = null;
-    if(!isForexSymbol(symbol) && liveAllowed() && (!isRestore || opts.restoreEndTimeMs!=null) && opts.targetStartMs == null){
+    // Live-Abruf (Binance) nur fuer Maerkte in LIVE_SYMBOLS — EUR/USD und Gold kommen immer aus dem grossen Archiv
+    if(LIVE_SYMBOLS[symbol] && liveAllowed() && (!isRestore || opts.restoreEndTimeMs!=null) && opts.targetStartMs == null){
       showDataLoading(true);
       try{
         if(opts.randomizeWindow){
@@ -4123,8 +4068,12 @@
       }
       if(rawAll && rawAll.length && !isRestore && opts.targetStartMs == null){
         // Eine neue Session liegt immer in EINEM zusammenhaengenden Abschnitt; zufaellig nach Laenge gewichtet.
-        const segs = dataSegments(key, rawAll), ok = segs.filter(sg => sg[1] - sg[0] >= MIN_REPLAY * 3);
+        // Maximum an Kerzen: gibt es grosse Abschnitte (Archiv), kommen Zufalls-Sessions nur aus diesen — kleine
+        // Abschnitte (z. B. die neueren Gold-Daten) waeren nur kurze Sessions. Gezielt geht's ueber "Session ab Datum".
+        const segs = dataSegments(key, rawAll), bigLen = Math.min(30000, Math.max(...segs.map(sg => sg[1] - sg[0])));
+        const ok = segs.filter(sg => sg[1] - sg[0] >= Math.max(MIN_REPLAY * 3, bigLen));
         let seg = segs[segs.length-1];
+        if(opts.randomizeWindow && !els.allTfToggle.checked && ok.length === 1) seg = ok[0];
         if(opts.randomizeWindow && !els.allTfToggle.checked && ok.length > 1){
           const tot = ok.reduce((a, sg) => a + (sg[1] - sg[0]), 0);
           let r = Math.random() * tot;
@@ -7256,7 +7205,7 @@
     let raw = null;
     try{ await ensureBundledData(sym, tf); raw = window.OHLC && window.OHLC[sym+'_'+tf]; }catch(e){ raw = null; }
     const covered = raw && raw.length && (+raw[0][0])/1000 <= t.entryTime && (+raw[raw.length-1][0])/1000 >= t.exitTime;
-    if(!covered && !isForexSymbol(sym) && liveAllowed()){
+    if(!covered && LIVE_SYMBOLS[sym] && liveAllowed()){
       try{ raw = await fetchHistoryEndingAt(sym, tf, 400, (t.exitTime + 60*barSec)*1000); }catch(e){ raw = null; }
     }
     if(!raw || !raw.length) return null;
@@ -7825,7 +7774,7 @@
     let added = 0;
     snap.docs.forEach(d => {
       const m = d.data() || {}, id = m.id || d.id;
-      if(!id) return;
+      if(!id || (CLOUD.resetAt && (m.archivedAt || 0) < CLOUD.resetAt)) return;
       cloudIds.add(id);
       if(have.has(id)) return;
       const p = cloudDecodeSession(m);
@@ -8100,6 +8049,42 @@
     persistLastView();
   }
 
+  // Nach einem Neustart: alle 10 Plaetze des Marktes einmal mit maximal vielen Kerzen anlegen (gleich hochgeladen)
+  // Maerkte, fuer die nach einem Neustart je 10 Sessions angelegt werden (EUR/USD und Gold)
+  const FRESH_MARKETS = ['EURUSD', 'PAXGUSDT'];
+  async function createFreshSessions(){
+    const viewSym = state.symbol, viewTf = state.tf, want = state.activeSlot;
+    const markets = FRESH_MARKETS.includes(viewSym) ? [viewSym].concat(FRESH_MARKETS.filter(m => m !== viewSym)) : FRESH_MARKETS.slice();
+    for(const sym of markets){
+      const key = slotGroupKey(sym, viewTf);
+      try{ await cloudBounded(cloudPullKey(key), 2500); }catch(e){}   // hat ein anderes Geraet sie schon angelegt?
+      state.symbol = sym; state.tf = viewTf;
+      for(let i = 0; i < SESSION_SLOTS; i++){
+        const list = loadSessionGroups()[key] || [];
+        if(list[i]) continue;
+        bootStatus('Lege neue Sessions mit maximal vielen Kerzen an … ' + SYMBOL_NAME[sym] + ' ' + (i + 1) + ' von ' + SESSION_SLOTS);
+        state.activeSlot = i;
+        const ok = await loadDataset({ randomizeWindow:true });
+        if(!ok) break;
+        newSession(true, false);
+        await new Promise(r => setTimeout(r, 0));
+      }
+      // Alle hochladen (auch die beim Start automatisch angelegte), damit jedes Geraet dieselben Sessions hat
+      const g = loadSessionGroups(), lst = g[key] || [];
+      lst.forEach((p, i) => { if(p && (p.savedAt || 0) < 1e12){ p.savedAt = Date.now() + i; slotSeen[sessId(key, i)] = p.savedAt; cloudMarkSession(key, i); } });
+      saveSessionGroups(g);
+    }
+    lsSet(FRESH10_KEY, '0');
+    // zurueck zur Ansicht, mit der die App gestartet ist
+    state.symbol = viewSym; state.tf = viewTf; state.activeSlot = want;
+    document.getElementById('symbolSelect').value = viewSym;
+    setActive(document.getElementById('tfTabs'), viewTf, 'tf');
+    els.chartTitle.textContent = SYMBOL_NAME[viewSym] + ' · ' + TF_NAME[viewTf];
+    const p = (loadSessionGroups()[slotGroupKey(viewSym, viewTf)] || [])[want];
+    if(p) await applySessionPayload(p);
+    renderSessionSlotsUI();
+    persistLastView();
+  }
   async function switchToSlot(i){
     if(i===state.activeSlot || datasetLoadBusy) return;
     datasetLoadBusy = true;
@@ -8262,6 +8247,8 @@
     let reapply = false;
     try{
       await cloudTimeout((async () => {
+        // Erst nach der Neustart-Pruefung etwas hochladen (sonst kaemen alte Stände wieder in die Cloud)
+        if(!CLOUD.resetChecked) CLOUD.needFull = true;
         if(CLOUD.needFull){ CLOUD.needFull = false; reapply = await cloudSyncAll(); }
         await cloudFlushDirty();
       })(), 60000);
@@ -8312,6 +8299,7 @@
     for(const id of Object.keys(metas)){
       const m = metas[id];
       if(!LEGACY_GROUP_RE.test(m.k) || !m.np) continue;
+      if(CLOUD.resetAt && (m.savedAt || 0) < CLOUD.resetAt) continue;
       const known = Math.max(seen[id] || 0, ((backup[m.k] || [])[m.slot] || {}).savedAt || 0);
       if((m.savedAt || 0) <= known) continue;
       const d = await CLOUD.db.doc('sess/' + id).get();
@@ -8338,6 +8326,7 @@
     Object.keys(metas).forEach(id => {
       const m = metas[id];
       if(LEGACY_GROUP_RE.test(m.k)) return;
+      if(CLOUD.resetAt && (m.savedAt || 0) < CLOUD.resetAt) return;   // vor dem Neustart: alt
       if(onlyKey && m.k !== onlyKey) return;
       if(sessCloudWins((groups[m.k] || [])[m.slot], m)) fetchIds.push(id);
     });
@@ -8424,6 +8413,8 @@
     return reapply;
   }
   async function cloudSyncAll(){
+    // Neustart von einem anderen Geraet aus angeordnet, waehrend diese Seite offen war: einmal frisch laden
+    if(await cloudCheckReset()){ try{ window.dispatchEvent(new Event('tr-reset')); }catch(e){} location.reload(); return false; }
     const snap = await CLOUD.db.collection('smeta').limit(1000).get();
     const metas = {};
     snap.docs.forEach(d => { const m = d.data(); if(m && m.k != null) metas[sessId(m.k, m.slot)] = m; });
@@ -8497,6 +8488,7 @@
         let arr = []; try{ arr = JSON.parse(data.json) || []; }catch(e){}
         arr.forEach(t => {
           if(!t) return;
+          if(CLOUD.resetAt && (t.closedAt || 0) < CLOUD.resetAt) return;   // Trades vor dem Neustart
           const k = histKey(t); cloudKeys.add(k);
           if(!have.has(k)){ have.add(k); add.push(t); return; }
           // gleicher Trade: die neuere Journal-Bewertung gewinnt (in beide Richtungen)
@@ -8579,7 +8571,26 @@
   }
 
   // ----- "Zuletzt angesehen": beim Start dort weitermachen, wo man auf irgendeinem Geraet aufgehoert hat -----
+  // ---------- Neustart auf allen Geraeten ----------
+  // meta/reset {at} in der Cloud = "alles bis zu diesem Zeitpunkt ist alt": jedes Geraet loescht dann EINMAL
+  // seine lokalen Sessions, Trades und das Archiv (Strategien und Einstellungen bleiben) und ignoriert alles
+  // Aeltere, das ein noch nicht neu geladenes Geraet wieder hochladen wuerde. Danach entstehen 10 neue Sessions.
+  const RESET_KEY = 'tradereplay_reset_at_v1', FRESH10_KEY = 'tradereplay_fresh10_v1';
+  async function cloudCheckReset(){
+    const d = await cloudTimeout(CLOUD.db.doc('meta/reset').get(), 3500);
+    CLOUD.resetChecked = true;
+    if(!d.exists) return false;
+    const at = +((d.data() || {}).at) || 0;
+    CLOUD.resetAt = at;
+    if(!at || at <= (+lsGet(RESET_KEY) || 0)) return false;
+    [SESSIONS_KEY, HISTORY_KEY, ARCHIVE_KEY, SESS_BACKUP_KEY, LEGACY_IMPORTED_KEY, HIST_REV_KEY, LAST_VIEW_KEY].forEach(k => { try{ localStorage.removeItem(k); }catch(e){} });
+    lsSet(RESET_KEY, String(at));
+    lsSet(FRESH10_KEY, '1');
+    state.tradeHistory = [];
+    return true;
+  }
   async function cloudBootView(){
+    try{ await cloudCheckReset(); }catch(e){}
     try{
       const d = await cloudTimeout(CLOUD.db.doc('meta/view').get(), 3500);
       if(!d.exists) return;
@@ -8735,8 +8746,16 @@
       els.chartTitle.textContent = SYMBOL_NAME[state.symbol] + ' · ' + TF_NAME[state.tf];
     }
     datasetLoadBusy = true;
+    // Auswahl und Titel immer zum tatsaechlich geladenen Markt passend (auch ohne gespeicherte Ansicht)
+    if(!SYMBOL_NAME[state.symbol]) state.symbol = 'EURUSD';
+    document.getElementById('symbolSelect').value = state.symbol;
+    setActive(document.getElementById('tfTabs'), state.tf, 'tf');
+    els.chartTitle.textContent = SYMBOL_NAME[state.symbol] + ' · ' + TF_NAME[state.tf];
     bootStatus('Kursdaten werden geladen …');
-    try{ await ensureSessionSlotsForCurrentSymbol(); }
+    try{
+      await ensureSessionSlotsForCurrentSymbol();
+      if(lsGet(FRESH10_KEY) === '1') await createFreshSessions();
+    }
     catch(e){ bootLog('Fehler beim Start: ' + (e && e.message ? e.message : e)); }
     finally { datasetLoadBusy = false; }
     BOOT.active = false;
