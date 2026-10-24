@@ -13,7 +13,15 @@
       if(d.style.display === 'none') d.style.display = '';
       d.textContent += (d.textContent?'\n\n':'Ladefehler – zum Ausblenden hier antippen. Tipp: Internet prüfen und die Seite neu laden (iPad: Safari ganz schließen und neu öffnen).\n') + msg;
     }
-    window.addEventListener('error', function(e){ show((e.message||'Fehler') + ' @ ' + (e.filename||'?') + ':' + (e.lineno||'?')); });
+    window.addEventListener('error', function(e){
+      // Interne, harmlose Meldungen der Chart-Bibliothek (Safari auf dem iPad: "Value is null") – der Chart laeuft
+      // weiter. Nicht als roter Kasten zeigen, nur fuer die Fehlersuche merken.
+      if(/lightweight-charts/.test(e.filename || '') && /Value is null/.test(e.message || '')){
+        try{ console.warn('Chart-Bibliothek:', e.message, e.error && e.error.stack); localStorage.setItem('tradereplay_lib_err_v1', JSON.stringify({ at: Date.now(), msg: e.message, stack: String(e.error && e.error.stack || '').slice(0, 1500) })); }catch(x){}
+        return;
+      }
+      show((e.message||'Fehler') + ' @ ' + (e.filename||'?') + ':' + (e.lineno||'?'));
+    });
     window.addEventListener('unhandledrejection', function(e){ var r=e.reason; show('Promise: ' + (r && r.message ? r.message : r)); });
   })();
 </script>
