@@ -2128,6 +2128,18 @@
   // Finger brauchen groessere Greifbereiche als die Maus (iPad, Handy).
   // iPad mit Tastatur/Trackpad meldet sich wie ein Mac — dann zaehlen die Touch-Punkte
   const TOUCH_UI = !!((window.matchMedia && window.matchMedia('(pointer: coarse)').matches) || (navigator.maxTouchPoints || 0) > 1);
+  // In Claude (App oder claude.ai in Safari) laedt das iPad die 1m/5m-Stuecke nicht — dort auf die Web-Version verweisen
+  const WEB_APP_URL = 'https://noelpisaroni-cloud.github.io/tradereplay/';
+  function ipadInClaude(){ return TOUCH_UI && !!(window.claude && typeof window.claude.use === 'function'); }
+  let ipadHintShown = 0;
+  function showIpadHint(){
+    if(Date.now() - ipadHintShown < 60000) return;
+    ipadHintShown = Date.now();
+    showToast('Auf dem iPad lädt Claude die 1m/5m-Kursdaten nicht. Nutze die iPad-Version in Safari: ' + WEB_APP_URL.replace('https://', '') + ' (dort Teilen → Zum Home-Bildschirm).', 20000, [
+      { label: 'iPad-Version öffnen', fn: () => { try{ window.open(WEB_APP_URL, '_blank', 'noopener'); }catch(e){} } },
+      { label: 'OK', fn: () => {} }
+    ]);
+  }
   // Rueckgaengig-Stapel fuer Zeichnungen: vor jeder Aenderung (neu, loeschen, alle loeschen,
   // verschieben, Text aendern) wird der Stand gemerkt — "Rueckgaengig" holt ihn zurueck.
   const drawUndo = [];
@@ -2833,7 +2845,7 @@
     const d = state.selectedDrawingId && !state.reviewing ? state.drawings.find(x => x.id === state.selectedDrawingId) : null;
     const bb = d ? getDrawingBBox(d) : null;
     if(!d || !bb || state.activeTool !== 'cursor'){ bar.hidden = true; selBarKey = ''; return; }
-    const key = [d.id, d.type, d.color || '', d.alert ? 1 : 0, d.text ? 1 : 0, state.position ? 1 : 0, state.pendingOrder ? 1 : 0, d.type === 'posbox' ? (d.tpPrice < d.entryPrice ? 's' : 'l') : ''].join('|');
+    const key = [d.id, d.type, d.color || '', d.alert ? 1 : 0, d.text ? 1 : 0, d.textSize || '', d.textPos || '', state.position ? 1 : 0, state.pendingOrder ? 1 : 0, d.type === 'posbox' ? (d.tpPrice < d.entryPrice ? 's' : 'l') : ''].join('|');
     if(key !== selBarKey){
       selBarKey = key;
       let html = '';
@@ -2850,6 +2862,11 @@
       if(d.type === 'hline' || d.type === 'ray') html += `<button class="sb-btn${d.alert ? ' on' : ''}" data-sb="alert" title="Alarm: Abspielen hält an, sobald der Kurs diese Linie erreicht">🔔 Alarm</button>`;
       if(d.type === 'text') html += `<button class="sb-btn" data-sb="edit" title="Text bearbeiten">✎ Text</button>`;
       if(LABELABLE[d.type]) html += `<button class="sb-btn${d.text ? ' on' : ''}" data-sb="label" title="Text in/an die Zeichnung schreiben (auch: doppelt antippen)">✎ ${d.text ? 'Text ändern' : 'Text'}</button>`;
+      if(d.type === 'rect' && d.text){
+        const fs = +d.textSize || RECT_TEXT_DEFAULT, pos = RECT_TEXT_POS.includes(d.textPos) ? d.textPos : 'c';
+        html += `<button class="sb-btn" data-sb="tsize-" title="Text kleiner" ${fs <= RECT_TEXT_MIN ? 'disabled' : ''}>A−</button><button class="sb-btn" data-sb="tsize+" title="Text größer" ${fs >= RECT_TEXT_MAX ? 'disabled' : ''}>A+</button>`
+          + `<button class="sb-btn" data-sb="tpos" title="Wo der Text im Rechteck steht (antippen zum Wechseln)">⌖ ${RECT_TEXT_POS_NAME[pos]}</button>`;
+      }
       html += `<button class="sb-btn" data-sb="dup" title="Kopie anlegen">⧉ Kopie</button>`;
       bar.innerHTML = html;
     }
@@ -2879,6 +2896,16 @@
       else if(act === 'alert'){ pushDrawUndo(); d.alert = !d.alert; renderDrawings(); saveState(); showToast(d.alert ? '🔔 Alarm an: Beim Abspielen hält TradeReplay an, sobald der Kurs ' + px(d.p1.price) + ' erreicht.' : 'Alarm aus.'); }
       else if(act === 'edit'){ editTextDrawing(d); }
       else if(act === 'label'){ editDrawingLabel(d); }
+      else if(act === 'tsize-' || act === 'tsize+'){
+        const fs = +d.textSize || RECT_TEXT_DEFAULT, step = fs >= 24 ? 4 : 2;
+        pushDrawUndo(); d.textSize = Math.max(RECT_TEXT_MIN, Math.min(RECT_TEXT_MAX, fs + (act === 'tsize+' ? step : -step)));
+        renderDrawings(); saveState();
+      }
+      else if(act === 'tpos'){
+        const cur = RECT_TEXT_POS.includes(d.textPos) ? d.textPos : 'c';
+        pushDrawUndo(); d.textPos = RECT_TEXT_POS[(RECT_TEXT_POS.indexOf(cur) + 1) % RECT_TEXT_POS.length];
+        renderDrawings(); saveState();
+      }
       else if(act === 'dup'){ duplicateDrawing(d); }
       else if(act === 'trade'){ tradeFromBox(d); }
       else if(act === 'flip'){ flipPosbox(d); }
@@ -3014,6 +3041,20 @@
       svg.appendChild(svgText(x, yy, line, { fill:color, 'font-weight':'600', 'font-size':'12px', 'paint-order':'stroke', stroke:'rgba(0,0,0,.55)', 'stroke-width':'3px' }));
     });
   }
+  // Text im Rechteck: Standard gross in der Mitte; Groesse (A−/A+) und Position waehlbar
+  const RECT_TEXT_POS = ['c', 't', 'b', 'tl'], RECT_TEXT_POS_NAME = { c:'Mitte', t:'Oben', b:'Unten', tl:'Oben links' };
+  const RECT_TEXT_DEFAULT = 18, RECT_TEXT_MIN = 10, RECT_TEXT_MAX = 48;
+  function drawRectLabel(svg, d, rx, ry, rw, rh){
+    const lines = String(d.text || '').split('\n').filter(l => l.length);
+    if(!lines.length) return;
+    const fs = Math.max(RECT_TEXT_MIN, Math.min(RECT_TEXT_MAX, +d.textSize || RECT_TEXT_DEFAULT)), lh = Math.round(fs * 1.2);
+    const pos = RECT_TEXT_POS.includes(d.textPos) ? d.textPos : 'c';
+    const blockH = lh * (lines.length - 1);
+    const x = pos === 'tl' ? rx + 8 : rx + rw / 2, anchor = pos === 'tl' ? 'start' : 'middle';
+    const y0 = pos === 'c' ? ry + rh / 2 - blockH / 2 + fs * 0.36 : pos === 'b' ? ry + rh - 8 - blockH : ry + 6 + fs * 0.85;
+    lines.forEach((line, i) => svg.appendChild(svgText(x, y0 + i * lh, line, { fill:'#ECEFF4', 'font-weight':'700', 'font-size':fs + 'px', 'text-anchor':anchor,
+      'paint-order':'stroke', stroke:'rgba(0,0,0,.55)', 'stroke-width':Math.max(3, fs / 6) + 'px' })));
+  }
   const LABELABLE = { rect:1, hline:1, ray:1, trendline:1 };
   function editDrawingLabel(d){
     if(state.reviewing) return;
@@ -3047,7 +3088,7 @@
       const rc = drawColor(d, '#9C27B0');
       rect.setAttribute('fill', hexA(rc, 0.2)); rect.setAttribute('stroke', rc); rect.setAttribute('stroke-width','1.5');
       svg.appendChild(rect);
-      drawLabelLines(svg, d.text, rx + 7, ry + 16, '#ECEFF4');
+      drawRectLabel(svg, d, rx, ry, rw, rh);
     } else if(d.type==='fib'){
       const x1=xFromTimeRobust(d.p1.time), x2=xFromTimeRobust(d.p2.time);
       if(x1==null||x2==null) return;
@@ -3873,7 +3914,7 @@
         try{ await loadBundleFileOnce(file); }catch(e){ console.warn('Archiv-Stück ' + file + ' nicht geladen:', e && e.message ? e.message : e); }
         const ch = window.OHLC_XC && window.OHLC_XC[name];
         delete loadedBundleFiles[file];   // nach dem Auslesen darf das Stueck spaeter erneut geladen werden
-        if(!ch){ (extChunkFailed[key] = extChunkFailed[key] || {})[id] = Date.now(); continue; }
+        if(!ch){ (extChunkFailed[key] = extChunkFailed[key] || {})[id] = Date.now(); if(ipadInClaude()) setTimeout(showIpadHint, 400); continue; }
         delete window.OHLC_XC[name];
         if(extChunkFailed[key]) delete extChunkFailed[key][id];
         have.set(id, decodeExt(ch));
@@ -4296,7 +4337,9 @@
       state.bundleT0 = null;
     }
     if(!bars || !bars.length){
-      const msg = 'Keine Kursdaten verfügbar für '+(SYMBOL_NAME[symbol]||symbol)+' ('+(TF_NAME[tf]||tf)+'). Prüfe deine Internetverbindung.';
+      const msg = 'Keine Kursdaten verfügbar für '+(SYMBOL_NAME[symbol]||symbol)+' ('+(TF_NAME[tf]||tf)+'). Prüfe deine Internetverbindung.'
+        + (ipadInClaude() ? ' Auf dem iPad bitte die iPad-Version in Safari nutzen: ' + WEB_APP_URL : '');
+      if(ipadInClaude()) setTimeout(showIpadHint, 400);
       window.dispatchEvent(new ErrorEvent('error', { message: msg }));
       showToast(msg, 7000);
       return false;
@@ -9025,7 +9068,7 @@
       el.className = 'boot-banner';
       el.innerHTML = '<div><span class="bb-dot"></span><span class="bb-text"></span></div>' +
         '<div class="bb-actions" style="display:none"><button type="button" class="bb-retry">Erneut versuchen</button><button type="button" class="alt bb-nocloud">Ohne Cloud starten</button></div>' +
-        '<div class="bb-log"></div><div class="bb-ver">TradeReplay v90</div>';
+        '<div class="bb-log"></div><div class="bb-ver">TradeReplay v93 · ' + (window.claude ? 'Claude' : 'Web') + '</div>';
       el.querySelector('.bb-retry').addEventListener('click', () => { try{ location.reload(); }catch(e){} });
       el.querySelector('.bb-nocloud').addEventListener('click', () => { lsSet('tradereplay_nocloud_v1', '1'); try{ location.reload(); }catch(e){} });
       document.body.appendChild(el);
