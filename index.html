@@ -3219,9 +3219,17 @@
     const tpLabelY = yTp<yEntry ? yTp-13 : yTp+13;
     const slLabelY = ySl<yEntry ? ySl-13 : ySl+13;
     const rrShort = rr != null ? ' · R/R 1:' + rr.toFixed(2).replace('.', ',') : '';
-    svg.appendChild(svgPill(cx, tpLabelY + (yTp<yEntry ? -2 : 2), [`Ziel ${px(d.tpPrice)} · ${distLabel(d.tpPrice, d.entryPrice)} · +${usd(tpAmount, tpAmount < 100 ? 2 : 0)}${rrShort}`], '#167A65', '#FFFFFF', 1, 11.5));
-    // Kein Schild auf der Einstiegslinie — sie muss frei sichtbar bleiben (Wunsch des Nutzers)
-    svg.appendChild(svgPill(cx, slLabelY + (ySl<yEntry ? -2 : 2), [`Stop ${px(d.slPrice)} · ${distLabel(d.slPrice, d.entryPrice)} · −${usd(slAmount, slAmount < 100 ? 2 : 0)}`], '#B23B3B', '#FFFFFF', 1, 11.5));
+    // Kein Schild auf der Einstiegslinie — sie muss frei sichtbar bleiben (Wunsch des Nutzers).
+    // Nicht ausgewaehlt: nur kleine Schilder links an der Box, damit die Kerzen sichtbar bleiben;
+    // ausgewaehlt (angeklickt): alle Details.
+    if(state.selectedDrawingId === d.id){
+      svg.appendChild(svgPill(cx, tpLabelY + (yTp<yEntry ? -2 : 2), [`Ziel ${px(d.tpPrice)} · ${distLabel(d.tpPrice, d.entryPrice)} · +${usd(tpAmount, tpAmount < 100 ? 2 : 0)}${rrShort}`], '#167A65', '#FFFFFF', 1, 11.5));
+      svg.appendChild(svgPill(cx, slLabelY + (ySl<yEntry ? -2 : 2), [`Stop ${px(d.slPrice)} · ${distLabel(d.slPrice, d.entryPrice)} · −${usd(slAmount, slAmount < 100 ? 2 : 0)}`], '#B23B3B', '#FFFFFF', 1, 11.5));
+    } else {
+      const small = (y, txt, bg) => { const w = txt.length * 10 * 0.56 + 14; svg.appendChild(svgPill(rx + w/2 + 2, y, [txt], bg, '#FFFFFF', 0.85, 10)); };
+      small(tpLabelY + (yTp<yEntry ? 1 : -1), '+' + distLabel(d.tpPrice, d.entryPrice) + (rr != null ? ' · 1:' + rr.toFixed(2).replace('.', ',') : ''), '#167A65');
+      small(slLabelY + (ySl<yEntry ? 1 : -1), '−' + distLabel(d.slPrice, d.entryPrice), '#B23B3B');
+    }
   }
   function handleCircle(x,y){
     const c = document.createElementNS(NS_SVG,'circle');
@@ -3509,7 +3517,7 @@
     const placed = [];
     const hits = (bx, by, bw, h) => placed.some(r => bx < r.x + r.w + 3 && bx + bw + 3 > r.x && by < r.y + r.h + 3 && by + h + 3 > r.y);
     const badge = (txt, x, y, fill, align, vAlign, strong) => {
-      const fs = strong ? 12 : 11, h = strong ? 22 : 19, bw = txt.length * (strong ? 6.9 : 6.3) + 14;
+      const fs = strong ? 12 : 10, h = strong ? 22 : 16, bw = txt.length * (strong ? 6.9 : 5.9) + (strong ? 14 : 10);
       let bx = align === 'right' ? x - bw : align === 'center' ? x - bw/2 : x;
       let by0 = vAlign === 'above' ? y - h - 7 : vAlign === 'below' ? y + 7 : y - h/2;
       bx = Math.max(2, Math.min(bx, plotW - bw - 2));
@@ -3526,8 +3534,8 @@
         svg.appendChild(mk('line', { x1: x, y1: y, x2: align === 'right' ? bx + bw : bx, y2: by + h/2, stroke: fill, 'stroke-width': 1, 'stroke-opacity': 0.7 }));
       }
       const g = mk('g', { 'data-trail-label': '1' });
-      g.appendChild(mk('rect', { x: bx, y: by, width: bw, height: h, rx: 5, fill, stroke: 'rgba(0,0,0,0.35)', 'stroke-width': 1 }));
-      const tx = mk('text', { x: bx + 7, y: by + h/2 + fs*0.36, 'font-size': fs, 'font-weight': 700, fill: '#fff' });
+      g.appendChild(mk('rect', { x: bx, y: by, width: bw, height: h, rx: 5, fill, 'fill-opacity': strong ? 1 : 0.85, stroke: 'rgba(0,0,0,0.35)', 'stroke-width': 1 }));
+      const tx = mk('text', { x: bx + (strong ? 7 : 5), y: by + h/2 + fs*0.36, 'font-size': fs, 'font-weight': 700, fill: '#fff' });
       tx.textContent = txt; g.appendChild(tx); svg.appendChild(g);
     };
     const done = new Set();
@@ -3542,8 +3550,8 @@
       const tp = t.tpPrice != null ? t.tpPrice : (t.review && t.review.tp), sl = t.slPrice != null ? t.slPrice : (t.review && t.review.sl);
       const zone = (price, fill, stroke) => { const y = yFromPriceRobust(price); if(y == null) return;
         svg.appendChild(mk('rect', { x: x1, y: Math.min(y, y1), width: w, height: Math.max(1, Math.abs(y - y1)), fill, stroke, 'stroke-width': 1 })); };
-      if(tp != null) zone(tp, focus ? 'rgba(38,166,154,0.26)' : 'rgba(38,166,154,0.15)', 'rgba(38,166,154,0.45)');
-      if(sl != null) zone(sl, focus ? 'rgba(239,83,80,0.26)' : 'rgba(239,83,80,0.15)', 'rgba(239,83,80,0.45)');
+      if(tp != null) zone(tp, focus ? 'rgba(38,166,154,0.26)' : 'rgba(38,166,154,0.09)', focus ? 'rgba(38,166,154,0.45)' : 'rgba(38,166,154,0.25)');
+      if(sl != null) zone(sl, focus ? 'rgba(239,83,80,0.26)' : 'rgba(239,83,80,0.09)', focus ? 'rgba(239,83,80,0.45)' : 'rgba(239,83,80,0.25)');
       // Einstiegskurs als Linie bis zum Ausstieg, dazu die Linie Einstieg -> Ausstieg
       svg.appendChild(mk('line', { x1, y1, x2: x1 + w, y2: y1, stroke: sideCol, 'stroke-width': 1, 'stroke-opacity': 0.8 }));
       svg.appendChild(mk('line', { x1, y1, x2, y2, stroke: col, 'stroke-width': focus ? 3 : 2, 'data-trail': String(nr[i]) }));
@@ -3551,9 +3559,10 @@
       svg.appendChild(mk('circle', { cx: x2, cy: y2, r: focus ? 5 : 4, fill: col, stroke: '#fff', 'stroke-width': 1.5 }));
       // Schilder: Einstieg einmal pro Trade (Teilverkaeufe teilen ihn), Ausstieg je Teil mit Ergebnis
       const ek = t.entryTime + '|' + t.side;
-      if(!done.has(ek)){ done.add(ek); badge('#' + nr[i] + ' ' + (t.side === 'long' ? '▲ Long' : '▼ Short'), x1, y1, sideCol, 'right', t.side === 'long' ? 'below' : 'above', focus); }
-      const r = t.rMultiple != null && isFinite(t.rMultiple) ? ' · ' + (t.rMultiple >= 0 ? '+' : '') + t.rMultiple.toFixed(1).replace('.', ',') + ' R' : '';
-      badge('#' + nr[i] + ' ' + (REASON_SHORT[t.reason] || t.reason) + ' ' + usdSigned(t.pnl || 0) + r, x2 + 8, y2, col, 'left', 'mid', focus);
+      // kurz (Standard) – ausfuehrlich nur, wenn der Trade ueber „📍 Im Chart“ hervorgehoben ist
+      if(!done.has(ek)){ done.add(ek); badge('#' + nr[i] + ' ' + (t.side === 'long' ? (focus ? '▲ Long' : '▲') : (focus ? '▼ Short' : '▼')), x1, y1, sideCol, 'right', t.side === 'long' ? 'below' : 'above', focus); }
+      const hasR = t.rMultiple != null && isFinite(t.rMultiple), rTxt = hasR ? (t.rMultiple >= 0 ? '+' : '') + t.rMultiple.toFixed(1).replace('.', ',') + ' R' : '';
+      badge(focus ? '#' + nr[i] + ' ' + (REASON_SHORT[t.reason] || t.reason) + ' ' + usdSigned(t.pnl || 0) + (hasR ? ' · ' + rTxt : '') : '#' + nr[i] + ' ' + (hasR ? rTxt : usdSigned(t.pnl || 0)), x2 + 6, y2, col, 'left', 'mid', focus);
     });
   }
   // Springt im Chart zu einem Trade dieser Session und hebt ihn hervor.
