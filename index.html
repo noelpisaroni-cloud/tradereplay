@@ -668,6 +668,10 @@
   body.review-mode #tfTabs, body.review-mode #symbolSelect, body.review-mode .draw-toolbar-v,
   body.review-mode #compBtn, body.review-mode .quick-trade{ opacity:.4; pointer-events:none; }
   .review-btn{ height:26px !important; padding:0 10px !important; font-size:12px !important; }
+  .del-trade-btn{ height:26px !important; padding:0 8px !important; font-size:12px !important; }
+  .del-trade-btn:hover{ border-color:#EF5350 !important; background:rgba(239,83,80,0.15) !important; }
+  tr.jrow-win > td:first-child{ box-shadow:inset 3px 0 0 #26A69A; }
+  tr.jrow-loss > td:first-child{ box-shadow:inset 3px 0 0 #EF5350; }
   #historyBody td.note-cell{ max-width:220px; overflow:hidden; text-overflow:ellipsis; }
   /* Leiste ueber einer ausgewaehlten Zeichnung (wie bei TradingView): Farbe, Order, Alarm, Kopie */
   .sel-bar{ position:absolute; z-index:9; display:flex; align-items:center; gap:4px; padding:4px; border-radius:10px; background:var(--panel); border:1px solid var(--line-strong, var(--line)); box-shadow:0 10px 26px -10px rgba(0,0,0,.7); white-space:nowrap; }
@@ -3477,7 +3481,35 @@
     if(!state.data.length || !state.journal.length || (!trailsOn() && focusTrade == null)) return;
     const nowT = state.data[state.cursor] ? state.data[state.cursor].time : Infinity;
     const at = t => { const i = barIndexAtOrBefore(t); return i >= 0 ? state.data[i].time : null; };
+    const cw = container.clientWidth, ch = container.clientHeight, plotW = Math.max(60, cw - 70);
     const { nr } = tradeNumbers();
+    const mk = (tag, attrs) => { const el = document.createElementNS(NS_SVG, tag); for(const k in attrs) el.setAttribute(k, attrs[k]); el.setAttribute('pointer-events', 'none'); return el; };
+    // Schild: Text auf farbigem Grund, an (x, y) ausgerichtet; bleibt im Chart und weicht anderen Schildern aus
+    const placed = [];
+    const hits = (bx, by, bw, h) => placed.some(r => bx < r.x + r.w + 3 && bx + bw + 3 > r.x && by < r.y + r.h + 3 && by + h + 3 > r.y);
+    const badge = (txt, x, y, fill, align, vAlign, strong) => {
+      const fs = strong ? 12 : 11, h = strong ? 22 : 19, bw = txt.length * (strong ? 6.9 : 6.3) + 14;
+      let bx = align === 'right' ? x - bw : align === 'center' ? x - bw/2 : x;
+      let by0 = vAlign === 'above' ? y - h - 7 : vAlign === 'below' ? y + 7 : y - h/2;
+      bx = Math.max(2, Math.min(bx, plotW - bw - 2));
+      const clampY = v => Math.max(2, Math.min(v, ch - h - 24));
+      let by = clampY(by0);
+      // ausweichen: abwechselnd darunter/darueber (bei "above" zuerst weiter nach oben, bei "below" nach unten)
+      const dir = vAlign === 'above' ? -1 : 1;
+      for(let k = 1; k <= 8 && hits(bx, by, bw, h); k++){
+        const step = Math.ceil(k/2) * (h + 4) * (k % 2 ? dir : -dir);
+        by = clampY(by0 + step);
+      }
+      placed.push({ x: bx, y: by, w: bw, h });
+      if(Math.abs(by - by0) > 2){   // verschoben: duenne Linie zum Punkt
+        svg.appendChild(mk('line', { x1: x, y1: y, x2: align === 'right' ? bx + bw : bx, y2: by + h/2, stroke: fill, 'stroke-width': 1, 'stroke-opacity': 0.7 }));
+      }
+      const g = mk('g', { 'data-trail-label': '1' });
+      g.appendChild(mk('rect', { x: bx, y: by, width: bw, height: h, rx: 5, fill, stroke: 'rgba(0,0,0,0.35)', 'stroke-width': 1 }));
+      const tx = mk('text', { x: bx + 7, y: by + h/2 + fs*0.36, 'font-size': fs, 'font-weight': 700, fill: '#fff' });
+      tx.textContent = txt; g.appendChild(tx); svg.appendChild(g);
+    };
+    const done = new Set();
     state.journal.forEach((t, i) => {
       const focus = focusTrade != null && t.closedAt === focusTrade;
       if(!focus && !trailsOn()) return;
@@ -3485,29 +3517,22 @@
       if(eT == null || xT == null || xT > nowT) return;
       const x1 = xFromTimeRobust(eT), x2 = xFromTimeRobust(xT), y1 = yFromPriceRobust(t.entryPrice), y2 = yFromPriceRobust(t.exitPrice);
       if(x1 == null || x2 == null || y1 == null || y2 == null) return;
-      const w = Math.max(6, x2 - x1);
+      const w = Math.max(6, x2 - x1), win = (t.pnl || 0) >= 0, col = win ? '#26A69A' : '#EF5350', sideCol = t.side === 'long' ? '#26A69A' : '#EF5350';
       const tp = t.tpPrice != null ? t.tpPrice : (t.review && t.review.tp), sl = t.slPrice != null ? t.slPrice : (t.review && t.review.sl);
-      const zone = (price, fill) => { const y = yFromPriceRobust(price); if(y == null) return; const r = document.createElementNS(NS_SVG, 'rect');
-        r.setAttribute('x', x1); r.setAttribute('y', Math.min(y, y1)); r.setAttribute('width', w); r.setAttribute('height', Math.max(1, Math.abs(y - y1)));
-        r.setAttribute('fill', fill); r.setAttribute('pointer-events', 'none'); svg.appendChild(r); };
-      if(tp != null) zone(tp, focus ? 'rgba(38,166,154,0.22)' : 'rgba(38,166,154,0.09)');
-      if(sl != null) zone(sl, focus ? 'rgba(239,83,80,0.22)' : 'rgba(239,83,80,0.09)');
-      const col = (t.pnl || 0) >= 0 ? '#26A69A' : '#EF5350';
-      const ln = document.createElementNS(NS_SVG, 'line');
-      ln.setAttribute('x1', x1); ln.setAttribute('y1', y1); ln.setAttribute('x2', x2); ln.setAttribute('y2', y2);
-      ln.setAttribute('stroke', col); ln.setAttribute('stroke-width', focus ? 2.6 : 1.4); ln.setAttribute('stroke-dasharray', '5 4');
-      ln.setAttribute('pointer-events', 'none'); ln.setAttribute('data-trail', String(nr[i]));
-      svg.appendChild(ln);
-      [[x1, y1], [x2, y2]].forEach(([cx, cy]) => { const c = document.createElementNS(NS_SVG, 'circle'); c.setAttribute('cx', cx); c.setAttribute('cy', cy); c.setAttribute('r', focus ? 4 : 2.6); c.setAttribute('fill', col); c.setAttribute('pointer-events', 'none'); svg.appendChild(c); });
-      if(focus){
-        const txt = '#' + nr[i] + ' ' + (t.side === 'long' ? 'Long' : 'Short') + ' · ' + (REASON_SHORT[t.reason] || t.reason) + ' · ' + pnlShort(t.pnl) + (t.rMultiple != null && isFinite(t.rMultiple) ? ' · ' + t.rMultiple.toFixed(1).replace('.', ',') + ' R' : '');
-        const g = document.createElementNS(NS_SVG, 'g'); g.setAttribute('pointer-events', 'none'); g.setAttribute('data-trail-label', '1');
-        const tx = document.createElementNS(NS_SVG, 'text'); tx.textContent = txt; tx.setAttribute('font-size', '12'); tx.setAttribute('font-weight', '700'); tx.setAttribute('fill', '#fff');
-        const bw = txt.length * 6.9 + 16, bx = Math.max(4, Math.min((x1 + x2)/2 - bw/2, container.clientWidth - bw - 70)), by = Math.max(4, Math.min(y1, y2) - 30);
-        const bg = document.createElementNS(NS_SVG, 'rect'); bg.setAttribute('x', bx); bg.setAttribute('y', by); bg.setAttribute('width', bw); bg.setAttribute('height', 22); bg.setAttribute('rx', 6); bg.setAttribute('fill', col);
-        tx.setAttribute('x', bx + 8); tx.setAttribute('y', by + 15);
-        g.appendChild(bg); g.appendChild(tx); svg.appendChild(g);
-      }
+      const zone = (price, fill, stroke) => { const y = yFromPriceRobust(price); if(y == null) return;
+        svg.appendChild(mk('rect', { x: x1, y: Math.min(y, y1), width: w, height: Math.max(1, Math.abs(y - y1)), fill, stroke, 'stroke-width': 1 })); };
+      if(tp != null) zone(tp, focus ? 'rgba(38,166,154,0.26)' : 'rgba(38,166,154,0.15)', 'rgba(38,166,154,0.45)');
+      if(sl != null) zone(sl, focus ? 'rgba(239,83,80,0.26)' : 'rgba(239,83,80,0.15)', 'rgba(239,83,80,0.45)');
+      // Einstiegskurs als Linie bis zum Ausstieg, dazu die Linie Einstieg -> Ausstieg
+      svg.appendChild(mk('line', { x1, y1, x2: x1 + w, y2: y1, stroke: sideCol, 'stroke-width': 1, 'stroke-opacity': 0.8 }));
+      svg.appendChild(mk('line', { x1, y1, x2, y2, stroke: col, 'stroke-width': focus ? 3 : 2, 'data-trail': String(nr[i]) }));
+      svg.appendChild(mk('circle', { cx: x1, cy: y1, r: focus ? 5 : 4, fill: sideCol, stroke: '#fff', 'stroke-width': 1.5 }));
+      svg.appendChild(mk('circle', { cx: x2, cy: y2, r: focus ? 5 : 4, fill: col, stroke: '#fff', 'stroke-width': 1.5 }));
+      // Schilder: Einstieg einmal pro Trade (Teilverkaeufe teilen ihn), Ausstieg je Teil mit Ergebnis
+      const ek = t.entryTime + '|' + t.side;
+      if(!done.has(ek)){ done.add(ek); badge('#' + nr[i] + ' ' + (t.side === 'long' ? '▲ Long' : '▼ Short'), x1, y1, sideCol, 'right', t.side === 'long' ? 'below' : 'above', focus); }
+      const r = t.rMultiple != null && isFinite(t.rMultiple) ? ' · ' + (t.rMultiple >= 0 ? '+' : '') + t.rMultiple.toFixed(1).replace('.', ',') + ' R' : '';
+      badge('#' + nr[i] + ' ' + (REASON_SHORT[t.reason] || t.reason) + ' ' + usdSigned(t.pnl || 0) + r, x2 + 8, y2, col, 'left', 'mid', focus);
     });
   }
   // Springt im Chart zu einem Trade dieser Session und hebt ihn hervor.
@@ -3530,7 +3555,7 @@
     const tt = document.getElementById('trailsToggle');
     if(!tt) return;
     tt.checked = trailsOn();
-    tt.addEventListener('change', () => { try{ localStorage.setItem(TRAILS_KEY, tt.checked ? '1' : '0'); }catch(e){} scheduleRenderDrawings(); });
+    tt.addEventListener('change', () => { try{ localStorage.setItem(TRAILS_KEY, tt.checked ? '1' : '0'); }catch(e){} try{ rebuildTradeMarkers(); candleSeries.setMarkers(markers); }catch(e){} scheduleRenderDrawings(); });
   })();
 
   function renderDrawings(){
@@ -4946,6 +4971,39 @@
   const STRAT_KEY = 'tradereplay_strategies_v1';
   const HISTORY_KEY = 'tradereplay_history_v1';
   const HISTORY_MAX = 5000;
+  // Geloeschte Trades (histKey): kommen weder aus der Cloud, vom iPad noch aus einem Backup zurueck
+  const TRADE_TOMB_KEY = 'tradereplay_trade_tomb_v1', TRADE_TOMB_MAX = 1500;
+  var tradeTomb = new Set();
+  try{ const a = JSON.parse(localStorage.getItem(TRADE_TOMB_KEY) || '[]'); if(Array.isArray(a)) tradeTomb = new Set(a.filter(k => typeof k === 'string')); }catch(e){}
+  function saveTradeTomb(){
+    const a = [...tradeTomb].slice(-TRADE_TOMB_MAX); tradeTomb = new Set(a);
+    try{ localStorage.setItem(TRADE_TOMB_KEY, JSON.stringify(a)); }catch(e){}
+  }
+  function isTradeTombed(t){ return !!(t && tradeTomb.size && tradeTomb.has(histKey(t))); }
+  // Neue Grabsteine uebernehmen (Cloud/Backup); true, wenn sich etwas geaendert hat
+  function addTradeTombs(keys){
+    let n = 0; (keys || []).forEach(k => { if(typeof k === 'string' && !tradeTomb.has(k)){ tradeTomb.add(k); n++; } });
+    if(n) saveTradeTomb();
+    return n > 0;
+  }
+  // Geloeschte Trades aus Journal + Kontostand der aktuellen Session nehmen (Equity-Kurve ab dem Ausstieg mit)
+  function dropTombedFromSession(){
+    if(!tradeTomb.size || !state.journal.length) return 0;
+    const gone = state.journal.filter(j => isTradeTombed(j));
+    if(!gone.length) return 0;
+    gone.forEach(j => {
+      const pnl = +j.pnl || 0, xi = state.data.length ? barIndexAtOrBefore(j.exitTime) : -1;
+      state.balance -= pnl;
+      (state.equityHistory || []).forEach(e => { if(xi >= 0 && e.i >= xi) e.equity -= pnl; });
+    });
+    state.journal = state.journal.filter(j => !isTradeTombed(j));
+    return gone.length;
+  }
+  // Nach Loeschen/Abgleich alles neu zeichnen
+  function refreshAfterTradeChange(){
+    try{ rebuildTradeMarkers(); candleSeries.setMarkers(markers); }catch(e){}
+    try{ renderJournal(); renderStats(); updateAccountUI(); updatePositionUI(); updateStepControls(); renderDrawings(); refreshHistoryTabIfOpen(); }catch(e){}
+  }
 
   function loadStrategies(){
     try{
@@ -5034,6 +5092,7 @@
       v:2, app:'TradeReplay', exportedAt: new Date().toISOString(),
       strategies: state.strategies,
       tradeHistory: state.tradeHistory,
+      tradeTomb: [...tradeTomb],
       sessions: loadSessionGroups(),
       prefs: collectPrefs()
     };
@@ -5045,9 +5104,14 @@
     (data.strategies||[]).forEach(s => {
       if(s && s.id && !findStrategy(s.id)){ state.strategies.push(s); addedStrats++; }
     });
+    if(Array.isArray(data.tradeTomb) && addTradeTombs(data.tradeTomb)){
+      state.tradeHistory = state.tradeHistory.filter(t => !isTradeTombed(t));
+      cloudMarkHist();
+      if(state.data.length && !state.reviewing && dropTombedFromSession()){ saveState(); refreshAfterTradeChange(); }
+    }
     const existingClosedAt = new Set(state.tradeHistory.map(t=>t.closedAt));
     (data.tradeHistory||[]).forEach(t => {
-      if(t && !existingClosedAt.has(t.closedAt)){ state.tradeHistory.push(t); addedTrades++; }
+      if(t && !isTradeTombed(t) && !existingClosedAt.has(t.closedAt)){ state.tradeHistory.push(t); addedTrades++; }
     });
     // Sessions: pro Platz gewinnt der neuere Stand (savedAt) — nichts Neueres wird ueberschrieben.
     let addedSessions = 0, currentChanged = false;
@@ -5830,7 +5894,7 @@
     }
     const { nr } = tradeNumbers();
     body.innerHTML = state.journal.map((t,idx) => `
-      <tr data-jrow="${idx}">
+      <tr data-jrow="${idx}" class="${(t.pnl || 0) > 0 ? 'jrow-win' : 'jrow-loss'}">
         <td class="num"><b>#${nr[idx]}</b>${t.partialFrac ? '<small class="muted"> Teil</small>' : ''}</td>
         <td><span class="chip ${t.side}">${t.side==='long'?'Long':'Short'}</span></td>
         <td class="num">${fmtTime(t.entryTime)}</td>
@@ -5844,8 +5908,33 @@
         <td>${scoreBadgeHtml(t.score, t.grade, t.feedback)}</td>
         <td>${tjCellHtml(t)}</td>
         <td class="num ${t.pnl>=0?'up-txt':'down-txt'}">${usdSigned(t.pnl)}</td>
-        <td style="white-space:nowrap"><button class="btn tj-edit" data-tj-open="${escapeHtml(histKey(t))}" title="Journal: Setup, Gefühl, Fehler, Bewertung">✎ Journal</button> <button class="btn" data-focus-journal="${idx}" title="Im Chart zu diesem Trade springen (Einstieg → Ausstieg wird hervorgehoben)">📍 Im Chart</button> <button class="btn review-btn" data-rv-journal="${idx}" title="Trade im Chart ansehen – mit deinen Zeichnungen">Ansehen</button></td>
+        <td style="white-space:nowrap"><button class="btn tj-edit" data-tj-open="${escapeHtml(histKey(t))}" title="Journal: Setup, Gefühl, Fehler, Bewertung">✎ Journal</button> <button class="btn" data-focus-journal="${idx}" title="Im Chart zu diesem Trade springen (Einstieg → Ausstieg wird hervorgehoben)">📍 Im Chart</button> <button class="btn review-btn" data-rv-journal="${idx}" title="Trade im Chart ansehen – mit deinen Zeichnungen">Ansehen</button> <button class="btn del-trade-btn" data-del-journal="${idx}" title="Trade löschen (mit Rückfrage)" aria-label="Trade löschen">🗑</button></td>
       </tr>`).reverse().join('');
+  }
+
+  function deleteTrades(keys){
+    keys = new Set(keys);
+    if(!keys.size) return;
+    addTradeTombs([...keys]);
+    const n0 = state.tradeHistory.length;
+    state.tradeHistory = state.tradeHistory.filter(t => !keys.has(histKey(t)));
+    if(state.tradeHistory.length !== n0) saveTradeHistory(); else cloudMarkHist();
+    if(dropTombedFromSession()) saveState();
+    if(focusTrade != null && ![...state.journal].some(j => j.closedAt === focusTrade)) focusTrade = null;
+    refreshAfterTradeChange();
+  }
+  function askDeleteTrades(recs, label){
+    if(state.reviewing){ showToast('Im Rückblick kann nichts gelöscht werden – erst den Rückblick beenden.'); return; }
+    if(datasetLoadBusy){ showToast('Einen Moment – die App lädt noch.'); return; }
+    recs = recs.filter(Boolean);
+    if(!recs.length) return;
+    const pnl = recs.reduce((a, t) => a + (+t.pnl || 0), 0);
+    const inSession = recs.some(t => state.journal.some(j => histKey(j) === histKey(t)));
+    showToast(label + ' löschen? Er verschwindet aus Journal, „Alle Trades“ und Statistik – auf allen Geräten.'
+      + (inSession ? ' Der Kontostand dieser Session ändert sich um ' + usdSigned(-pnl) + '.' : ''), 10000, [
+      { label: 'Ja, löschen', fn: () => { deleteTrades(recs.map(histKey)); showToast(label + ' gelöscht.'); } },
+      { label: 'Abbrechen', fn: () => {} }
+    ]);
   }
 
   function statTile(k,v,cls){ return `<div class="tile"><div class="k">${k}</div><div class="v ${cls||''}">${v}</div></div>`; }
@@ -7247,13 +7336,15 @@
     const nowT = state.data[state.cursor] ? state.data[state.cursor].time : Infinity;
     const at = t => { const i = barIndexAtOrBefore(t); return i >= 0 ? state.data[i].time : null; };
     const list = [{ time: state.data[state.sessionSplit].time, position:'aboveBar', color:'#E0A438', shape:'circle', text:'▶ Replay-Start' }];
-    const entryMk = (time, side, n) => ({ time, position: side==='long'?'belowBar':'aboveBar', color: side==='long'?'#26A69A':'#EF5350', shape: side==='long'?'arrowUp':'arrowDown', text: '#' + n + ' ' + (side==='long'?'Long':'Short') });
+    // Mit Trade-Spuren stehen Nummer und Ergebnis als Schild im Chart — hier dann nur der Pfeil (sonst doppelt)
+    const trails = trailsOn();
+    const entryMk = (time, side, n) => ({ time, position: side==='long'?'belowBar':'aboveBar', color: side==='long'?'#26A69A':'#EF5350', shape: side==='long'?'arrowUp':'arrowDown', text: trails ? '' : '#' + n + ' ' + (side==='long'?'Long':'Short') });
     const seenEntry = new Set();
     const { nr, byEntry } = tradeNumbers();
     state.journal.forEach((t, i) => {
       const eT = at(t.entryTime), xT = at(t.exitTime);
       if(eT != null && eT <= nowT && !seenEntry.has(t.entryTime + t.side)){ seenEntry.add(t.entryTime + t.side); list.push(entryMk(eT, t.side, nr[i])); }
-      if(xT != null && xT <= nowT) list.push({ time:xT, position:'inBar', color: t.pnl>=0 ? '#26A69A' : '#EF5350', shape:'circle', text: '#' + nr[i] + ' ' + (REASON_SHORT[t.reason] || t.reason) + ' ' + pnlShort(t.pnl) });
+      if(!trails && xT != null && xT <= nowT) list.push({ time:xT, position:'inBar', color: t.pnl>=0 ? '#26A69A' : '#EF5350', shape:'circle', text: '#' + nr[i] + ' ' + (REASON_SHORT[t.reason] || t.reason) + ' ' + pnlShort(t.pnl) });
     });
     if(state.position && !seenEntry.has(state.position.entryTime + state.position.side)){
       const eT = at(state.position.entryTime);
@@ -7425,6 +7516,16 @@
   }
   document.getElementById('reviewExitBtn').addEventListener('click', exitReview);
   els.journalBody.addEventListener('click', e => {
+    const del = e.target.closest('[data-del-journal]');
+    if(del){
+      const i = +del.dataset.delJournal, t = state.journal[i];
+      if(!t) return;
+      const { nr } = tradeNumbers();
+      // ganzer Trade: alle Teilverkaeufe mit derselben Nummer
+      const recs = state.journal.filter((j, k) => nr[k] === nr[i]);
+      askDeleteTrades(recs, 'Trade #' + nr[i] + (recs.length > 1 ? ' (mit ' + recs.length + ' Teilen)' : ''));
+      return;
+    }
     const fb = e.target.closest('[data-focus-journal]');
     if(fb){ focusTradeInChart(+fb.dataset.focusJournal); return; }
     const b = e.target.closest('[data-rv-journal]');
@@ -7639,7 +7740,7 @@
           <td>${t.strategyName ? escapeHtml(t.strategyName) : '–'}</td>
           <td>${tjCellHtml(t)}</td>
           <td class="num ${(t.pnl || 0) >= 0 ? 'up-txt' : 'down-txt'}">${usdSigned(t.pnl || 0)}</td>
-          <td style="white-space:nowrap"><button class="btn tj-edit" data-tj-open="${escapeHtml(histKey(t))}" title="Journal bearbeiten">✎ Journal</button> <button class="btn review-btn" data-rv-key="${escapeHtml(histKey(t))}" title="Trade im Chart ansehen (Einstieg, Ausstieg, TP/SL, Zeichnungen)">Ansehen</button>${where.has(t.closedAt) ? ` <button class="btn" data-sess-key="${escapeHtml(histKey(t))}" title="Die Session öffnen, in der dieser Trade war">↪ Session</button>` : ''}</td>
+          <td style="white-space:nowrap"><button class="btn tj-edit" data-tj-open="${escapeHtml(histKey(t))}" title="Journal bearbeiten">✎ Journal</button> <button class="btn review-btn" data-rv-key="${escapeHtml(histKey(t))}" title="Trade im Chart ansehen (Einstieg, Ausstieg, TP/SL, Zeichnungen)">Ansehen</button>${where.has(t.closedAt) ? ` <button class="btn" data-sess-key="${escapeHtml(histKey(t))}" title="Die Session öffnen, in der dieser Trade war">↪ Session</button>` : ''} <button class="btn del-trade-btn" data-del-key="${escapeHtml(histKey(t))}" title="Trade löschen (mit Rückfrage)" aria-label="Trade löschen">🗑</button></td>
         </tr>`).join('');
     }
     document.getElementById('historyMoreBtn').hidden = list.length <= histShown;
@@ -7656,6 +7757,8 @@
   });
   document.getElementById('historyMoreBtn').addEventListener('click', () => { histShown += HIST_PAGE; renderHistoryTab(); });
   document.getElementById('historyBody').addEventListener('click', e => {
+    const db = e.target.closest('[data-del-key]');
+    if(db){ const t = state.tradeHistory.find(x => histKey(x) === db.dataset.delKey); if(t) askDeleteTrades([t], 'Trade ' + (SYMBOL_NAME[t.symbol] || t.symbol || '') + ' ' + (t.side === 'long' ? 'Long' : 'Short') + ' (' + usdSigned(t.pnl || 0) + ')'); return; }
     const sb = e.target.closest('[data-sess-key]');
     if(sb){ const t = state.tradeHistory.find(x => histKey(x) === sb.dataset.sessKey); if(t) openTradeSession(t); return; }
     const b = e.target.closest('[data-rv-key]');
@@ -7841,7 +7944,7 @@
     const h = Math.round(m/60); if(h < 24) return 'vor ' + h + ' Std'; const t = Math.round(h/24); return t === 1 ? 'gestern' : 'vor ' + t + ' Tagen';
   }
   function sessSummary(p){
-    const j = (p && Array.isArray(p.journal)) ? p.journal : [];
+    const j = (p && Array.isArray(p.journal)) ? p.journal.filter(t => t && !isTradeTombed(t)) : [];
     const trades = new Set(j.map(t => t.entryTime + '|' + t.side)).size;
     const wins = j.filter(t => (t.pnl || 0) > 0).length;
     const pnl = j.reduce((a, t) => a + (t.pnl || 0), 0);
@@ -8071,6 +8174,7 @@
     state.ended = !!save.ended;
     state.journal = Array.isArray(save.journal) ? save.journal : [];
     state.equityHistory = (Array.isArray(save.equityHistory) && save.equityHistory.length) ? save.equityHistory : [{ i:cursor, equity:state.balance }];
+    const droppedTombed = dropTombedFromSession();   // auf einem anderen Geraet geloeschte Trades
     state.drawings = Array.isArray(save.drawings) ? save.drawings : [];
     migrateDrawingTimes(state.drawings);
     state.drawTomb = Array.isArray(save.drawTomb) ? save.drawTomb.slice(-400) : [];
@@ -8135,6 +8239,7 @@
     updateStepControls();
     renderDrawings();
     renderActiveStrategySelect();
+    if(droppedTombed){ try{ saveState(); }catch(e){} }
     return true;
   }
 
@@ -8598,6 +8703,16 @@
     const cloudRev = info.exists ? (info.data().rev || null) : null;
     const localRev = lsGet(HIST_REV_KEY);
     let localOnly = false, pulled = false;
+    // Geloeschte Trades: Grabsteine beider Seiten vereinigen und anwenden
+    const cloudTomb = new Set(info.exists && Array.isArray(info.data().tomb) ? info.data().tomb : []);
+    if(addTradeTombs([...cloudTomb])){
+      const n0 = state.tradeHistory.length;
+      state.tradeHistory = state.tradeHistory.filter(t => !isTradeTombed(t));
+      if(state.tradeHistory.length !== n0) lsSet(HISTORY_KEY, JSON.stringify(state.tradeHistory));
+      if(state.data.length && !state.reviewing && dropTombedFromSession()) saveState();
+      refreshAfterTradeChange();
+    }
+    if([...tradeTomb].some(k => !cloudTomb.has(k))) localOnly = true;
     if(cloudRev && cloudRev !== localRev){
       const snap = await db.collection('hist').get();
       const cloudKeys = new Set(), have = new Set(state.tradeHistory.map(histKey));
@@ -8611,6 +8726,7 @@
           if(!t) return;
           if(CLOUD.resetAt && (t.closedAt || 0) < CLOUD.resetAt) return;   // Trades vor dem Neustart
           const k = histKey(t); cloudKeys.add(k);
+          if(tradeTomb.has(k)){ localOnly = true; return; }   // geloescht: Cloud bekommt die Liste ohne ihn
           if(!have.has(k)){ have.add(k); add.push(t); return; }
           // gleicher Trade: die neuere Journal-Bewertung gewinnt (in beide Richtungen)
           const lt = localByKey.get(k); if(!lt) return;
@@ -8644,7 +8760,7 @@
           CLOUD.chunkJson[id] = json;
         }
         const rev = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-        await db.doc('meta/hist').set({ rev, count:sorted.length, at:Date.now() });
+        await db.doc('meta/hist').set({ rev, count:sorted.length, at:Date.now(), tomb:[...tradeTomb].slice(-TRADE_TOMB_MAX) });
         lsSet(HIST_REV_KEY, rev);
       }catch(e){ CLOUD.histDirty = true; throw e; }
     } else if(pulled){
@@ -8791,7 +8907,7 @@
       el.className = 'boot-banner';
       el.innerHTML = '<div><span class="bb-dot"></span><span class="bb-text"></span></div>' +
         '<div class="bb-actions" style="display:none"><button type="button" class="bb-retry">Erneut versuchen</button><button type="button" class="alt bb-nocloud">Ohne Cloud starten</button></div>' +
-        '<div class="bb-log"></div><div class="bb-ver">TradeReplay v66</div>';
+        '<div class="bb-log"></div><div class="bb-ver">TradeReplay v90</div>';
       el.querySelector('.bb-retry').addEventListener('click', () => { try{ location.reload(); }catch(e){} });
       el.querySelector('.bb-nocloud').addEventListener('click', () => { lsSet('tradereplay_nocloud_v1', '1'); try{ location.reload(); }catch(e){} });
       document.body.appendChild(el);
