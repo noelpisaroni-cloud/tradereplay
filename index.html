@@ -646,7 +646,8 @@
   .src-tag{ align-self:center; font-size:10.5px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; padding:2px 8px; border-radius:100px; border:1px solid var(--line); color:var(--ink-faint); cursor:help; }
   .src-tag.live{ color:#7fd6c6; border-color:rgba(79,165,139,.45); background:rgba(79,165,139,.10); }
   /* ---------- Cloud-Feld ---------- */
-  .cloud-chip{ gap:7px; padding:0 11px; font-size:12px; color:var(--ink-soft); }
+  .cloud-chip{ gap:7px; padding:0 11px; font-size:12px; color:var(--ink-soft); flex-shrink:0; min-width:36px; justify-content:center; }
+  .cloud-chip .cdot{ width:9px !important; height:9px !important; }
   .cloud-chip .cdot{ width:7px; height:7px; border-radius:50%; background:var(--ink-faint); flex-shrink:0; }
   .cloud-chip[data-state="ok"] .cdot{ background:var(--chart-up); box-shadow:0 0 6px rgba(79,165,139,.6); }
   .cloud-chip[data-state="busy"] .cdot{ background:var(--amber); animation:pulse-loading 1.2s ease-in-out infinite; }
@@ -9191,7 +9192,7 @@
     window.addEventListener('online', () => { if(CLOUD.on){ CLOUD.needFull = true; cloudSchedule(800); } });
     // Live: alle paar Sekunden nachsehen, ob das andere Geraet etwas geaendert hat
     setInterval(() => {
-      if(!CLOUD.on || CLOUD.running || CLOUD.timer || document.visibilityState !== 'visible' || state.reviewing) return;
+      if(!CLOUD.on || !CLOUD.sync || CLOUD.running || CLOUD.timer || datasetLoadBusy || document.visibilityState !== 'visible' || state.reviewing) return;
       if(Date.now() - (CLOUD.lastPollAt || 0) < (CLOUD.sync ? 5000 : 20000)) return;
       CLOUD.lastPollAt = Date.now(); CLOUD.needFull = true; cloudSchedule(10);
     }, 2000);
