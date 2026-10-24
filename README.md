@@ -17,7 +17,7 @@ Link in Safari öffnen → Teilen → **Zum Home-Bildschirm**. Dann startet Trad
 10 Sessions pro Markt (der Zeitrahmen ist nur die Ansicht). Gespeichert im Browser (localStorage) und – in der Claude-Version – zusätzlich in der Cloud. Zum Übertragen ohne Cloud: **Backup exportieren** / **Backup importieren**.
 
 ## Datenquellen Langzeit-Archiv
-- EUR/USD und Gold (XAU/USD): OANDA-Minutenkurse (EUR/USD 2005–Mai 2020, Gold 2006–Mai 2020) aus [FutureSharks/financial-data](https://github.com/FutureSharks/financial-data), daraus alle Zeitrahmen gebildet (UTC; Tageskerzen Mo–Fr, 00:00 UTC). 1m ab 2019, 5m ab 2015/2016, 15m bis 1T ab 2005/2006.
+- EUR/USD und Gold (XAU/USD): OANDA-Minutenkurse (EUR/USD 2005–Mai 2020, Gold 2006–Mai 2020) aus [FutureSharks/financial-data](https://github.com/FutureSharks/financial-data), daraus alle Zeitrahmen gebildet (UTC; Tageskerzen Mo–Fr, 00:00 UTC). Alle Zeitrahmen (1m bis 1T) ab 2005 bzw. 2006. 1m liegt in Monats-Stücken (`x_<Markt>_1m_c<JJJJMM>.js`), 5m in Halbjahres-Stücken (`x_<Markt>_5m_c<JJJJMM>.js`); die App lädt nur die Stücke rund um den Replay-Moment.
 
 ## Neuere Daten
 - EUR/USD: Yahoo Finance (1h/4h/1T ab Ende 2023, kürzere Zeitrahmen die letzten Wochen).

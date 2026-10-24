@@ -151,6 +151,7 @@
   .draw-sep-v{ width:20px; height:1px; background:var(--line); margin:2px 0; }
   .draw-hint-row{ font-size:11.5px; color:var(--ink-faint); padding:0 0 6px; }
   .draw-hint-row[hidden]{ display:none; }
+  .menu-item[hidden], .menu-note[hidden]{ display:none !important; }
   #chartContainer{ width:100%; height:440px; position:relative; }
   .chart-overlay-tl{ position:absolute; top:8px; left:8px; z-index:4; display:flex; flex-direction:column; gap:6px; pointer-events:none; }
   .chart-overlay-tl .quick-trade{ pointer-events:auto; }
@@ -1383,9 +1384,8 @@
                     <label class="menu-field"><span>Session ab Datum</span><input type="date" id="dateSessInput"></label>
                     <button class="btn date-sess-btn" id="dateSessBtn" type="button">▶ Session an diesem Tag starten</button>
                     <p class="menu-note" id="dateSessNote">Startet im aktuellen Platz eine neue Session genau ab diesem Tag (00:00 UTC) – z. B. für einen bestimmten NFP-Tag.</p>
-                    <div class="menu-sep"></div>
-                    <label class="menu-item"><input type="checkbox" id="allTfToggle"><span>Alle Zeitrahmen nutzbar</span></label>
-                    <p class="menu-note">An: Zufalls-Sessions kommen nur aus dem Zeitraum, in dem alle 7 Zeitrahmen Daten haben &ndash; dann kannst du in jeder Session frei zwischen 1m und 1T wechseln. Aus: Sessions k&ouml;nnen auch aus &auml;lterer Zeit kommen (dort fehlen feine Zeitrahmen wie 1m/5m). Bei Krypto mit Live-Daten (Desktop-App mit Internet) ist das nicht nötig &ndash; dort kannst du immer frei wechseln.</p>
+                    <label class="menu-item" hidden><input type="checkbox" id="allTfToggle"><span>Alle Zeitrahmen nutzbar</span></label>
+                    <p class="menu-note" hidden>An: Zufalls-Sessions kommen nur aus dem Zeitraum, in dem alle 7 Zeitrahmen Daten haben &ndash; dann kannst du in jeder Session frei zwischen 1m und 1T wechseln. Aus: Sessions k&ouml;nnen auch aus &auml;lterer Zeit kommen (dort fehlen feine Zeitrahmen wie 1m/5m). Bei Krypto mit Live-Daten (Desktop-App mit Internet) ist das nicht nötig &ndash; dort kannst du immer frei wechseln.</p>
                   </div>
                 </div>
               </div>
@@ -1661,7 +1661,7 @@
       <h4>Speichern</h4>
       <p>Dein Fortschritt (Position, Order, Journal, Zeichnungen) wird automatisch lokal gespeichert und bleibt beim Schlie&szlig;en erhalten, bis du eine neue Session startest.</p>
       <h4>Daten &amp; Hinweise</h4>
-      <p>Zwei Märkte mit maximal viel Historie: <b>EUR/USD</b> und <b>Gold (XAU/USD)</b>. Langzeit-Archiv: echte OANDA-Minutenkurse (EUR/USD 2005&ndash;Mai 2020, Gold 2006&ndash;Mai 2020, über <i>FutureSharks/financial-data</i>), daraus alle Zeitrahmen gebildet (1m ab 2019, 5m ab 2015/2016, 15m bis 1T ab 2005/2006). Neuere Daten: EUR/USD von Yahoo Finance (1h/4h/1T ab Ende 2023, kürzere Zeitrahmen die letzten Wochen), Gold über den Gold-Token PAXG (Binance). Eine Session liegt immer ganz im Archiv oder ganz in den neueren Daten. Stop-Loss &amp; Liquidation berücksichtigen konfigurierbare Slippage (Take-Profit füllt exakt wie eine Limit-Order). Simuliert werden <b>kein</b> echtes Orderbuch und keine variable, marktabhängige Slippage &ndash; reale Ausführung kann in schnellen Märkten schlechter sein. Historische Performance ist keine Garantie für zukünftige Ergebnisse; dies ist keine Anlageberatung.</p>
+      <p>Zwei Märkte mit maximal viel Historie: <b>EUR/USD</b> und <b>Gold (XAU/USD)</b>. Langzeit-Archiv: echte OANDA-Minutenkurse (EUR/USD 2005&ndash;Mai 2020, Gold 2006&ndash;Mai 2020, über <i>FutureSharks/financial-data</i>), daraus alle Zeitrahmen gebildet – <b>jeder Zeitrahmen von 1m bis 1T ab 2005 (EUR/USD) bzw. 2006 (Gold)</b>, also in jeder Session. 1m und 5m lädt die App stückweise nur rund um den aktuellen Moment (kurz „Lade …“), damit es auch auf dem iPad flüssig bleibt. Neuere Daten: EUR/USD von Yahoo Finance (1h/4h/1T ab Ende 2023, kürzere Zeitrahmen die letzten Wochen), Gold über den Gold-Token PAXG (Binance). Eine Session liegt immer ganz im Archiv oder ganz in den neueren Daten. Stop-Loss &amp; Liquidation berücksichtigen konfigurierbare Slippage (Take-Profit füllt exakt wie eine Limit-Order). Simuliert werden <b>kein</b> echtes Orderbuch und keine variable, marktabhängige Slippage &ndash; reale Ausführung kann in schnellen Märkten schlechter sein. Historische Performance ist keine Garantie für zukünftige Ergebnisse; dies ist keine Anlageberatung.</p>
     </div>
   </div>
 </div>
@@ -3757,9 +3757,76 @@
   // Daten gehaengt. Kompakt gespeichert (Abstaende in Punkten), je Datei hoechstens ~3 MB fuers iPad.
   // Zwischen Archiv und neueren Daten liegt eine Luecke — Sessions bleiben immer in EINEM Abschnitt.
   const EXT_DATA = {
-    EURUSD: { '1m':2, '5m':2, '15m':2, '30m':1, '1h':1, '4h':1, '1d':1 },
-    PAXGUSDT: { '1m':2, '5m':2, '15m':2, '30m':1, '1h':1, '4h':1, '1d':1 }   // Gold: echte XAU/USD-Kurse 2006–2020 + PAXG
+    EURUSD: { '15m':2, '30m':1, '1h':1, '4h':1, '1d':1 },
+    PAXGUSDT: { '15m':2, '30m':1, '1h':1, '4h':1, '1d':1 }   // Gold: echte XAU/USD-Kurse 2006–2020 + PAXG
   };
+  // 1m/5m: das GANZE Archiv waere zu viel fuers iPad (Millionen Kerzen) — deshalb in Stuecken
+  // (1m je Monat, 5m je Halbjahr: x_<Markt>_<tf>_c<JJJJMM>.js), geladen nur rund um den Replay-Moment.
+  // [erstes Stueck, letztes Stueck, Monate je Stueck]
+  const EXT_CHUNKS = {
+    EURUSD: { '1m':[200501, 202005, 1], '5m':[200501, 202001, 6] },
+    PAXGUSDT: { '1m':[200603, 202005, 1], '5m':[200601, 202001, 6] }
+  };
+  const CHUNK_KEEP = 6;              // so viele Stuecke je Zeitrahmen hoechstens gleichzeitig im Speicher
+  const CHUNK_SPAN = 1.45;           // Kerzen -> Kalenderzeit (Wochenenden ohne Kerzen)
+  const CHUNK_LOOKBACK = 20000;      // 1m/5m: so viele Kerzen Vorlauf vor dem Replay-Moment beim Zeitrahmen-Wechsel
+  const extChunkRows = {}, extChunkRecent = {}, extChunkFailed = {}, extChunkQueue = {};
+  function isChunkedTf(symbol, tf){ return !!(EXT_CHUNKS[symbol] && EXT_CHUNKS[symbol][tf]); }
+  function chunkIdOf(ms, months){ const d = new Date(ms); return d.getUTCFullYear()*100 + Math.floor(d.getUTCMonth()/months)*months + 1; }
+  function nextChunkId(id, months){ let y = Math.floor(id/100), m = id % 100 + months; if(m > 12){ y++; m -= 12; } return y*100 + m; }
+  function chunkIdMs(id){ return Date.UTC(Math.floor(id/100), id % 100 - 1, 1); }
+  function chunkIdsFor(symbol, tf, fromMs, toMs){
+    const c = EXT_CHUNKS[symbol] && EXT_CHUNKS[symbol][tf], out = [];
+    if(!c || !(toMs >= fromMs)) return out;
+    const last = Math.min(c[1], chunkIdOf(toMs, c[2]));
+    for(let id = Math.max(c[0], chunkIdOf(fromMs, c[2])); id <= last && out.length < 48; id = nextChunkId(id, c[2])) out.push(id);
+    return out;
+  }
+  // Zeitraum, den die Stuecke abdecken (fuer Hinweise und die Datumsauswahl)
+  function chunkArchiveSpan(symbol, tf){
+    const c = EXT_CHUNKS[symbol][tf];
+    return [chunkIdMs(c[0]), chunkIdMs(nextChunkId(c[1], c[2])) - 1];
+  }
+  // Stueck vorhanden oder gerade (offline) gescheitert — dann nicht in Dauerschleife neu versuchen
+  function chunkSettled(key, id){ const f = extChunkFailed[key] && extChunkFailed[key][id]; return !!(extChunkRows[key] && extChunkRows[key].has(id)) || (f && Date.now() - f < 60000); }
+  function chunksCover(symbol, tf, fromMs, toMs){ const key = symbol + '_' + tf; return chunkIdsFor(symbol, tf, fromMs, toMs).every(id => chunkSettled(key, id)); }
+  // Bereich (ms) rund um einen Moment: so viele Kerzen davor/danach
+  function chunkRange(tf, ms, barsBefore, barsAfter){ const t = TF_MS[tf] || 60000; return { from: ms - barsBefore*t*CHUNK_SPAN - 3*86400000, to: ms + barsAfter*t*CHUNK_SPAN + 3*86400000 }; }
+  function ensureChunks(symbol, tf, fromMs, toMs){
+    const key = symbol + '_' + tf;
+    const run = () => loadChunksNow(symbol, tf, fromMs, toMs);
+    return (extChunkQueue[key] = (extChunkQueue[key] || Promise.resolve()).then(run, run));
+  }
+  async function loadChunksNow(symbol, tf, fromMs, toMs){
+    const key = symbol + '_' + tf, ids = chunkIdsFor(symbol, tf, fromMs, toMs);
+    const have = extChunkRows[key] || (extChunkRows[key] = new Map());
+    const missing = ids.filter(id => !have.has(id));
+    if(!missing.length) return;
+    if(!(key in extChunkRecent)) extChunkRecent[key] = (window.OHLC && window.OHLC[key]) || [];
+    showDataLoading(true);
+    try{
+      for(const id of missing){
+        const file = 'x_' + key + '_c' + id + '.js', name = key + '_' + id;
+        try{ await loadBundleFileOnce(file); }catch(e){ console.warn('Archiv-Stück ' + file + ' nicht geladen:', e && e.message ? e.message : e); }
+        const ch = window.OHLC_XC && window.OHLC_XC[name];
+        delete loadedBundleFiles[file];   // nach dem Auslesen darf das Stueck spaeter erneut geladen werden
+        if(!ch){ (extChunkFailed[key] = extChunkFailed[key] || {})[id] = Date.now(); continue; }
+        delete window.OHLC_XC[name];
+        if(extChunkFailed[key]) delete extChunkFailed[key][id];
+        have.set(id, decodeExt(ch));
+      }
+    } finally { showDataLoading(false); }
+    // Speicher begrenzen: zuerst die aeltesten Stuecke, die gerade nicht gebraucht werden
+    const need = new Set(ids);
+    for(const id of [...have.keys()]){ if(have.size <= Math.max(CHUNK_KEEP, ids.length)) break; if(!need.has(id)) have.delete(id); }
+    const recent = extChunkRecent[key], firstRecent = recent.length ? +recent[0][0] : Infinity, ext = [];
+    for(const id of [...have.keys()].sort((a, b) => a - b)){ const rows = have.get(id); for(let i = 0; i < rows.length; i++) if(rows[i][0] < firstRecent) ext.push(rows[i]); }
+    window.OHLC[key] = ext.length ? ext.concat(recent) : recent;
+    OHLC_BASE[key] = 0;
+    try{ delete compBarsCache[key]; }catch(e){}
+    delete segCache[key];
+    Object.keys(activityThresholdCache).forEach(k => { if(k.indexOf(key + '|') === 0) delete activityThresholdCache[k]; });
+  }
   const OHLC_BASE = {};   // key -> Anzahl vorangestellter Archiv-Kerzen (fuer alte Sessions, deren Fenster-Index davor gezaehlt wurde)
   const extMerged = {};
   function decodeExt(ch){
@@ -3789,9 +3856,14 @@
     delete segCache[key];
     Object.keys(activityThresholdCache).forEach(k => { if(k.indexOf(key + '|') === 0) delete activityThresholdCache[k]; });
   }
-  function ensureBundledData(symbol, tf){
+  // range {from,to} (ms): bei 1m/5m die Archiv-Stuecke fuer diesen Zeitraum dazuladen
+  function ensureBundledData(symbol, tf, range){
     window.OHLC = window.OHLC || {};
     const key = symbol + '_' + tf, extParts = EXT_DATA[symbol] && EXT_DATA[symbol][tf];
+    if(isChunkedTf(symbol, tf)){
+      const base = window.OHLC[key] ? Promise.resolve() : loadBundleFileOnce(BUNDLE_FILE_FOR_SYMBOL[symbol]).catch(e => console.warn('Bundle-Ladefehler:', e && e.message ? e.message : e));
+      return base.then(() => { window.OHLC[key] = window.OHLC[key] || []; return range ? ensureChunks(symbol, tf, range.from, range.to) : null; });
+    }
     if(window.OHLC[key] && (!extParts || extMerged[key])) return Promise.resolve();
     const file = BUNDLE_FILE_FOR_SYMBOL[symbol];
     if(!file) return Promise.resolve();
@@ -3824,7 +3896,17 @@
   function segmentOfIndex(segs, idx){ for(const sg of segs){ if(idx >= sg[0] && idx < sg[1]) return sg; } return segs[segs.length-1]; }
   function rawIndexOfTime(raw, ms){ let lo = 0, hi = raw.length - 1; while(lo <= hi){ const mid = (lo + hi) >> 1, v = +raw[mid][0]; if(v === ms) return mid; if(v < ms) lo = mid + 1; else hi = mid - 1; } return -1; }
   function fmtMonthYear(ms){ return new Date(ms).toLocaleDateString('de-DE', { month:'short', year:'numeric', timeZone:'UTC' }); }
-  function segmentsText(key, raw){ return dataSegments(key, raw).map(sg => fmtMonthYear(raw[sg[0]][0]) + ' – ' + fmtMonthYear(raw[sg[1]-1][0])).join(' und '); }
+  function segmentsText(key, raw){
+    const [sym, tf] = key.split('_');
+    if(isChunkedTf(sym, tf)){
+      // 1m/5m: ganzes Archiv (auch wenn gerade nur ein Teil geladen ist) + neuere Daten
+      const sp = chunkArchiveSpan(sym, tf), rec = extChunkRecent[key] || raw.filter(r => +r[0] > sp[1]);
+      const parts = [fmtMonthYear(sp[0]) + ' – ' + fmtMonthYear(sp[1])];
+      if(rec.length) dataSegments(key + '|r', rec).forEach(sg => parts.push(fmtMonthYear(rec[sg[0]][0]) + ' – ' + fmtMonthYear(rec[sg[1]-1][0])));
+      return parts.join(' und ');
+    }
+    return dataSegments(key, raw).map(sg => fmtMonthYear(raw[sg[0]][0]) + ' – ' + fmtMonthYear(raw[sg[1]-1][0])).join(' und ');
+  }
 
   // ---------- Live-Daten: Verfuegbarkeit merken ----------
   // Nach einem fehlgeschlagenen Live-Abruf (Sandbox/offline) gibt es 2 Minuten lang keine weiteren
@@ -3930,7 +4012,9 @@
   // Zeitrahmen-Wechsel in der Session garantiert.
   // v2: standardmaessig AUS — sonst begrenzte der kurze 1m-Zeitraum die Session auf wenige hundert Kerzen
   const ALL_TF_KEY = 'tradereplay_all_tf_v2';
-  try{ els.allTfToggle.checked = localStorage.getItem(ALL_TF_KEY) === '1'; }catch(e){}
+  // Seit 1m/5m im ganzen Archiv vorhanden sind, ist der Schalter ueberfluessig (er machte Sessions nur kuerzer): immer aus
+  els.allTfToggle.checked = false;
+  try{ localStorage.removeItem(ALL_TF_KEY); }catch(e){}
   els.allTfToggle.addEventListener('change', ()=>{
     try{ localStorage.setItem(ALL_TF_KEY, els.allTfToggle.checked ? '1' : '0'); }catch(e){}
   });
@@ -4045,8 +4129,24 @@
       // fetchEndTimeMs) lets a restored/switched-to slot reproduce its exact
       // slice later instead of drifting to a different random one.
       showDataLoading(true);
-      await ensureBundledData(symbol, tf);
-      showDataLoading(false);
+      let chunkPick = null;
+      try{
+        if(isChunkedTf(symbol, tf)){
+          // 1m/5m: erst den Zeitraum bestimmen, dann nur dessen Archiv-Stuecke laden
+          const tfMs = TF_MS[tf] || 60000, span = chunkArchiveSpan(symbol, tf);
+          let range = null;
+          if(isRestore && opts.restoreBundleT0 != null) range = chunkRange(tf, +opts.restoreBundleT0, 0, (opts.restoreBarCount || totalBars) + 50);
+          else if(!isRestore && opts.targetStartMs != null) range = chunkRange(tf, opts.targetStartMs, Math.round(BUNDLE_BAR_CAP * 0.3), Math.max(MIN_REPLAY, desired) + 50);
+          else if(!isRestore && opts.randomizeWindow && !els.allTfToggle.checked){
+            // Zufaelliger Start irgendwo im Archiv; genug Platz fuer ein volles Session-Fenster danach
+            const need = (BUNDLE_BAR_CAP + desired) * tfMs * CHUNK_SPAN;
+            const t0 = span[0] + Math.random() * Math.max(0, span[1] - span[0] - need);
+            range = { from: t0, to: t0 + need };
+            chunkPick = range;
+          }
+          await ensureBundledData(symbol, tf, range);
+        } else await ensureBundledData(symbol, tf);
+      } finally { showDataLoading(false); }
       const key = symbol+'_'+tf, rawAll = window.OHLC && window.OHLC[key];
       let raw = rawAll, segOff = 0;
       if(rawAll && rawAll.length && !isRestore && opts.targetStartMs != null){
@@ -4073,8 +4173,10 @@
         const segs = dataSegments(key, rawAll), bigLen = Math.min(30000, Math.max(...segs.map(sg => sg[1] - sg[0])));
         const ok = segs.filter(sg => sg[1] - sg[0] >= Math.max(MIN_REPLAY * 3, bigLen));
         let seg = segs[segs.length-1];
-        if(opts.randomizeWindow && !els.allTfToggle.checked && ok.length === 1) seg = ok[0];
-        if(opts.randomizeWindow && !els.allTfToggle.checked && ok.length > 1){
+        const pickIdx = chunkPick ? rawAll.findIndex(r => +r[0] >= chunkPick.from) : -1;
+        if(pickIdx >= 0 && +rawAll[pickIdx][0] < chunkPick.to) seg = segmentOfIndex(segs, pickIdx);
+        else if(opts.randomizeWindow && !els.allTfToggle.checked && ok.length === 1) seg = ok[0];
+        else if(opts.randomizeWindow && !els.allTfToggle.checked && ok.length > 1){
           const tot = ok.reduce((a, sg) => a + (sg[1] - sg[0]), 0);
           let r = Math.random() * tot;
           seg = ok[ok.length-1];
@@ -4116,6 +4218,13 @@
           offset = Math.max(0, raw.length-winBars);
         }
         bars = raw.slice(offset, offset+winBars);
+        if(isRestore && isChunkedTf(symbol, tf)){
+          // fehlt ein Archiv-Stueck (offline), laege im Fenster eine Luecke — dann lieber gar nicht oeffnen
+          for(let i = 1; i < bars.length; i++) if(bars[i][0] - bars[i-1][0] > SEG_GAP_MS){
+            showToast('Die Kursdaten dieser Session konnten nicht vollständig geladen werden (Internet?). Bitte die App neu laden – die Session bleibt gespeichert.', 9000);
+            return false;
+          }
+        }
         state.bundleOffset = segOff + offset;
         state.bundleT0 = bars.length ? +bars[0][0] : null;
       }
@@ -4430,7 +4539,13 @@
           showDataLoading(false);
         }
       } else {
-        await ensureBundledData(state.symbol, newTf);
+        const chunked = isChunkedTf(state.symbol, newTf);
+        if(chunked){
+          // 1m/5m: nur die Archiv-Stuecke rund um den Replay-Moment (Vorlauf + bis zu BUNDLE_BAR_CAP Kerzen nach vorn)
+          const rb = chunkRange(newTf, clockMs, CHUNK_LOOKBACK, BUNDLE_BAR_CAP), rs = chunkRange(newTf, startClockMs, 15000, 0);
+          showDataLoading(true);
+          try{ await ensureBundledData(state.symbol, newTf, { from: Math.max(rb.from, Math.min(rs.from, clockMs)), to: rb.to }); } finally { showDataLoading(false); }
+        } else await ensureBundledData(state.symbol, newTf);
         const raw = (window.OHLC && window.OHLC[state.symbol+'_'+newTf]) || [];
         if(!raw.length){
           showToast('Keine Kursdaten verfügbar für '+(SYMBOL_NAME[state.symbol]||state.symbol)+' ('+(TF_NAME[newTf]||newTf)+') – du bleibst auf '+(TF_NAME[oldTf]||oldTf)+'.', 7000);
@@ -4451,7 +4566,7 @@
         }
         // Fenster begrenzen (Speicher/Tempo, v. a. iPad): etwas Vorlauf vor dem Session-Start, bis zu BUNDLE_BAR_CAP Kerzen nach vorn
         let si = li; while(si > seg[0] && +raw[si][0] > startClockMs) si--;
-        const w0 = Math.max(seg[0], si - 15000), w1 = Math.min(seg[1], li + 1 + BUNDLE_BAR_CAP);
+        const w0 = Math.max(seg[0], si - 15000, chunked ? li - CHUNK_LOOKBACK : 0), w1 = Math.min(seg[1], li + 1 + BUNDLE_BAR_CAP);
         fullArr = raw.slice(w0, w1).map(toBarObject);
         newBundleOffset = w0;
         newBundleT0 = +raw[w0][0];
@@ -4468,7 +4583,7 @@
       let cursorIdx = findBarIndexAtOrBeforeClock(fullArr, newTf, clockMs);
       if(cursorIdx < 0){
         // Kein Fehler-Kasten: freundlicher Hinweis, die Session bleibt unveraendert
-        showToast((TF_NAME[newTf]||newTf)+' gibt es zu diesem Zeitpunkt noch nicht (Daten erst ab '+fmtTime(fullArr[0].time)+'). Du bleibst auf '+(TF_NAME[oldTf]||oldTf)+'. Tipp: Unten im ⚙ „Alle Zeitrahmen nutzbar“ einschalten – dann gehen 1m/5m immer, die Sessions sind aber kürzer.', 9000);
+        showToast((TF_NAME[newTf]||newTf)+' gibt es zu diesem Zeitpunkt noch nicht (Daten erst ab '+fmtTime(fullArr[0].time)+'). Du bleibst auf '+(TF_NAME[oldTf]||oldTf)+'.', 9000);
         setActive(document.getElementById('tfTabs'), oldTf, 'tf');
         return;
       }
@@ -6047,8 +6162,10 @@
   var comp = { on:false, tf:'1h', chart:null, series:null, key:'', shown:-1, lines:{}, lineSig:'', loadingKey:'' };
   var compBarsCache = {};
 
+  function compChunkRange(tf){ return chunkRange(tf, currentClockMs(), 3000, 600); }
   function compBarsFor(symbol, tf){
     const key = symbol + '_' + tf;
+    if(isChunkedTf(symbol, tf)){ const r = compChunkRange(tf); if(!chunksCover(symbol, tf, r.from, r.to)) return null; }   // 1m/5m: Stuecke um den Moment fehlen noch
     if(compBarsCache[key]) return compBarsCache[key];
     const raw = window.OHLC && window.OHLC[key];
     if(!raw || !raw.length) return null;
@@ -6118,7 +6235,7 @@
       if(!live && comp.loadingKey !== key){
         comp.loadingKey = key;
         compShowMsg('Lade Daten …');
-        ensureBundledData(symbol, tf).then(() => { comp.loadingKey = ''; refreshCompanion(true); });
+        ensureBundledData(symbol, tf, isChunkedTf(symbol, tf) ? compChunkRange(tf) : undefined).then(() => { comp.loadingKey = ''; refreshCompanion(true); });
       }
       return;
     }
@@ -6333,7 +6450,7 @@
     const key = state.symbol + '_' + state.tf, raw = window.OHLC && window.OHLC[key];
     if(raw && raw.length){
       const inp = document.getElementById('dateSessInput');
-      inp.min = new Date(+raw[0][0]).toISOString().slice(0, 10);
+      inp.min = new Date(isChunkedTf(state.symbol, state.tf) ? chunkArchiveSpan(state.symbol, state.tf)[0] : +raw[0][0]).toISOString().slice(0, 10);
       inp.max = new Date(+raw[raw.length-1][0]).toISOString().slice(0, 10);
       document.getElementById('dateSessNote').textContent = 'Startet im aktuellen Platz eine neue Session genau ab diesem Tag (00:00 UTC) – z. B. für einen bestimmten NFP-Tag. ' + (TF_NAME[state.tf] || state.tf) + '-Daten: ' + segmentsText(key, raw) + '.';
     }
@@ -7203,7 +7320,10 @@
     if(!SYMBOL_NAME[sym] || !TF_NAME[tf] || t.entryTime == null || t.exitTime == null) return null;
     const barSec = Math.round((TF_MS[tf] || 900000)/1000);
     let raw = null;
-    try{ await ensureBundledData(sym, tf); raw = window.OHLC && window.OHLC[sym+'_'+tf]; }catch(e){ raw = null; }
+    try{
+      const rng = isChunkedTf(sym, tf) ? { from: chunkRange(tf, t.entryTime*1000, 260, 0).from, to: chunkRange(tf, t.exitTime*1000, 0, 50).to } : undefined;
+      await ensureBundledData(sym, tf, rng); raw = window.OHLC && window.OHLC[sym+'_'+tf];
+    }catch(e){ raw = null; }
     const covered = raw && raw.length && (+raw[0][0])/1000 <= t.entryTime && (+raw[raw.length-1][0])/1000 >= t.exitTime;
     if(!covered && LIVE_SYMBOLS[sym] && liveAllowed()){
       try{ raw = await fetchHistoryEndingAt(sym, tf, 400, (t.exitTime + 60*barSec)*1000); }catch(e){ raw = null; }
@@ -7655,7 +7775,8 @@
       tNow: state.data[state.cursor] ? state.data[state.cursor].time : null,
       tEnd: state.data.length ? state.data[state.data.length-1].time : null,
       // bundleOffset bleibt wie frueher ohne Archiv gezaehlt (aeltere App-Versionen auf anderen Geraeten), bundleT0 ist eindeutig
-      bundleOffset: state.bundleOffset == null ? null : Math.max(0, state.bundleOffset - (OHLC_BASE[state.symbol+'_'+state.tf] || 0)),
+      // 1m/5m (Archiv in Stuecken): der Index haengt davon ab, welche Stuecke gerade geladen sind — dort zaehlt nur bundleT0
+      bundleOffset: state.bundleOffset == null ? null : isChunkedTf(state.symbol, state.tf) ? 0 : Math.max(0, state.bundleOffset - (OHLC_BASE[state.symbol+'_'+state.tf] || 0)),
       bundleT0: state.bundleOffset == null ? null : (state.bundleT0 ?? null)
     };
   }
