@@ -680,6 +680,7 @@
   .sync-panel{ max-width:460px; }
   .sync-code-big{ font:700 26px/1.2 var(--chart-font, monospace); letter-spacing:2px; text-align:center; padding:10px; border:1px dashed var(--line); border-radius:10px; user-select:all; }
   .sync-row{ display:flex; gap:8px; flex-wrap:wrap; margin:10px 0; }
+  .sync-row a.btn{ text-decoration:none; }
   #syncCodeInput{ font:600 18px var(--chart-font, monospace); letter-spacing:2px; text-transform:uppercase; }
   .del-trade-btn{ height:26px !important; padding:0 8px !important; font-size:12px !important; }
   .del-trade-btn:hover{ border-color:#EF5350 !important; background:rgba(239,83,80,0.15) !important; }
@@ -1713,6 +1714,12 @@
         <p class="sync-code-big" id="syncCodeShow"></p>
         <p class="menu-note">Auf dem anderen Gerät: TradeReplay öffnen → oben auf „Cloud“ bzw. „Lokal“ tippen → diesen Code eingeben.</p>
         <div class="sync-row"><button class="btn" id="syncNowBtn" type="button">⟳ Jetzt abgleichen</button><button class="btn" id="syncOffBtn" type="button">Trennen</button></div>
+      </div>
+      <div id="syncClaude" hidden>
+        <p>Hier in Claude kann das iPad nicht direkt verbunden werden. Nimm dafür auf <b>PC und iPad die Web-Version</b> – dort sind deine Sessions schon drin und alles wird live abgeglichen.</p>
+        <p class="sync-code-big" id="syncClaudeCode" hidden></p>
+        <div class="sync-row"><a class="btn tj-save" id="syncWebLink" href="https://noelpisaroni-cloud.github.io/tradereplay/" target="_blank" rel="noopener">Web-Version öffnen</a><button class="btn" id="syncClaudeNowBtn" type="button">⟳ Nur hier abgleichen</button></div>
+        <p class="menu-note">Adresse: noelpisaroni-cloud.github.io/tradereplay – dort oben auf den Punkt klicken und den Code eingeben (am iPad genauso).</p>
       </div>
       <div id="syncOff">
         <p>Mit einem gemeinsamen Code haben PC und iPad <b>dieselben Sessions</b> – alles wird automatisch abgeglichen.</p>
@@ -9180,6 +9187,10 @@
     if(chip) chip.addEventListener('click', async () => {
       if(!(window.claude && typeof window.claude.use === 'function')){ openSyncDialog(); return; }
       if(lsGet('tradereplay_nocloud_v1') === '1'){ try{ localStorage.removeItem('tradereplay_nocloud_v1'); }catch(e){} try{ location.reload(); }catch(e){} return; }
+      openSyncDialog();
+    });
+    document.getElementById('syncClaudeNowBtn').addEventListener('click', async () => {
+      closeSyncDialog();
       if(!CLOUD.on){ await cloudInit(); if(!CLOUD.on) return; }
       CLOUD.needFull = true; cloudSchedule(50);
     });
@@ -9199,6 +9210,20 @@
   })();
   // ----- Dialog "PC & iPad verbinden" (Web-Version) -----
   function openSyncDialog(){
+    const inClaude = !!(window.claude && typeof window.claude.use === 'function');
+    document.getElementById('syncClaude').hidden = !inClaude;
+    if(inClaude){
+      document.getElementById('syncOn').hidden = true; document.getElementById('syncOff').hidden = true;
+      document.getElementById('syncBackdrop').hidden = false;
+      // Code der Web-Version (in der Claude-Cloud hinterlegt): Link verbindet gleich mit
+      Promise.resolve(CLOUD.db || window.claude.use('db')).then(db => db.doc('meta/synclink').get()).then(d => {
+        const c = d && d.exists ? normSyncCode((d.data() || {}).code) : '';
+        if(!c) return;
+        document.getElementById('syncWebLink').href = 'https://noelpisaroni-cloud.github.io/tradereplay/#sync=' + fmtSyncCode(c);
+        const el = document.getElementById('syncClaudeCode'); el.textContent = fmtSyncCode(c); el.hidden = false;
+      }).catch(() => {});
+      return;
+    }
     const code = syncCode();
     document.getElementById('syncOn').hidden = !code;
     document.getElementById('syncOff').hidden = !!code;
