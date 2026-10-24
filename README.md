@@ -10,8 +10,10 @@ Replay-Trading-Übung (SMC/ICT): historische Kerzen Schritt für Schritt abspiel
 - `x_<Markt>_<Zeitrahmen>_<n>.js` – Langzeit-Archiv (kompakt gespeichert, wird nur bei Bedarf geladen und vor die eingebauten Daten gehängt)
 - `manifest.webmanifest`, `icon-*.png` – damit man die Seite auf dem iPad zum Home-Bildschirm hinzufügen kann
 
-## Auf dem iPad
-Link in Safari öffnen → Teilen → **Zum Home-Bildschirm**. Dann startet TradeReplay im Vollbild wie eine App.
+## Auf dem iPad (als App)
+**https://noelpisaroni-cloud.github.io/tradereplay/** in **Safari** öffnen (nicht in der Claude-App) → Teilen → **Zum Home-Bildschirm**. Dann startet TradeReplay im Vollbild wie eine App, ohne Claude. Oder `ipad-qr.png` mit der iPad-Kamera scannen.
+
+Die App merkt sich Seite und Kursdaten (`sw.js`): einmal mit Internet geöffnet, startet sie auch ohne Internet – mit allen schon angesehenen Zeitrahmen. Updates kommen beim nächsten Öffnen mit Internet automatisch.
 
 ## Sessions
 10 Sessions pro Markt (der Zeitrahmen ist nur die Ansicht). Gespeichert im Browser (localStorage) und – in der Claude-Version – zusätzlich in der Cloud. Zum Übertragen ohne Cloud: **Backup exportieren** / **Backup importieren**.
