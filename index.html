@@ -676,6 +676,10 @@
   body.review-mode #tfTabs, body.review-mode #symbolSelect, body.review-mode .draw-toolbar-v,
   body.review-mode #compBtn, body.review-mode .quick-trade{ opacity:.4; pointer-events:none; }
   .review-btn{ height:26px !important; padding:0 10px !important; font-size:12px !important; }
+  .sync-panel{ max-width:460px; }
+  .sync-code-big{ font:700 26px/1.2 var(--chart-font, monospace); letter-spacing:2px; text-align:center; padding:10px; border:1px dashed var(--line); border-radius:10px; user-select:all; }
+  .sync-row{ display:flex; gap:8px; flex-wrap:wrap; margin:10px 0; }
+  #syncCodeInput{ font:600 18px var(--chart-font, monospace); letter-spacing:2px; text-transform:uppercase; }
   .del-trade-btn{ height:26px !important; padding:0 8px !important; font-size:12px !important; }
   .del-trade-btn:hover{ border-color:#EF5350 !important; background:rgba(239,83,80,0.15) !important; }
   tr.jrow-win > td:first-child{ box-shadow:inset 3px 0 0 #26A69A; }
@@ -1696,6 +1700,28 @@
   </div>
 </div>
 
+<div class="modal-backdrop" id="syncBackdrop" hidden>
+  <div class="modal-panel sync-panel" role="dialog" aria-labelledby="syncTitle">
+    <div class="modal-head">
+      <h3 id="syncTitle">PC &amp; iPad verbinden</h3>
+      <button class="mini-btn" id="syncCloseBtn" title="Schließen">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="syncOn" hidden>
+        <p>✅ Dieses Gerät ist verbunden. Sessions, Trades, Zeichnungen und Journal sind auf allen Geräten mit diesem Code gleich und werden automatisch abgeglichen.</p>
+        <p class="sync-code-big" id="syncCodeShow"></p>
+        <p class="menu-note">Auf dem anderen Gerät: TradeReplay öffnen → oben auf „Cloud“ bzw. „Lokal“ tippen → diesen Code eingeben.</p>
+        <div class="sync-row"><button class="btn" id="syncNowBtn" type="button">⟳ Jetzt abgleichen</button><button class="btn" id="syncOffBtn" type="button">Trennen</button></div>
+      </div>
+      <div id="syncOff">
+        <p>Mit einem gemeinsamen Code haben PC und iPad <b>dieselben Sessions</b> – alles wird automatisch abgeglichen.</p>
+        <label class="menu-field"><span>Code eingeben</span><input type="text" id="syncCodeInput" placeholder="XXXX-XXXX-XXXX" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="16"></label>
+        <div class="sync-row"><button class="btn tj-save" id="syncJoinBtn" type="button">Verbinden</button><button class="btn" id="syncNewBtn" type="button">Neuen Code erstellen</button></div>
+        <p class="menu-note" id="syncMsg"></p>
+      </div>
+    </div>
+  </div>
+</div>
 <div class="modal-backdrop" id="sessOvBackdrop" hidden>
   <div class="modal-panel sess-ov-panel" role="dialog" aria-labelledby="sessOvTitle">
     <div class="modal-head">
@@ -8614,11 +8640,116 @@
     el.title = tip;
   }
 
+  // ----- Eigener Abgleich fuer die Web-Version (PC + iPad): Supabase-Projekt "tradereplay".
+  // Zugriff nur ueber Funktionen, die einen geheimen Geraete-Code verlangen (ohne Code keine Daten).
+  // Dieselbe Schnittstelle wie die Claude-Datenbank (doc/collection) — der ganze Abgleich oben bleibt gleich.
+  const SYNC_RPC = 'https://dwmcsoafamcgwsefqbbi.supabase.co/rest/v1/rpc/', SYNC_KEY = 'sb_publishable_QeBfUlQLp3Z5glcmvAPB-A_qcoIbNvb';
+  const SYNC_CODE_KEY = 'tradereplay_sync_code_v1', SYNC_ALPHA = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  function normSyncCode(v){ const c = String(v || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); return c.length === 12 ? c : null; }
+  function syncCode(){ return normSyncCode(lsGet(SYNC_CODE_KEY)); }
+  function fmtSyncCode(c){ return c ? c.slice(0, 4) + '-' + c.slice(4, 8) + '-' + c.slice(8, 12) : ''; }
+  function newSyncCode(){ const a = new Uint32Array(12); crypto.getRandomValues(a); return Array.from(a, x => SYNC_ALPHA[x % SYNC_ALPHA.length]).join(''); }
+  // Link mit #sync=XXXX-XXXX-XXXX verbindet das Geraet direkt (Code danach aus der Adresse entfernen)
+  (function takeSyncFromUrl(){
+    const m = /[#&?]sync=([A-Za-z0-9-]{12,20})/.exec((location.hash || '') + (location.search || ''));
+    if(!m) return;
+    const c = normSyncCode(m[1]); if(c) lsSet(SYNC_CODE_KEY, c);
+    try{ history.replaceState(null, '', location.pathname); }catch(e){}
+  })();
+  function syncDb(code){
+    const pcode = 'TRSYNC' + code + 'TRSYNC';
+    const rpc = async (fn, args) => {
+      let r;
+      try{
+        r = await fetch(SYNC_RPC + fn, { method:'POST', headers:{ apikey:SYNC_KEY, Authorization:'Bearer ' + SYNC_KEY, 'Content-Type':'application/json' }, body: JSON.stringify(Object.assign({ p_code:pcode }, args)) });
+      }catch(e){ throw { code:'offline', message:'Keine Verbindung' }; }
+      if(!r.ok){ let t = ''; try{ t = await r.text(); }catch(e){} throw { code:'sync_http_' + r.status, message:'Abgleich-Fehler ' + r.status + (t ? ': ' + t.slice(0, 120) : '') }; }
+      const t = await r.text(); return t ? JSON.parse(t) : null;
+    };
+    const docRef = path => ({ id: path.split('/').pop(),
+      get: async () => { const d = await rpc('tr_get', { p_path:path }); return { exists: d != null, data: () => d, id: path.split('/').pop() }; },
+      set: async data => { await rpc('tr_set', { p_path:path, p_data:data }); } });
+    const coll = (name, opts) => ({
+      limit: () => coll(name, opts),
+      where: (f, o, v) => coll(name, Object.assign({}, opts, { where:[f, v] })),
+      get: async () => {
+        let rows = (await rpc('tr_list', { p_coll:name })) || [];
+        if(opts.where) rows = rows.filter(r => r && r.data && r.data[opts.where[0]] === opts.where[1]);
+        const docs = rows.map(r => ({ id:r.id, data: () => r.data }));
+        return { docs, size:docs.length, empty:!docs.length };
+      } });
+    return { doc: docRef, collection: n => coll(n, {}) };
+  }
+
+  // Erstes Verbinden eines Geraets: eine hier gespielte Session, die es in der Cloud nicht gibt, deren Platz
+  // dort aber schon eine ANDERE gespielte Session belegt, wird auf einen freien Platz verschoben (nicht
+  // ueberschrieben). Kein freier Platz mehr -> Archiv. Liefert die Verschiebungen.
+  const SYNC_JOINED_KEY = 'tradereplay_sync_joined_v1';
+  async function syncJoinRelocate(db){
+    const snap = await db.collection('smeta').get();
+    const metas = {}; snap.docs.forEach(d => { const m = d.data(); if(m && m.k != null) metas[sessId(m.k, m.slot)] = m; });
+    // erst alles Noetige aus dem Netz holen, dann ohne Unterbrechung lokal umsortieren
+    const pre = loadSessionGroups(), cloudP = {};
+    for(const key of Object.keys(pre)){
+      if(LEGACY_GROUP_RE.test(key)) continue;
+      for(let slot = 0; slot < (pre[key] || []).length; slot++){
+        const m = metas[sessId(key, slot)];
+        if(!sessNonPristine(pre[key][slot]) || !m || !m.np) continue;
+        const d = await db.doc('sess/' + sessId(key, slot)).get();
+        cloudP[sessId(key, slot)] = d.exists ? cloudDecodeSession(d.data()) : null;
+      }
+    }
+    try{ saveState(); }catch(e){}
+    const groups = loadSessionGroups(), moved = [];
+    let changed = false;
+    for(const key of Object.keys(groups)){
+      if(LEGACY_GROUP_RE.test(key)) continue;
+      const list = groups[key] || [];
+      for(let slot = 0; slot < list.length; slot++){
+        const p = list[slot], id = sessId(key, slot), m = metas[id];
+        if(!sessNonPristine(p) || !m || !m.np || !(id in cloudP)) continue;
+        const cp = cloudP[id];
+        if(cp && sessSameIdentity(p, cp)) continue;   // dieselbe Session: normaler Abgleich
+        let free = -1;
+        for(let i = 0; i < SESSION_SLOTS; i++){
+          if(i === slot || moved.some(x => x.key === key && x.to === i)) continue;
+          const cm = metas[sessId(key, i)];
+          if((!cm || !cm.np) && !sessNonPristine(list[i])){ free = i; break; }
+        }
+        if(free < 0) archiveSession(p, key, slot, 'beim Verbinden der Geräte (alle Plätze belegt)');
+        else { list[free] = Object.assign({}, p, { savedAt: Date.now() }); CLOUD.dirty[sessId(key, free)] = { k:key, slot:free }; }
+        list[slot] = null; changed = true;
+        moved.push({ key, from: slot, to: free });
+        if(key === slotGroupKey(state.symbol, state.tf) && slot === state.activeSlot && free >= 0) state.activeSlot = free;
+      }
+      groups[key] = list;
+    }
+    if(changed){ saveSessionGroups(groups); try{ renderSessionSlotsUI(); persistLastView(); }catch(e){} }
+    return moved;
+  }
+  function reportRelocations(moved){
+    if(!moved || !moved.length) return;
+    const txt = moved.map(x => (SYMBOL_NAME[x.key.replace(/_M$/, '')] || x.key) + ': Session ' + (x.from + 1) + (x.to >= 0 ? ' → jetzt Session ' + (x.to + 1) : ' → ins Archiv (alle Plätze belegt)')).join(' · ');
+    CLOUD.justMoved = true;
+    showToast('Verbunden. Damit nichts überschrieben wird, wurden Sessions von diesem Gerät verschoben: ' + txt, 15000);
+  }
+
   // ----- Start -----
   async function cloudInit(){
     try{
       if(lsGet('tradereplay_nocloud_v1') === '1'){ cloudChip('manual'); return false; }
-      if(!(window.claude && typeof window.claude.use === 'function')){ cloudChip('off'); return false; }
+      if(!(window.claude && typeof window.claude.use === 'function')){
+        const code = syncCode();
+        if(!code){ cloudChip('off', 'Noch nicht mit dem anderen Gerät verbunden – antippen zum Verbinden'); return false; }
+        const db = syncDb(code);
+        if(lsGet(SYNC_JOINED_KEY) !== code){
+          // erstes Verbinden: erst eigene Sessions in Sicherheit bringen, sonst gar nicht abgleichen
+          try{ cloudChip('busy'); reportRelocations(await syncJoinRelocate(db)); lsSet(SYNC_JOINED_KEY, code); }
+          catch(e){ cloudChip('err', 'Verbinden noch nicht möglich (Internet?) – es wird gleich erneut versucht'); setTimeout(() => { if(!CLOUD.on) cloudInit().then(on => { if(on){ CLOUD.needFull = true; cloudSchedule(50); } }); }, 15000); return false; }
+        }
+        CLOUD.db = db; CLOUD.on = true; CLOUD.sync = true; cloudChip('ok');
+        return true;
+      }
       const p = window.claude.use('db');
       const db = await Promise.race([p, new Promise(r => setTimeout(() => r(null), 4000))]);
       // kam die Datenbank erst spaeter (z. B. nach der Erlaubnis-Abfrage), trotzdem noch einschalten
@@ -9046,6 +9177,7 @@
   (function cloudWire(){
     const chip = document.getElementById('cloudChip');
     if(chip) chip.addEventListener('click', async () => {
+      if(!(window.claude && typeof window.claude.use === 'function')){ openSyncDialog(); return; }
       if(lsGet('tradereplay_nocloud_v1') === '1'){ try{ localStorage.removeItem('tradereplay_nocloud_v1'); }catch(e){} try{ location.reload(); }catch(e){} return; }
       if(!CLOUD.on){ await cloudInit(); if(!CLOUD.on) return; }
       CLOUD.needFull = true; cloudSchedule(50);
@@ -9057,6 +9189,49 @@
     });
     window.addEventListener('pagehide', () => { if(CLOUD.on) cloudSchedule(10); });
     window.addEventListener('online', () => { if(CLOUD.on){ CLOUD.needFull = true; cloudSchedule(800); } });
+    // Live: alle paar Sekunden nachsehen, ob das andere Geraet etwas geaendert hat
+    setInterval(() => {
+      if(!CLOUD.on || CLOUD.running || CLOUD.timer || document.visibilityState !== 'visible' || state.reviewing) return;
+      if(Date.now() - (CLOUD.lastPollAt || 0) < (CLOUD.sync ? 5000 : 20000)) return;
+      CLOUD.lastPollAt = Date.now(); CLOUD.needFull = true; cloudSchedule(10);
+    }, 2000);
+  })();
+  // ----- Dialog "PC & iPad verbinden" (Web-Version) -----
+  function openSyncDialog(){
+    const code = syncCode();
+    document.getElementById('syncOn').hidden = !code;
+    document.getElementById('syncOff').hidden = !!code;
+    document.getElementById('syncCodeShow').textContent = fmtSyncCode(code);
+    document.getElementById('syncMsg').textContent = '';
+    document.getElementById('syncBackdrop').hidden = false;
+  }
+  function closeSyncDialog(){ document.getElementById('syncBackdrop').hidden = true; }
+  async function connectSync(code){
+    lsSet(SYNC_CODE_KEY, code);
+    try{ localStorage.removeItem('tradereplay_nocloud_v1'); }catch(e){}
+    CLOUD.on = false; CLOUD.pulledKeys = {};
+    const on = await cloudInit();
+    openSyncDialog();
+    if(!on){ document.getElementById('syncMsg').textContent = 'Gerade keine Verbindung – es wird automatisch erneut versucht.'; return; }
+    CLOUD.needFull = true; cloudSchedule(50);
+    if(!CLOUD.justMoved) showToast('Verbunden – deine Sessions werden jetzt abgeglichen.', 5000);
+  }
+  (function wireSync(){
+    const bd = document.getElementById('syncBackdrop');
+    document.getElementById('syncCloseBtn').addEventListener('click', closeSyncDialog);
+    bd.addEventListener('click', e => { if(e.target === bd) closeSyncDialog(); });
+    document.getElementById('syncJoinBtn').addEventListener('click', () => {
+      const c = normSyncCode(document.getElementById('syncCodeInput').value);
+      if(!c){ document.getElementById('syncMsg').textContent = 'Der Code hat 12 Zeichen, z. B. ABCD-EFGH-JKLM.'; return; }
+      connectSync(c);
+    });
+    document.getElementById('syncNewBtn').addEventListener('click', () => connectSync(newSyncCode()));
+    document.getElementById('syncNowBtn').addEventListener('click', () => { if(CLOUD.on){ CLOUD.needFull = true; cloudSchedule(50); showToast('Wird abgeglichen …'); } });
+    document.getElementById('syncOffBtn').addEventListener('click', () => {
+      try{ localStorage.removeItem(SYNC_CODE_KEY); }catch(e){}
+      CLOUD.on = false; CLOUD.sync = false; CLOUD.db = null; cloudChip('off'); openSyncDialog();
+      showToast('Getrennt – dieses Gerät speichert jetzt nur noch für sich.');
+    });
   })();
 
   window.addEventListener('beforeunload', saveState);
