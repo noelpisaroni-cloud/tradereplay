@@ -671,6 +671,18 @@
   .del-trade-btn{ height:26px !important; padding:0 8px !important; font-size:12px !important; }
   .del-trade-btn:hover{ border-color:#EF5350 !important; background:rgba(239,83,80,0.15) !important; }
   tr.jrow-win > td:first-child{ box-shadow:inset 3px 0 0 #26A69A; }
+  #journalBody tr[data-jrow]{ cursor:pointer; }
+  #journalBody tr[data-jrow]:hover > td{ background:rgba(255,255,255,0.03); }
+  .jr-head{ display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; padding:8px 12px 6px; }
+  .jr-sum{ display:flex; gap:14px; flex-wrap:wrap; font-size:12.5px; color:var(--ink-soft); }
+  .jr-sum b{ color:var(--ink); font-weight:700; }
+  .jr-filter{ display:flex; gap:4px; flex-wrap:wrap; }
+  .jr-filter button{ font:inherit; font-size:12px; padding:4px 10px; border-radius:999px; border:1px solid var(--line); background:transparent; color:var(--ink-soft); cursor:pointer; }
+  .jr-filter button.on{ background:var(--accent, #2962ff); border-color:transparent; color:#fff; }
+  .tj-crit{ display:flex; flex-direction:column; gap:4px; margin-top:8px; }
+  .tj-crit label{ display:flex; gap:8px; align-items:flex-start; font-size:13px; cursor:pointer; }
+  .tj-strat select{ width:100%; }
+  .tj-del{ border-color:rgba(239,83,80,0.5) !important; color:#EF5350 !important; }
   tr.jrow-loss > td:first-child{ box-shadow:inset 3px 0 0 #EF5350; }
   #historyBody td.note-cell{ max-width:220px; overflow:hidden; text-overflow:ellipsis; }
   /* Leiste ueber einer ausgewaehlten Zeichnung (wie bei TradingView): Farbe, Order, Alarm, Kopie */
@@ -1538,9 +1550,15 @@
       </button>
     </div>
     <div class="tab-body" id="journalTab">
+      <div class="jr-head">
+        <div class="jr-sum" id="journalSummary"></div>
+        <div class="jr-filter" id="journalFilter">
+          <button type="button" data-jf="all">Alle</button><button type="button" data-jf="win">Gewinner</button><button type="button" data-jf="loss">Verlierer</button><button type="button" data-jf="open">Nicht bewertet</button>
+        </div>
+      </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>#</th><th>Richtung</th><th>Einstieg</th><th>Ausstieg</th><th>Kurs ein</th><th>Kurs aus</th><th>Größe</th><th>Hebel</th><th>Grund</th><th>Strategie</th><th>Score</th><th>Journal</th><th>PnL</th><th></th></tr></thead>
+          <thead><tr><th>#</th><th>Richtung</th><th>Einstieg</th><th>Ausstieg</th><th>Dauer</th><th>Kurs ein</th><th>Kurs aus</th><th>Größe</th><th>Hebel</th><th>Grund</th><th>Strategie</th><th>Score</th><th>Journal</th><th>R</th><th>PnL</th><th></th></tr></thead>
           <tbody id="journalBody"></tbody>
         </table>
       </div>
@@ -1687,6 +1705,8 @@
     </div>
     <div class="modal-body">
       <div class="tj-summary" id="tjSummary"></div>
+      <div class="tj-sec tj-strat"><div class="tj-h">Strategie <small>(nachträglich ändern – der Score wird neu berechnet)</small></div>
+        <select class="full" id="tjStrategy"></select><div class="tj-crit" id="tjCrit"></div></div>
       <div class="tj-sec"><div class="tj-h">Setup <small>(mehrere möglich)</small></div><div class="tj-chips" id="tjSetups"></div>
         <div class="tj-add"><input type="text" id="tjSetupNew" placeholder="Eigenes Setup hinzufügen …" maxlength="30"><button class="btn" id="tjSetupAdd" type="button">+ Hinzufügen</button></div></div>
       <div class="tj-sec"><div class="tj-h">Gefühl beim Trade</div><div class="tj-chips" id="tjEmotion"></div></div>
@@ -1699,6 +1719,7 @@
     <div class="tj-foot">
       <label class="toggle-en"><input type="checkbox" id="tjAutoOpen"> Nach jedem Trade öffnen</label>
       <span class="spacer"></span>
+      <button class="btn tj-del" id="tjDeleteBtn" type="button" title="Diesen Trade löschen (mit Rückfrage)">🗑 Löschen</button>
       <button class="btn" id="tjReviewBtn" type="button">Im Chart ansehen</button>
       <button class="btn" id="tjSkipBtn" type="button">Später</button>
       <button class="btn tj-save" id="tjSaveBtn" type="button">Speichern</button>
@@ -5886,19 +5907,41 @@
     els.progressTime.textContent = state.data.length ? fmtTime(currentBar().time)+' UTC' : '–';
   }
 
+  // Dauer eines Trades (Sekunden) kurz: 25 Min, 3,5 Std, 2,0 Tage
+  function fmtDur(sec){
+    if(sec == null || !isFinite(sec) || sec < 0) return '–';
+    return sec >= 86400 ? (sec / 86400).toFixed(1).replace('.', ',') + ' Tage' : sec >= 3600 ? (sec / 3600).toFixed(1).replace('.', ',') + ' Std' : Math.max(1, Math.round(sec / 60)) + ' Min';
+  }
+  function fmtR(r){ return r == null || !isFinite(r) ? '–' : (r >= 0 ? '+' : '') + r.toFixed(2).replace('.', ',') + ' R'; }
+  const JOURNAL_FILTER_KEY = 'tradereplay_journal_filter_v1';
+  let journalFilter = (() => { try{ const v = localStorage.getItem(JOURNAL_FILTER_KEY); return ['all','win','loss','open'].includes(v) ? v : 'all'; }catch(e){ return 'all'; } })();
   function renderJournal(){
     const body = els.journalBody;
+    document.querySelectorAll('#journalFilter [data-jf]').forEach(b => b.classList.toggle('on', b.dataset.jf === journalFilter));
+    const sumEl = document.getElementById('journalSummary');
+    // Summen ueber ganze Trades (Teilverkaeufe zusammen)
+    const { nr } = tradeNumbers();
+    const byNr = new Map();
+    state.journal.forEach((t, i) => { const g = byNr.get(nr[i]) || { pnl:0, r:0, hasR:false }; g.pnl += +t.pnl || 0; if(t.rMultiple != null && isFinite(t.rMultiple)){ g.r += t.rMultiple; g.hasR = true; } byNr.set(nr[i], g); });
+    const groups = [...byNr.values()], wins = groups.filter(g => g.pnl > 0).length, sumPnl = groups.reduce((a, g) => a + g.pnl, 0);
+    const rs = groups.filter(g => g.hasR), sumR = rs.reduce((a, g) => a + g.r, 0);
+    if(sumEl) sumEl.innerHTML = groups.length
+      ? `<span><b>${groups.length}</b> Trade${groups.length === 1 ? '' : 's'}</span><span><b class="up-txt">${wins}</b> Gewinner · <b class="down-txt">${groups.length - wins}</b> Verlierer</span>`
+        + `<span>Trefferquote <b>${Math.round(wins / groups.length * 100)} %</b></span><span>Summe <b class="${sumPnl >= 0 ? 'up-txt' : 'down-txt'}">${usdSigned(sumPnl)}</b></span>`
+        + (rs.length ? `<span>Summe <b class="${sumR >= 0 ? 'up-txt' : 'down-txt'}">${fmtR(sumR)}</b> · Ø <b>${fmtR(sumR / rs.length)}</b></span>` : '')
+      : '';
     if(!state.journal.length){
-      body.innerHTML = '<tr><td colspan="14"><div class="empty">Noch keine geschlossenen Trades in dieser Session.</div></td></tr>';
+      body.innerHTML = '<tr><td colspan="16"><div class="empty">Noch keine geschlossenen Trades in dieser Session.</div></td></tr>';
       return;
     }
-    const { nr } = tradeNumbers();
-    body.innerHTML = state.journal.map((t,idx) => `
-      <tr data-jrow="${idx}" class="${(t.pnl || 0) > 0 ? 'jrow-win' : 'jrow-loss'}">
+    const show = t => journalFilter === 'all' || (journalFilter === 'win' ? (t.pnl || 0) > 0 : journalFilter === 'loss' ? (t.pnl || 0) <= 0 : !tjHasEntry(t));
+    const rows = state.journal.map((t, idx) => show(t) ? `
+      <tr data-jrow="${idx}" class="${(t.pnl || 0) > 0 ? 'jrow-win' : 'jrow-loss'}" title="Klicken: Trade bearbeiten (Strategie, Setup, Notizen …)">
         <td class="num"><b>#${nr[idx]}</b>${t.partialFrac ? '<small class="muted"> Teil</small>' : ''}</td>
         <td><span class="chip ${t.side}">${t.side==='long'?'Long':'Short'}</span></td>
         <td class="num">${fmtTime(t.entryTime)}</td>
         <td class="num">${fmtTime(t.exitTime)}</td>
+        <td class="num">${fmtDur(t.exitTime != null && t.entryTime != null ? t.exitTime - t.entryTime : null)}</td>
         <td class="num">${px(t.entryPrice)}</td>
         <td class="num">${px(t.exitPrice)}</td>
         <td class="num">${usd(t.notional,0)}</td>
@@ -5907,10 +5950,18 @@
         <td>${t.strategyName ? escapeHtml(t.strategyName) : '<span class="chip manual">–</span>'}</td>
         <td>${scoreBadgeHtml(t.score, t.grade, t.feedback)}</td>
         <td>${tjCellHtml(t)}</td>
+        <td class="num ${(t.rMultiple || 0) >= 0 ? 'up-txt' : 'down-txt'}">${fmtR(t.rMultiple)}</td>
         <td class="num ${t.pnl>=0?'up-txt':'down-txt'}">${usdSigned(t.pnl)}</td>
-        <td style="white-space:nowrap"><button class="btn tj-edit" data-tj-open="${escapeHtml(histKey(t))}" title="Journal: Setup, Gefühl, Fehler, Bewertung">✎ Journal</button> <button class="btn" data-focus-journal="${idx}" title="Im Chart zu diesem Trade springen (Einstieg → Ausstieg wird hervorgehoben)">📍 Im Chart</button> <button class="btn review-btn" data-rv-journal="${idx}" title="Trade im Chart ansehen – mit deinen Zeichnungen">Ansehen</button> <button class="btn del-trade-btn" data-del-journal="${idx}" title="Trade löschen (mit Rückfrage)" aria-label="Trade löschen">🗑</button></td>
-      </tr>`).reverse().join('');
+        <td style="white-space:nowrap"><button class="btn tj-edit" data-tj-open="${escapeHtml(histKey(t))}" title="Trade bearbeiten: Strategie, Setup, Gefühl, Fehler, Bewertung, Notizen">✎ Bearbeiten</button> <button class="btn" data-focus-journal="${idx}" title="Im Chart zu diesem Trade springen (Einstieg → Ausstieg wird hervorgehoben)">📍 Im Chart</button> <button class="btn review-btn" data-rv-journal="${idx}" title="Trade im Chart ansehen – mit deinen Zeichnungen">Ansehen</button> <button class="btn del-trade-btn" data-del-journal="${idx}" title="Trade löschen (mit Rückfrage)" aria-label="Trade löschen">🗑</button></td>
+      </tr>` : '').reverse().join('');
+    body.innerHTML = rows || '<tr><td colspan="16"><div class="empty">Keine Trades für diesen Filter.</div></td></tr>';
   }
+  document.getElementById('journalFilter').addEventListener('click', e => {
+    const b = e.target.closest('[data-jf]'); if(!b) return;
+    journalFilter = b.dataset.jf;
+    try{ localStorage.setItem(JOURNAL_FILTER_KEY, journalFilter); }catch(err){}
+    renderJournal();
+  });
 
   function deleteTrades(keys){
     keys = new Set(keys);
@@ -7529,7 +7580,12 @@
     const fb = e.target.closest('[data-focus-journal]');
     if(fb){ focusTradeInChart(+fb.dataset.focusJournal); return; }
     const b = e.target.closest('[data-rv-journal]');
-    if(!b) return;
+    if(!b){
+      // Klick irgendwo in der Zeile (nicht auf Knoepfe): Trade bearbeiten
+      const row = e.target.closest('tr[data-jrow]');
+      if(row && !e.target.closest('button, a, input, select, textarea')){ const t = state.journal[+row.dataset.jrow]; if(t) openTradeJournal(histKey(t)); }
+      return;
+    }
     const j = state.journal[+b.dataset.rvJournal];
     if(!j) return;
     // Die Zeichnungen liegen in der Trade-Historie; aeltere Journal-Eintraege tragen sie noch selbst.
@@ -7586,16 +7642,30 @@
     document.getElementById('tjMistakes').innerHTML = TJ_MISTAKES.map(x => tjChip(x, d.mistakes.includes(x), `data-tj-mis="${escapeHtml(x)}"`, 'bad')).join('');
     document.getElementById('tjStars').innerHTML = [1,2,3,4,5].map(n => `<button type="button" class="tj-star${d.rating >= n ? ' on' : ''}" data-tj-star="${n}" title="${n} von 5">★</button>`).join('');
   }
+  // Strategie des Trades (auch eine inzwischen geloeschte bleibt waehlbar) und ihre Kriterien
+  function tjRenderStrategy(){
+    const d = tj.draft; if(!d) return;
+    const sel = document.getElementById('tjStrategy');
+    const opts = state.strategies.map(st => ({ id: st.id, name: st.name }));
+    if(d.strategyId && !opts.some(o => o.id === d.strategyId)) opts.push({ id: d.strategyId, name: (d.strategyName || 'Strategie') + ' (gelöscht)' });
+    sel.innerHTML = '<option value="">– Keine –</option>' + opts.map(o => `<option value="${escapeHtml(o.id)}">${escapeHtml(o.name)}</option>`).join('');
+    sel.value = d.strategyId || '';
+    document.getElementById('tjCrit').innerHTML = d.checklist.length
+      ? '<small class="muted">Welche Kriterien waren erfüllt?</small>' + d.checklist.map((c, i) => `<label><input type="checkbox" data-tj-crit="${i}" ${c.checked ? 'checked' : ''}> ${escapeHtml(c.text || '')}</label>`).join('')
+      : (d.strategyId ? '<small class="muted">Diese Strategie hat keine Kriterien.</small>' : '');
+  }
   function openTradeJournal(key){
     const f = tjFind(key), t = f.h || f.s; if(!t) return;
     try{ pause(); }catch(e){}
     const j = t.j || {};
     tj.key = key;
-    tj.draft = { setups: (j.setups || []).slice(), emotion: j.emotion || '', plan: j.plan || '', mistakes: (j.mistakes || []).slice(), rating: j.rating || 0 };
+    tj.draft = { setups: (j.setups || []).slice(), emotion: j.emotion || '', plan: j.plan || '', mistakes: (j.mistakes || []).slice(), rating: j.rating || 0,
+      strategyId: t.strategyId || '', strategyName: t.strategyName || '', checklist: (Array.isArray(t.checklist) ? t.checklist : []).map(c => ({ id:c.id, text:c.text, checked:!!c.checked })) };
     document.getElementById('tjNote').value = t.note || '';
     document.getElementById('tjLesson').value = j.lesson || '';
     document.getElementById('tjAutoOpen').checked = tjAutoOn();
     document.getElementById('tjReviewBtn').hidden = !f.h;
+    tjRenderStrategy();
     tjRender();
     document.getElementById('tjBackdrop').hidden = false;
   }
@@ -7605,7 +7675,15 @@
     const d = tj.draft;
     const j = { setups:d.setups, emotion:d.emotion, plan:d.plan, mistakes:d.mistakes, rating:d.rating, lesson: document.getElementById('tjLesson').value.trim(), at: Date.now() };
     const note = document.getElementById('tjNote').value.trim();
-    [f.h, f.s].forEach(t => { if(t){ t.j = j; t.note = note; } });
+    const strat = d.strategyId ? findStrategy(d.strategyId) : null;
+    const strategyName = d.strategyId ? (strat ? strat.name : (d.strategyName || null)) : null;
+    const checklist = d.checklist.map(c => ({ id:c.id, text:c.text, checked:!!c.checked }));
+    [f.h, f.s].forEach(t => { if(t){
+      t.j = j; t.note = note;
+      t.strategyId = d.strategyId || null; t.strategyName = strategyName; t.checklist = checklist;
+      // Score passt sich an die (geaenderten) Kriterien an
+      try{ const sc = computeTradeScore(checklist, t.rrRatio, t.rMultiple, t.pnl); t.score = sc.score; t.grade = sc.grade; t.feedback = sc.feedback; }catch(e){}
+    } });
     saveTradeHistory();
     saveState();
     renderJournal(); refreshHistoryTabIfOpen();
@@ -7634,6 +7712,26 @@
     document.getElementById('tjSetupAdd').addEventListener('click', addSetup);
     document.getElementById('tjSetupNew').addEventListener('keydown', e => { if(e.key === 'Enter'){ e.preventDefault(); addSetup(); } });
     document.getElementById('tjSaveBtn').addEventListener('click', saveTradeJournal);
+    document.getElementById('tjStrategy').addEventListener('change', e => {
+      const d = tj.draft; if(!d) return;
+      const st = findStrategy(e.target.value), prev = new Map(d.checklist.map(c => [c.id, c.checked]));
+      d.strategyId = st ? st.id : ''; d.strategyName = st ? st.name : '';
+      d.checklist = st ? st.checklist.map(c => ({ id:c.id, text:c.text, checked: !!prev.get(c.id) })) : [];
+      tjRenderStrategy();
+    });
+    document.getElementById('tjCrit').addEventListener('change', e => {
+      const i = e.target && e.target.dataset ? e.target.dataset.tjCrit : null; const d = tj.draft;
+      if(i != null && d && d.checklist[+i]) d.checklist[+i].checked = e.target.checked;
+    });
+    document.getElementById('tjDeleteBtn').addEventListener('click', () => {
+      const key = tj.key; if(!key) return;
+      closeTradeJournal();
+      const i = state.journal.findIndex(t => histKey(t) === key);
+      if(i >= 0){
+        const { nr } = tradeNumbers(); const recs = state.journal.filter((t, k) => nr[k] === nr[i]);
+        askDeleteTrades(recs, 'Trade #' + nr[i] + (recs.length > 1 ? ' (mit ' + recs.length + ' Teilen)' : ''));
+      } else { const t = state.tradeHistory.find(x => histKey(x) === key); if(t) askDeleteTrades([t], 'Trade ' + (SYMBOL_NAME[t.symbol] || t.symbol || '') + ' ' + (t.side === 'long' ? 'Long' : 'Short') + ' (' + usdSigned(t.pnl || 0) + ')'); }
+    });
     document.getElementById('tjSkipBtn').addEventListener('click', closeTradeJournal);
     document.getElementById('tjCloseBtn').addEventListener('click', closeTradeJournal);
     document.getElementById('tjAutoOpen').addEventListener('change', e => { try{ localStorage.setItem(TJ_AUTO_KEY, e.target.checked ? '1' : '0'); }catch(err){} });
@@ -8731,7 +8829,10 @@
           // gleicher Trade: die neuere Journal-Bewertung gewinnt (in beide Richtungen)
           const lt = localByKey.get(k); if(!lt) return;
           const ca = (t.j && t.j.at) || 0, la = (lt.j && lt.j.at) || 0;
-          if(ca > la){ lt.j = t.j; lt.note = t.note; jChanged = true; const sj = state.journal.find(x => histKey(x) === k); if(sj){ sj.j = t.j; sj.note = t.note; } }
+          if(ca > la){
+            const copy = x => { x.j = t.j; x.note = t.note; ['strategyId','strategyName','checklist','score','grade','feedback'].forEach(f => { if(f in t) x[f] = t[f]; }); };
+            copy(lt); jChanged = true; const sj = state.journal.find(x => histKey(x) === k); if(sj) copy(sj);
+          }
           else if(la > ca) localOnly = true;
         });
       });
