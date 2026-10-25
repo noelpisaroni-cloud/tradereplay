@@ -117,6 +117,17 @@
   .panel-collapse-btn:hover{ border-color:var(--accent); color:var(--ink); }
   .panel-collapse-btn svg{ transition:transform .15s; }
   .panel-collapse-btn.collapsed svg{ transform:rotate(180deg); }
+  .panel-collapse-btn:not(.collapsed){ width:auto; padding:0 9px; gap:5px; font-size:12px; font-weight:600; color:var(--ink-soft); border-color:var(--line) !important; }
+  .panel-collapse-btn.collapsed .pcb-lbl{ display:none; }
+  @media (pointer:coarse){ .panel-collapse-btn{ min-width:34px; height:32px; } }
+  /* Alles unten ausgeblendet: Journal/Statistik und Kaufen-Leiste weg, der Chart bekommt den Platz */
+  html.bottom-hidden .tabs-panel, html.bottom-hidden .pro-tradebar{ display:none !important; }
+  html.bottom-hidden body{ padding-bottom:0 !important; }
+  #bottomToggleBtn .bt-arrow{ transition:transform .15s; transform-origin:12px 8.5px; }
+  html:not(.bottom-hidden) #bottomToggleBtn .bt-arrow{ transform:rotate(180deg); }
+  html:not([data-layout="pro"]) #bottomToggleBtn{ display:none; }
+  html:not([data-layout="pro"]) .panel-collapse-btn .pcb-lbl{ display:none; }
+  html.bottom-hidden #bottomToggleBtn{ color:var(--accent, #2962FF); border-color:var(--accent, #2962FF); }
   @media (max-width:980px){ .main-grid{ flex-direction:column; } .col-resize-handle{ display:none; } .order-col{ width:100% !important; } }
 
   .panel{ background:var(--panel); border:1px solid var(--line); border-radius:12px; box-shadow:var(--shadow); }
@@ -1405,6 +1416,7 @@
               <div class="session-actions">
                 <button class="btn" id="newSessionBtn" title="Neue Zufalls-Session aus dem aktuellen Markt starten"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg>Neue Zufalls-Session</button>
                 <button class="btn" id="restartSessionBtn" title="Dieselbe Session von vorn beginnen">↺ Neustart</button>
+                <button class="btn icon" id="bottomToggleBtn" type="button" title="Journal, Statistik und Kaufen-Leiste unten aus-/einblenden"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 14h18"/><path class="bt-arrow" d="M9.5 9.5L12 7l2.5 2.5"/></svg></button>
                 <div class="menu-wrap">
                   <button class="btn icon" id="sessionSettingsBtn" data-menu-btn="sessionMenu" aria-haspopup="true" aria-expanded="false" title="Session-Einstellungen"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
                   <div class="menu-pop right up" id="sessionMenu" hidden>
@@ -1560,8 +1572,8 @@
       <button data-tab="analysis">Analyse</button>
       <button data-tab="strategies">Strategien</button>
       <button data-tab="history">Alle Trades</button>
-      <button class="panel-collapse-btn" id="tabsCollapseBtn" title="Journal/Statistik ein-/ausblenden">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <button class="panel-collapse-btn" id="tabsCollapseBtn" title="Alles hier unten ausblenden – wieder einblenden mit dem Knopf rechts unter dem Chart">
+        <span class="pcb-lbl">Ausblenden</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
     </div>
     <div class="tab-body" id="journalTab">
@@ -2145,13 +2157,16 @@
       els.orderCol.classList.toggle('hidden-panel', hiding);
       els.sidebarResizeHandle.classList.toggle('hidden-panel', hiding);
     });
+    // Klassische Ansicht: Pfeil klappt nur Journal/Statistik ein (Profi-Ansicht: siehe setupProLayout)
+    if(document.documentElement.getAttribute('data-layout') !== 'pro'){
+      const tabsPanel = els.tabsCollapseBtn.closest('.tabs-panel');
+      els.tabsCollapseBtn.addEventListener('click', () => {
+        const collapsed = tabsPanel.classList.toggle('collapsed');
+        els.tabsCollapseBtn.classList.toggle('collapsed', collapsed);
+      });
+    }
 
-    // Collapse the Journal/Statistik card to reclaim vertical space.
-    const tabsPanel = els.tabsCollapseBtn.closest('.tabs-panel');
-    els.tabsCollapseBtn.addEventListener('click', () => {
-      const collapsed = tabsPanel.classList.toggle('collapsed');
-      els.tabsCollapseBtn.classList.toggle('collapsed', collapsed);
-    });
+
   })();
 
   // ---------- drawing tools (trendline / horizontal line / rectangle / fibonacci) ----------
@@ -7392,9 +7407,23 @@
     const tabsPanel = els.tabsCollapseBtn.closest('.tabs-panel');
     let open = false; try{ open = localStorage.getItem(TABS_KEY) === '1'; }catch(e){}
     tabsPanel.classList.toggle('collapsed', !open); els.tabsCollapseBtn.classList.toggle('collapsed', !open);
-    els.tabsCollapseBtn.addEventListener('click', () => { try{ localStorage.setItem(TABS_KEY, tabsPanel.classList.contains('collapsed') ? '0' : '1'); }catch(e){} });
+    const openTabs = () => { tabsPanel.classList.remove('collapsed'); els.tabsCollapseBtn.classList.remove('collapsed'); try{ localStorage.setItem(TABS_KEY, '1'); }catch(e){} };
+    // Alles unten (Journal/Statistik + Kaufen-Leiste) ganz ausblenden; Knopf rechts unter dem Chart blendet es wieder ein. Wird gemerkt.
+    const BOTTOM_KEY = 'tradereplay_bottom_hidden_v1';
+    const setBottomHidden = hide => {
+      document.documentElement.classList.toggle('bottom-hidden', hide);
+      $('bottomToggleBtn').title = hide ? 'Journal, Statistik und Kaufen-Leiste unten einblenden' : 'Journal, Statistik und Kaufen-Leiste unten ausblenden';
+      try{ localStorage.setItem(BOTTOM_KEY, hide ? '1' : '0'); }catch(e){}
+      if(!hide) openTabs();
+      try{ window.dispatchEvent(new Event('resize')); }catch(e){}
+    };
+    let bottomHidden = false; try{ bottomHidden = localStorage.getItem(BOTTOM_KEY) === '1'; }catch(e){}
+    if(bottomHidden) setBottomHidden(true);
+    $('bottomToggleBtn').addEventListener('click', () => setBottomHidden(!document.documentElement.classList.contains('bottom-hidden')));
+    // Pfeil in der Tab-Leiste: eingeklappt -> aufklappen, offen -> alles unten ausblenden
+    els.tabsCollapseBtn.addEventListener('click', () => { if(tabsPanel.classList.contains('collapsed')) openTabs(); else setBottomHidden(true); });
     tabsPanel.querySelector('.tab-heads').addEventListener('click', e => {
-      if(e.target.closest('button[data-tab]') && tabsPanel.classList.contains('collapsed')) els.tabsCollapseBtn.click();
+      if(e.target.closest('button[data-tab]') && tabsPanel.classList.contains('collapsed')) openTabs();
     });
 
     // Abspiel-Leiste: schwebt im Chart. Standardplatz oben in der Mitte (neben der Legende);
