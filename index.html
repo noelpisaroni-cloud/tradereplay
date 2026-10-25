@@ -692,6 +692,8 @@
   .sync-code-big{ font:700 26px/1.2 var(--chart-font, monospace); letter-spacing:2px; text-align:center; padding:10px; border:1px dashed var(--line); border-radius:10px; user-select:all; }
   .sync-row{ display:flex; gap:8px; flex-wrap:wrap; margin:10px 0; }
   .sync-row a.btn{ text-decoration:none; }
+  .sync-state{ font-size:12.5px; color:var(--ink-soft); margin:6px 0; }
+  .sync-state.err{ color:var(--down); font-weight:600; }
   #syncCodeInput{ font:600 18px var(--chart-font, monospace); letter-spacing:2px; text-transform:uppercase; }
   .del-trade-btn{ height:26px !important; padding:0 8px !important; font-size:12px !important; }
   .del-trade-btn:hover{ border-color:#EF5350 !important; background:rgba(239,83,80,0.15) !important; }
@@ -1724,6 +1726,7 @@
     <div class="modal-body">
       <div id="syncOn" hidden>
         <p>✅ Dieses Gerät ist verbunden. Sessions, Trades, Zeichnungen und Journal sind auf allen Geräten mit diesem Code gleich und werden automatisch abgeglichen.</p>
+        <p class="sync-state" id="syncState" hidden></p>
         <p class="sync-code-big" id="syncCodeShow"></p>
         <p class="menu-note">Auf dem anderen Gerät: TradeReplay öffnen → oben auf „Cloud“ bzw. „Lokal“ tippen → diesen Code eingeben.</p>
         <div class="sync-row"><button class="btn" id="syncNowBtn" type="button">⟳ Jetzt abgleichen</button><button class="btn" id="syncOffBtn" type="button">Trennen</button></div>
@@ -4127,7 +4130,8 @@
   function mergeExt(symbol, tf){
     const key = symbol + '_' + tf, parts = window.OHLC_X && window.OHLC_X[key];
     if(extMerged[key] || !parts) return;
-    const recent = window.OHLC[key] || [];
+    const recent = extSynth[key] || window.OHLC[key] || [];
+    delete extSynth[key];
     const firstRecent = recent.length ? +recent[0][0] : Infinity;
     const ext = [];
     for(const p of parts){ if(!p) continue; const rows = decodeExt(p); for(let i = 0; i < rows.length; i++) if(rows[i][0] < firstRecent) ext.push(rows[i]); }
@@ -4161,8 +4165,51 @@
       try{
         for(let i = 0; i < extParts; i++) await loadBundleFileOnce('x_' + key + '_' + i + '.js');
         mergeExt(symbol, tf);
-      }catch(e){ console.warn('Archiv-Daten für ' + key + ' nicht geladen:', e && e.message ? e.message : e); }
+      }catch(e){
+        console.warn('Archiv-Daten für ' + key + ' nicht geladen:', e && e.message ? e.message : e);
+        if(range){ try{ await synthFromFiner(symbol, tf, range); }catch(e2){ console.warn('Ersatz aus 5m nicht möglich:', e2 && e2.message ? e2.message : e2); } }
+      }
     });
+  }
+  // Ohne Archiv (z. B. beim ersten Mal ohne Internet): 15m bis 1T fuer den gebrauchten Zeitraum aus den 5m-Stuecken
+  // bauen, die das Geraet schon hat. Die Kerzen sind auf volle UTC-Zeiten ausgerichtet wie im Archiv (1T: Sonntag
+  // zaehlt zum Montag, Samstag frueh entfaellt), damit eine Session spaeter auch mit dem echten Archiv an derselben Stelle steht.
+  const extSynth = {};   // key -> nur die eingebauten neueren Kerzen (ohne gebaute), fuer das spaetere echte Archiv
+  const SYNTH_MAX_MS = 420 * 86400000;
+  async function synthFromFiner(symbol, tf, range){
+    const fine = '5m', tfMs = TF_MS[tf], key = symbol + '_' + tf, fk = symbol + '_' + fine;
+    if(!isChunkedTf(symbol, fine) || !tfMs || tfMs <= TF_MS[fine] || !range || !(range.to > range.from) || range.to - range.from > SYNTH_MAX_MS) return false;
+    await ensureBundledData(symbol, fine, range);
+    const src = (window.OHLC && window.OHLC[fk]) || [];
+    const recent = extSynth[key] || window.OHLC[key] || [];
+    const firstRecent = recent.length ? +recent[0][0] : Infinity;
+    const bucketOf = t => {
+      if(tfMs < 86400000) return Math.floor(t / tfMs) * tfMs;
+      let b = Math.floor(t / 86400000) * 86400000;
+      const wd = new Date(b).getUTCDay();
+      if(wd === 0) b += 86400000;        // Sonntagabend -> Montag
+      else if(wd === 6) return null;     // die paar Minuten Samstag frueh fehlen auch im Archiv
+      return b;
+    };
+    const out = []; let cur = null;
+    for(let i = 0; i < src.length; i++){
+      const r = src[i], t = +r[0];
+      if(t < range.from - tfMs) continue;
+      if(t > range.to || t >= firstRecent) break;
+      const b = bucketOf(t);
+      if(b == null) continue;
+      if(!cur || cur[0] !== b){ if(cur) out.push(cur); cur = [b, +r[1], +r[2], +r[3], +r[4], +r[5] || 0]; }
+      else { if(+r[2] > cur[2]) cur[2] = +r[2]; if(+r[3] < cur[3]) cur[3] = +r[3]; cur[4] = +r[4]; cur[5] += +r[5] || 0; }
+    }
+    if(cur) out.push(cur);
+    if(out.length < 50) return false;
+    extSynth[key] = recent;
+    window.OHLC[key] = out.concat(recent);
+    OHLC_BASE[key] = out.length;
+    try{ delete compBarsCache[key]; }catch(e){}
+    delete segCache[key];
+    Object.keys(activityThresholdCache).forEach(k => { if(k.indexOf(key + '|') === 0) delete activityThresholdCache[k]; });
+    return true;
   }
   // Zusammenhaengende Abschnitte der Daten (getrennt durch Luecken > 5 Tage, z. B. zwischen Archiv und neueren Daten)
   const SEG_GAP_MS = 5*86400000;
@@ -4428,7 +4475,12 @@
             chunkPick = range;
           }
           await ensureBundledData(symbol, tf, range);
-        } else await ensureBundledData(symbol, tf);
+        } else {
+          const tfMs = TF_MS[tf] || 900000;
+          const rr = (isRestore && opts.restoreBundleT0 != null) ? { from: +opts.restoreBundleT0, to: +opts.restoreBundleT0 + ((opts.restoreBarCount || totalBars) + 50) * tfMs * CHUNK_SPAN }
+            : (!isRestore && opts.targetStartMs != null) ? { from: opts.targetStartMs - 60*86400000, to: opts.targetStartMs + 300*86400000 } : undefined;
+          await ensureBundledData(symbol, tf, rr);
+        }
       } finally { showDataLoading(false); }
       const key = symbol+'_'+tf, rawAll = window.OHLC && window.OHLC[key];
       let raw = rawAll, segOff = 0;
@@ -4830,7 +4882,12 @@
           const rb = chunkRange(newTf, clockMs, CHUNK_LOOKBACK, BUNDLE_BAR_CAP), rs = chunkRange(newTf, startClockMs, 15000, 0);
           showDataLoading(true);
           try{ await ensureBundledData(state.symbol, newTf, { from: Math.max(rb.from, Math.min(rs.from, clockMs)), to: rb.to }); } finally { showDataLoading(false); }
-        } else await ensureBundledData(state.symbol, newTf);
+        } else {
+          // Zeitraum rund um den Replay-Moment — nur gebraucht, falls das Archiv fehlt und aus 5m gebaut wird
+          const sFrom = Math.max(Math.min(startClockMs, clockMs) - 45*86400000, clockMs - 220*86400000);
+          showDataLoading(true);
+          try{ await ensureBundledData(state.symbol, newTf, { from: sFrom, to: clockMs + 160*86400000 }); } finally { showDataLoading(false); }
+        }
         const raw = (window.OHLC && window.OHLC[state.symbol+'_'+newTf]) || [];
         if(!raw.length){
           showToast('Keine Kursdaten verfügbar für '+(SYMBOL_NAME[state.symbol]||state.symbol)+' ('+(TF_NAME[newTf]||newTf)+') – du bleibst auf '+(TF_NAME[oldTf]||oldTf)+'.', 7000);
@@ -6750,8 +6807,8 @@
     ensureSessionSlotsForCurrentSymbol().finally(()=>{ datasetLoadBusy = false; });
   });
   document.getElementById('tfTabs').addEventListener('click', e=>{
-    if(datasetLoadBusy) return;
     const btn = e.target.closest('button'); if(!btn) return;
+    if(datasetLoadBusy){ if(btn.dataset.tf !== state.tf) showToast('Einen Moment – die Kursdaten laden noch. Dann nochmal tippen.', 2500); return; }
     const newTf = btn.dataset.tf;
     if(newTf === state.tf) return;
     if(state.data.length){
@@ -9385,6 +9442,16 @@
     document.getElementById('syncOff').hidden = !!code;
     document.getElementById('syncCodeShow').textContent = fmtSyncCode(code);
     document.getElementById('syncMsg').textContent = '';
+    // Roter Punkt: sagen, was los ist (statt nur "verbunden")
+    const chipState = (document.getElementById('cloudChip') || {}).dataset || {};
+    const stEl = document.getElementById('syncState');
+    if(stEl){
+      const err = code && chipState.state === 'err';
+      stEl.hidden = !code;
+      stEl.className = 'sync-state' + (err ? ' err' : '');
+      stEl.textContent = err ? '⚠️ Gerade keine Verbindung zum Abgleich (Internet?). Es wird automatisch erneut versucht – alles, was du hier machst, bleibt auf diesem Gerät gespeichert und wird nachgeholt.'
+        : CLOUD.lastOkAt ? '✓ Zuletzt abgeglichen: ' + new Date(CLOUD.lastOkAt).toLocaleTimeString('de-DE', { hour:'2-digit', minute:'2-digit', second:'2-digit' }) : '';
+    }
     document.getElementById('syncBackdrop').hidden = false;
   }
   function closeSyncDialog(){ document.getElementById('syncBackdrop').hidden = true; }
