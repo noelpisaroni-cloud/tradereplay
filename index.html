@@ -2522,13 +2522,17 @@
     const fixP = p => (typeof p === 'number' && isFinite(p) && p > ref/1000 && p < ref*1000) ? p : ref;
     const TWO_POINT = { rect:1, trendline:1, fib:1, measure:1 };
     state.drawings = state.drawings.filter(d => !(TWO_POINT[d.type] && (!d.p1 || !d.p2 || (d.p1.time === d.p2.time && d.p1.price === d.p2.price))));
+    // Rechteck ohne Breite oder ohne Hoehe ist unsichtbar (meist zweimal an dieselbe Stelle getippt)
+    state.drawings = state.drawings.filter(d => !(d.type === 'rect' && d.p1 && d.p2 && !d.text && (d.p1.time === d.p2.time || Math.abs(d.p1.price - d.p2.price) < ref * 1e-5)));
     const bs = state.barSeconds || 900;
     state.drawings.forEach(d => {
       if(d.type==='posbox'){
         d.t1=fixT(d.t1); d.t2=fixT(d.t2);
         d.entryPrice=fixP(d.entryPrice); d.tpPrice=fixP(d.tpPrice); d.slPrice=fixP(d.slPrice);
         // Durch den frueheren Fehler auf null Breite gequetschte Boxen wieder normal breit machen
-        if(Math.abs(d.t2 - d.t1) < bs){ const r = Math.max(d.t1, d.t2); d.t1 = r - 25*bs; d.t2 = r; }
+        // Nur wirklich auf null zusammengefallene Boxen. Frueher: alles schmaler als EINE Kerze — beim Wechsel
+        // auf 4h/1T wurde so jede 5m-Box dauerhaft auf 25 grosse Kerzen gestreckt.
+        if(Math.abs(d.t2 - d.t1) < 1){ const r = Math.max(d.t1, d.t2); d.t1 = r - 25*bs; d.t2 = r; }
         if(d.t1 > d.t2){ const x = d.t1; d.t1 = d.t2; d.t2 = x; }
       } else if(d.p1){
         d.p1.time=fixT(d.p1.time); d.p1.price=fixP(d.p1.price);
@@ -2736,7 +2740,7 @@
       return { x:Math.min(x1,x2), y:Math.min(...ys), w:w-Math.min(x1,x2), h:Math.max(...ys)-Math.min(...ys) };
     }
     if(d.type==='posbox'){
-      const x1=xFromTimeRobust(d.t1), x2=xFromTimeRobust(d.t2);
+      const [x1, x2] = posboxXs(d);
       const yTp=yFromPriceRobust(d.tpPrice), ySl=yFromPriceRobust(d.slPrice);
       if(x1==null||x2==null||yTp==null||ySl==null) return null;
       return { x:Math.min(x1,x2), y:Math.min(yTp,ySl), w:Math.abs(x2-x1), h:Math.abs(ySl-yTp) };
@@ -3176,7 +3180,13 @@
   function drawRectLabel(svg, d, rx, ry, rw, rh){
     const lines = String(d.text || '').split('\n').filter(l => l.length);
     if(!lines.length) return;
-    const fs = Math.max(RECT_TEXT_MIN, Math.min(RECT_TEXT_MAX, +d.textSize || RECT_TEXT_DEFAULT)), lh = Math.round(fs * 1.2);
+    let fs = Math.max(RECT_TEXT_MIN, Math.min(RECT_TEXT_MAX, +d.textSize || RECT_TEXT_DEFAULT));
+    // Passt der Text nicht ins Rechteck (z. B. 5m-Zone auf 4h/1T), kleiner schreiben — ist es dafuer zu klein,
+    // nur noch beim Auswaehlen zeigen. Sonst ragte er weit ueber das Rechteck und verdeckte Kerzen/Schilder.
+    const longest = Math.max(...lines.map(l => l.length)), fitW = (rw - 8) / (longest * 0.62), fitH = (rh - 4) / (lines.length * 1.2);
+    fs = Math.min(fs, Math.floor(fitW), Math.floor(fitH));
+    if(fs < 9){ if(state.selectedDrawingId !== d.id) return; fs = 9; }
+    const lh = Math.round(fs * 1.2);
     const pos = RECT_TEXT_POS.includes(d.textPos) ? d.textPos : 'c';
     const blockH = lh * (lines.length - 1);
     const x = pos === 'tl' ? rx + 8 : rx + rw / 2, anchor = pos === 'tl' ? 'start' : 'middle';
@@ -3365,8 +3375,18 @@
   // three horizontal lines (target/entry/stop), square handles on the target/stop
   // corners, round handles on the entry line, and pill labels sitting outside the
   // zone they belong to (target above/below its line, stop the same on its side).
+  // Box-Kanten in Pixeln. Auf grossen Zeitrahmen ist eine 5m-Box oft schmaler als eine Kerze —
+  // dann nur in der Anzeige mindestens POSBOX_MIN_W breit (die gespeicherten Zeiten bleiben).
+  const POSBOX_MIN_W = TOUCH_UI ? 22 : 14;
+  function posboxXs(d){
+    let x1 = xFromTimeRobust(d.t1), x2 = xFromTimeRobust(d.t2);
+    if(x1 == null || x2 == null) return [null, null];
+    if(x2 < x1){ const t = x1; x1 = x2; x2 = t; }
+    if(x2 - x1 < POSBOX_MIN_W) x2 = x1 + POSBOX_MIN_W;
+    return [x1, x2];
+  }
   function renderPosbox(svg, d){
-    const x1 = xFromTimeRobust(d.t1), x2 = xFromTimeRobust(d.t2);
+    const [x1, x2] = posboxXs(d);
     const yTp = yFromPriceRobust(d.tpPrice), yEntry = yFromPriceRobust(d.entryPrice), ySl = yFromPriceRobust(d.slPrice);
     if(x1==null||x2==null||yTp==null||yEntry==null||ySl==null) return;
     const rx = Math.min(x1,x2), rw = Math.abs(x2-x1), cx = rx+rw/2;
@@ -3399,7 +3419,7 @@
     if(state.selectedDrawingId === d.id){
       svg.appendChild(svgPill(cx, tpLabelY + (yTp<yEntry ? -2 : 2), [`Ziel ${px(d.tpPrice)} · ${distLabel(d.tpPrice, d.entryPrice)} · +${usd(tpAmount, tpAmount < 100 ? 2 : 0)}${rrShort}`], '#167A65', '#FFFFFF', 1, 11.5));
       svg.appendChild(svgPill(cx, slLabelY + (ySl<yEntry ? -2 : 2), [`Stop ${px(d.slPrice)} · ${distLabel(d.slPrice, d.entryPrice)} · −${usd(slAmount, slAmount < 100 ? 2 : 0)}`], '#B23B3B', '#FFFFFF', 1, 11.5));
-    } else {
+    } else if(rw >= 40){
       const small = (y, txt, bg) => { const w = txt.length * 10 * 0.56 + 14; svg.appendChild(svgPill(rx + w/2 + 2, y, [txt], bg, '#FFFFFF', 0.85, 10)); };
       small(tpLabelY + (yTp<yEntry ? 1 : -1), '+' + distLabel(d.tpPrice, d.entryPrice) + (rr != null ? ' · 1:' + rr.toFixed(2).replace('.', ',') : ''), '#167A65');
       small(slLabelY + (ySl<yEntry ? 1 : -1), '−' + distLabel(d.slPrice, d.entryPrice), '#B23B3B');
@@ -3859,6 +3879,8 @@
     const sx = xFromTimeRobust(drawStart.time), sy = yFromPriceRobust(drawStart.price);
     const start = (sx!=null && sy!=null) ? { x:sx, y:sy } : drawStartXY;
     if(!start || Math.hypot(xy.x - start.x, xy.y - start.y) < TWO_POINT_MIN_PX) return false;
+    // Rechteck ohne Breite/Hoehe (z. B. Magnet hat beide Punkte auf dieselbe Kerze gezogen): weiter auf den zweiten Punkt warten
+    if(state.activeTool === 'rect' && (pt.time === drawStart.time || Math.abs(pt.price - drawStart.price) < drawStart.price * 1e-5)) return false;
     addDrawing({ type: state.activeTool, p1: drawStart, p2: pt });
     cancelTwoPoint();
     setActiveTool('cursor');
@@ -6994,7 +7016,7 @@
     function findPosboxHit(x,y,only){
       for(const d of (only ? [only] : state.drawings.slice().reverse())){
         if(d.type!=='posbox') continue;
-        const x1=xFromTimeRobust(d.t1), x2=xFromTimeRobust(d.t2);
+        const [x1, x2] = posboxXs(d);
         const yTp=yFromPriceRobust(d.tpPrice), yEntry=yFromPriceRobust(d.entryPrice), ySl=yFromPriceRobust(d.slPrice);
         if(x1==null||x2==null||yTp==null||yEntry==null||ySl==null) continue;
         const rx=Math.min(x1,x2), rw=Math.abs(x2-x1);
