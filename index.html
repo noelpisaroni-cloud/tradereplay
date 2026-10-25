@@ -4005,6 +4005,33 @@
   const CHUNK_SPAN = 1.45;           // Kerzen -> Kalenderzeit (Wochenenden ohne Kerzen)
   const CHUNK_LOOKBACK = 20000;      // 1m/5m: so viele Kerzen Vorlauf vor dem Replay-Moment beim Zeitrahmen-Wechsel
   const extChunkRows = {}, extChunkRecent = {}, extChunkFailed = {}, extChunkQueue = {};
+  // Web-Version (App-Modus): die Archive der groesseren Zeitrahmen (15m bis 1T) still im Hintergrund in den
+  // Speicher der App legen — dann klappt der Wechsel z. B. auf 30m auch spaeter ohne Internet. Einmal geladen,
+  // passiert hier nichts mehr (nur nachsehen, ob die Datei schon da ist).
+  function archivePrefetchAllowed(){
+    let test = false; try{ test = localStorage.getItem('tradereplay_sw_test') === '1'; }catch(e){}
+    return !window.claude && 'caches' in window && 'serviceWorker' in navigator && (/github\.io$/.test(location.hostname) || test);
+  }
+  async function prefetchArchives(){
+    if(!archivePrefetchAllowed()) return;
+    if(navigator.connection && navigator.connection.saveData) return;
+    let cache; try{ cache = await caches.open('tr-data-v1'); }catch(e){ return; }
+    const syms = [state.symbol].concat(Object.keys(EXT_DATA).filter(x => x !== state.symbol));
+    for(const sym of syms){
+      for(const tf of Object.keys(EXT_DATA[sym] || {})){
+        for(let i = 0; i < EXT_DATA[sym][tf]; i++){
+          const f = 'x_' + sym + '_' + tf + '_' + i + '.js';
+          try{
+            if(await cache.match(f)) continue;
+            if(navigator.onLine === false) return;
+            const r = await fetch(f, { cache:'no-cache' });
+            if(r.ok) await cache.put(f, r);
+          }catch(e){}
+          await new Promise(res => setTimeout(res, 1500));
+        }
+      }
+    }
+  }
   function isChunkedTf(symbol, tf){ return !!(EXT_CHUNKS[symbol] && EXT_CHUNKS[symbol][tf]); }
   function chunkIdOf(ms, months){ const d = new Date(ms); return d.getUTCFullYear()*100 + Math.floor(d.getUTCMonth()/months)*months + 1; }
   function nextChunkId(id, months){ let y = Math.floor(id/100), m = id % 100 + months; if(m > 12){ y++; m -= 12; } return y*100 + m; }
@@ -4796,7 +4823,9 @@
         while(lo <= hi){ const mid = (lo + hi) >> 1; if(+raw[mid][0] + (TF_MS[newTf]||900000) <= clockMs){ li = mid; lo = mid + 1; } else hi = mid - 1; }
         const seg = li >= 0 ? segmentOfIndex(segs, li) : segs[0];
         if(li < 0 || clockMs - (+raw[li][0]) > SEG_GAP_MS){
-          showToast((TF_NAME[newTf]||newTf)+' gibt es für diese Zeit ('+fmtMonthYear(clockMs)+') nicht. Vorhanden: '+segmentsText(key, raw)+'. Du bleibst auf '+(TF_NAME[oldTf]||oldTf)+'.', 9000);
+          const archMissing = !chunked && EXT_DATA[state.symbol] && EXT_DATA[state.symbol][newTf] && !extMerged[key];
+          if(archMissing) showToast('Die '+(TF_NAME[newTf]||newTf)+'-Kurse für '+fmtMonthYear(clockMs)+' konnten gerade nicht geladen werden – keine Internetverbindung? Tippe gleich nochmal auf '+newTf+'. Du bleibst auf '+(TF_NAME[oldTf]||oldTf)+'.', 9000);
+          else showToast((TF_NAME[newTf]||newTf)+' gibt es für diese Zeit ('+fmtMonthYear(clockMs)+') nicht. Vorhanden: '+segmentsText(key, raw)+'. Du bleibst auf '+(TF_NAME[oldTf]||oldTf)+'.', 9000);
           setActive(document.getElementById('tfTabs'), oldTf, 'tf');
           return;
         }
@@ -9483,6 +9512,8 @@
     if(state.data && state.data.length) bootHide(); else bootFail();
     renderActiveStrategySelect();
     if(CLOUD.on){ CLOUD.needFull = true; cloudSchedule(1200); }
+    setTimeout(() => { prefetchArchives().catch(() => {}); }, 20000);
+    window.addEventListener('online', () => setTimeout(() => { prefetchArchives().catch(() => {}); }, 5000));
   })();
 })();
 </script>
