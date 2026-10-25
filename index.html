@@ -711,6 +711,7 @@
   .sel-bar .sb-trade{ background:var(--up); border-color:var(--up); color:#fff; }
   .sel-bar .sb-trade.short{ background:var(--down); border-color:var(--down); }
   @media (pointer:coarse){ .sel-bar .sw{ width:28px; height:28px; } .sel-bar .sb-btn{ height:34px; padding:0 11px; } }
+  .sel-bar .sb-link{ font-size:12px; font-weight:600; color:var(--accent, #2962FF); padding:0 6px; white-space:nowrap; }
   .text-editor{ position:absolute; z-index:8; width:260px; max-width:calc(100% - 16px); padding:8px; border-radius:10px; background:var(--panel); border:1px solid var(--accent); box-shadow:0 12px 30px -10px rgba(0,0,0,.6); }
   .text-editor[hidden]{ display:none; }
   .text-editor textarea{ display:block; width:100%; resize:vertical; min-height:56px; padding:7px 9px; border-radius:7px; border:1px solid var(--line); background:var(--panel-alt); color:var(--ink); font:inherit; font-size:14px; line-height:1.4; }
@@ -2577,6 +2578,7 @@
     const now = new Set(state.drawings.map(d => d.id));
     state.drawTomb = state.drawTomb.filter(id => !now.has(id));
     if(state.selectedDrawingId && !state.drawings.some(d => d.id === state.selectedDrawingId)) deselectDrawing();
+    const lb = linkedBox(); if(lb) syncOrderFromBox(lb, true);
     renderDrawings();
     saveState();
   }
@@ -2896,15 +2898,18 @@
     const d = state.selectedDrawingId && !state.reviewing ? state.drawings.find(x => x.id === state.selectedDrawingId) : null;
     const bb = d ? getDrawingBBox(d) : null;
     if(!d || !bb || state.activeTool !== 'cursor'){ bar.hidden = true; selBarKey = ''; return; }
-    const key = [d.id, d.type, d.color || '', d.alert ? 1 : 0, d.text ? 1 : 0, d.textSize || '', d.textPos || '', state.position ? 1 : 0, state.pendingOrder ? 1 : 0, d.type === 'posbox' ? (d.tpPrice < d.entryPrice ? 's' : 'l') : ''].join('|');
+    const key = [d.id, d.type, d.color || '', d.alert ? 1 : 0, d.text ? 1 : 0, d.textSize || '', d.textPos || '', state.position ? 1 : 0, state.pendingOrder ? 1 : 0, d.type === 'posbox' ? (d.tpPrice < d.entryPrice ? 's' : 'l') + (boxLinkedTo(d) ? 'k' : '') : ''].join('|');
     if(key !== selBarKey){
       selBarKey = key;
       let html = '';
       if(d.type === 'posbox'){
         const isShort = d.tpPrice < d.entryPrice;
         const busy = !!(state.position || state.pendingOrder);
-        html += `<button class="sb-btn sb-trade${isShort ? ' short' : ''}" data-sb="trade" ${busy ? 'disabled title="Es läuft schon eine Position oder Order"' : 'title="Order mit genau diesem Einstieg, Ziel und Stop platzieren"'}>${isShort ? '▼' : '▲'} Order platzieren</button>`;
-        html += `<button class="sb-btn" data-sb="flip" title="Long ↔ Short umdrehen">⇅ ${isShort ? 'zu Long' : 'zu Short'}</button><span class="sb-sep"></span>`;
+        if(boxLinkedTo(d)) html += `<span class="sb-link" title="Ziel und Stop der Box ziehen – die Order wird mit angepasst">🔗 Order folgt der Box</span><span class="sb-sep"></span>`;
+        else {
+          html += `<button class="sb-btn sb-trade${isShort ? ' short' : ''}" data-sb="trade" ${busy ? 'disabled title="Es läuft schon eine Position oder Order"' : 'title="Order mit genau diesem Einstieg, Ziel und Stop platzieren"'}>${isShort ? '▼' : '▲'} Order platzieren</button>`;
+          html += `<button class="sb-btn" data-sb="flip" title="Long ↔ Short umdrehen">⇅ ${isShort ? 'zu Long' : 'zu Short'}</button><span class="sb-sep"></span>`;
+        }
       }
       if(COLORABLE[d.type]){
         const cur = drawColor(d, DEFAULT_DRAW_COLOR[d.type] || '');
@@ -2966,7 +2971,7 @@
     pushDrawUndo();
     const c = JSON.parse(JSON.stringify(d));
     c.id = 'd' + Date.now() + Math.floor(Math.random()*1000);
-    c.tv = 2; delete c.alert;
+    c.tv = 2; delete c.alert; delete c.linked;
     const shiftT = t => { const l = logicalFromTime(t); return l == null ? t : (timeFromLogical(l + 6) ?? t); };
     if(c.type === 'hline'){ const vb = visibleBoundsForClamp(); c.p1.price = c.p1.price + (vb ? (vb.pMax - vb.pMin) * 0.05 : c.p1.price * 0.002); }
     else {
@@ -2981,28 +2986,86 @@
   }
   // TP/SL-Box als echte Order: nahe am aktuellen Kurs sofort (Markt), sonst als Limit-Order am
   // Einstieg der Box. Ziel und Stop kommen exakt aus der Box, die Groesse aus dem Order-Feld.
+  // TP/SL-Box -> Order: erst Rueckfrage mit genau den Werten der Box, dann genau so platzieren.
+  // Danach sind Box und Order verbunden: Ziel/Stop (bei wartender Order auch Einstieg) der Box ziehen
+  // aendert die Order mit, und TP/SL-Linien der Position ziehen aendert die Box.
+  function boxLinkedTo(d){ const p = state.position, o = state.pendingOrder; return !!(d && ((p && p.boxId === d.id) || (o && o.boxId === d.id))); }
+  function linkedBox(){ const id = (state.position && state.position.boxId) || (state.pendingOrder && state.pendingOrder.boxId); return id ? state.drawings.find(d => d.id === id && d.type === 'posbox') || null : null; }
+  function boxSide(d){ return d.tpPrice > d.entryPrice ? 'long' : 'short'; }
+  function boxPlanText(d, entry){
+    const rr = Math.abs(d.tpPrice - entry) / Math.abs(entry - d.slPrice);
+    return (boxSide(d) === 'long' ? '▲ Long' : '▼ Short') + ' – Einstieg ' + px(entry) + ' · Ziel ' + px(d.tpPrice) + ' (+' + distLabel(d.tpPrice, entry) + ') · Stop ' + px(d.slPrice)
+      + ' (−' + distLabel(d.slPrice, entry) + ') · R/R 1:' + (isFinite(rr) ? rr.toFixed(2).replace('.', ',') : '–');
+  }
+  function boxEntryTol(price){ const ps = pipSize(state.symbol); return ps ? ps * 0.5 : price * 0.00005; }
   function tradeFromBox(d){
     if(state.position || state.pendingOrder){ showToast('Es läuft schon eine Position oder Order – erst schließen bzw. abbrechen.'); return; }
     if(state.ended){ showToast('Die Session ist zu Ende.'); return; }
-    const side = d.tpPrice > d.entryPrice ? 'long' : 'short';
-    const close = currentBar().close;
-    const near = Math.abs(d.entryPrice - close) / close < 0.0006;
-    const tpOk = side === 'long' ? d.tpPrice > (near ? close : d.entryPrice) : d.tpPrice < (near ? close : d.entryPrice);
-    const slOk = side === 'long' ? d.slPrice < (near ? close : d.entryPrice) : d.slPrice > (near ? close : d.entryPrice);
-    if(!tpOk || !slOk){ showToast('Der Kurs steht schon jenseits von Ziel oder Stop der Box – Box anpassen oder neu setzen.', 5500); return; }
+    if(state.reviewing || busyBlocked()) return;
+    const side = boxSide(d), close = currentBar().close;
+    const okFor = e => side === 'long' ? (d.tpPrice > e && d.slPrice < e) : (d.tpPrice < e && d.slPrice > e);
+    if(!okFor(d.entryPrice)){ showToast('Ziel und Stop der Box liegen auf derselben Seite – Box anpassen.', 5000); return; }
+    const atMarket = Math.abs(d.entryPrice - close) <= boxEntryTol(close);
+    const actions = [];
+    if(atMarket){ if(okFor(close)) actions.push({ label:'✓ Ja, so platzieren', fn:() => placeBoxOrder(d.id, 'market') }); }
+    else {
+      actions.push({ label:'✓ Bei ' + px(d.entryPrice) + ' (Order wartet)', fn:() => placeBoxOrder(d.id, 'limit') });
+      if(okFor(close)) actions.push({ label:'Sofort zu ' + px(close), fn:() => placeBoxOrder(d.id, 'market') });
+    }
+    if(!actions.length){ showToast('Der Kurs steht schon jenseits von Ziel oder Stop der Box – Box anpassen oder neu setzen.', 5500); return; }
+    actions[0].primary = true;
+    actions.push({ label:'Abbrechen', fn:() => {} });
+    showToast(boxPlanText(d, atMarket ? close : d.entryPrice) + (atMarket ? '' : ' · Kurs jetzt ' + px(close)) + ' – so platzieren?', 30000, actions);
+  }
+  function placeBoxOrder(id, mode){
+    const d = state.drawings.find(x => x.id === id && x.type === 'posbox');
+    if(!d || state.position || state.pendingOrder || state.ended || state.reviewing) return;
+    const side = boxSide(d);
     const saved = { tpOn: els.tpEnabled.checked, slOn: els.slEnabled.checked, dTp: state.draftTp, dSl: state.draftSl, lim: els.limitPriceInput.value };
     els.tpEnabled.checked = true; els.slEnabled.checked = true;
     state.draftTp = d.tpPrice; state.draftSl = d.slPrice;
     try{
-      if(near) openPosition(side);
+      if(mode === 'market') openPosition(side);
       else { els.limitPriceInput.value = String(+d.entryPrice.toFixed(decimalsFor(d.entryPrice) + 1)); placeLimitOrder(side); }
     } finally {
       els.tpEnabled.checked = saved.tpOn; els.slEnabled.checked = saved.slOn;
       if(!state.position && !state.pendingOrder){ state.draftTp = saved.dTp; state.draftSl = saved.dSl; els.limitPriceInput.value = saved.lim; }
     }
-    if(state.position) showToast((side === 'long' ? 'Long' : 'Short') + ' eröffnet – Ziel ' + px(d.tpPrice) + ', Stop ' + px(d.slPrice) + '.');
-    else if(state.pendingOrder) showToast('Limit-Order bei ' + px(state.pendingOrder.limitPrice) + ' gesetzt – Ziel ' + px(d.tpPrice) + ', Stop ' + px(d.slPrice) + '.', 5000);
-    renderDrawings();
+    const p = state.position, o = state.pendingOrder;
+    if(p){
+      p.boxId = d.id; d.entryPrice = p.entryPrice;
+      if(p.tpPrice != null) d.tpPrice = p.tpPrice;
+      if(p.slPrice != null) d.slPrice = p.slPrice;
+      showToast((side === 'long' ? 'Long' : 'Short') + ' eröffnet bei ' + px(p.entryPrice) + ' – Ziel ' + px(p.tpPrice) + ', Stop ' + px(p.slPrice) + '. Box ziehen passt die Order an.', 5000);
+    } else if(o){
+      o.boxId = d.id; d.entryPrice = o.limitPrice;
+      showToast('Order wartet bei ' + px(o.limitPrice) + ' – Ziel ' + px(o.tpPrice) + ', Stop ' + px(o.slPrice) + '. Box ziehen passt die Order an.', 5000);
+    } else return;
+    selBarKey = '';
+    renderDrawings(); saveState();
+  }
+  // Nach dem Ziehen einer verbundenen Box: Order/Position uebernimmt Ziel, Stop (und Einstieg, solange sie wartet)
+  function syncOrderFromBox(d, quiet){
+    const p = state.position, o = state.pendingOrder;
+    if(p && p.boxId === d.id){
+      const shift = d.entryPrice - p.entryPrice;   // Einstieg steht fest, sobald die Position laeuft
+      if(Math.abs(shift) > 1e-12){ d.entryPrice = p.entryPrice; }
+      setLevel('tp', d.tpPrice); setLevel('sl', d.slPrice);
+      if(quiet) return;
+      const c = currentBar().close, long = p.side === 'long';
+      const slHit = long ? p.slPrice >= c : p.slPrice <= c, tpHit = long ? p.tpPrice <= c : p.tpPrice >= c;
+      showToast('Position angepasst – Ziel ' + px(p.tpPrice) + ' · Stop ' + px(p.slPrice) + (slHit || tpHit ? ' · Achtung: ' + (slHit ? 'Stop' : 'Ziel') + ' liegt schon jenseits des Kurses, wird mit der nächsten Kerze ausgelöst.' : ''), slHit || tpHit ? 6000 : 3000);
+    } else if(o && o.boxId === d.id){
+      o.limitPrice = d.entryPrice; o.tpPrice = d.tpPrice; o.slPrice = d.slPrice;
+      o.dir = d.entryPrice < currentBar().close ? 'below' : 'above';
+      drawPendingOrderLine(); updatePendingOrderUI(); saveState();
+      if(!quiet) showToast('Order angepasst – Einstieg ' + px(o.limitPrice) + ' · Ziel ' + px(o.tpPrice) + ' · Stop ' + px(o.slPrice), 3000);
+    }
+  }
+  // Nach dem Setzen oder Anpassen einer (freien) Box gleich anbieten, sie als Order zu platzieren
+  function offerBoxOrder(d){
+    if(!d || d.type !== 'posbox' || boxLinkedTo(d) || state.position || state.pendingOrder || state.ended || state.reviewing) return;
+    showToast('Box anpassen (Ziel, Stop, Einstieg ziehen) – dann:', 7000, [{ label:(boxSide(d) === 'long' ? '▲' : '▼') + ' Order platzieren …', fn:() => tradeFromBox(d) }]);
   }
   // Alarm-Linien: pruefen, ob die neue Kerze sie beruehrt hat
   function checkDrawingAlerts(bar, prevClose){
@@ -3276,6 +3339,7 @@
   ['qtyInput','riskPctInput'].forEach(id => { const el = document.getElementById(id); if(el) el.addEventListener('input', () => scheduleRenderDrawings()); });
   document.getElementById('sizeModeToggle').addEventListener('click', () => setTimeout(scheduleRenderDrawings, 0));
   function flipPosbox(d){
+    if(boxLinkedTo(d)){ showToast('Die Box ist mit der laufenden Order verbunden – erst Order schließen bzw. abbrechen.'); return; }
     pushDrawUndo();
     const tp = d.tpPrice, sl = d.slPrice, e = d.entryPrice;
     d.tpPrice = e - (tp - e); d.slPrice = e - (sl - e);
@@ -3769,7 +3833,7 @@
     if(tool==='hline' || tool==='ray' || tool==='vline'){ addDrawing({ type:tool, p1:pt }); setActiveTool('cursor'); return true; }
     if(tool==='text'){ startTextAt(pt); setActiveTool('cursor'); return true; }
     if(tool==='planTp' || tool==='planSl'){ setDraftLevel(tool==='planTp' ? 'tp' : 'sl', pt.price); setActiveTool('cursor'); return true; }
-    if(tool==='poslong' || tool==='posshort'){ addDrawing(makeDefaultPosbox(pt, tool==='posshort')); setActiveTool('cursor'); return true; }
+    if(tool==='poslong' || tool==='posshort'){ const nb = makeDefaultPosbox(pt, tool==='posshort'); addDrawing(nb); setActiveTool('cursor'); offerBoxOrder(nb); return true; }
     return false;
   }
   function cancelTwoPoint(){ drawStart = null; drawStartXY = null; drawAwaitSecond = false; clearPreview(); }
@@ -5655,9 +5719,11 @@
       tpPct: o.tpPrice!=null ? Math.abs(o.tpPrice-fillPx)/fillPx*100 : null,
       slPct: o.slPrice!=null ? Math.abs(o.slPrice-fillPx)/fillPx*100 : null,
       balanceAtEntry: o.balanceAtEntry!=null ? o.balanceAtEntry : state.balance, note:'',
-      strategyId:o.strategyId||null, strategyName:o.strategyName||null, checklist:o.checklist||[]
+      strategyId:o.strategyId||null, strategyName:o.strategyName||null, checklist:o.checklist||[],
+      boxId:o.boxId||null
     };
     state.pendingOrder = null;
+    const fb = linkedBox(); if(fb) fb.entryPrice = fillPx;
     removePendingOrderLine();
     drawPositionLines();
     addEntryMarker(fillTime, o.side);
@@ -5962,7 +6028,7 @@
   function setLevel(kind, price){
     const pos = state.position;
     if(!pos) return;
-    const eps = pos.entryPrice*0.0005;
+    const eps = pos.entryPrice*0.00005;
     if(kind==='tp'){
       if(pos.side==='long') price = Math.max(price, pos.entryPrice+eps);
       else price = Math.min(price, pos.entryPrice-eps);
@@ -5981,6 +6047,8 @@
       if(positionLines.sl){ positionLines.sl.applyOptions({ price }); }
       else { positionLines.sl = candleSeries.createPriceLine({ price, color:'#EF5350', lineWidth:2, lineStyle:LightweightCharts.LineStyle.Dashed, axisLabelVisible:true, title:'SL' }); }
     }
+    const bx = linkedBox();
+    if(bx){ if(kind==='tp') bx.tpPrice = price; else bx.slPrice = price; }
     updatePositionUI();
     renderDrawings();
     saveState();
@@ -6954,7 +7022,8 @@
       }
       if(pbHit){
         pushDrawUndo();
-        dragging = { kind:'posbox', id:pbHit.id, mode:pbHit.mode };
+        const pbd = state.drawings.find(dd=>dd.id===pbHit.id);
+        dragging = { kind:'posbox', id:pbHit.id, mode:pbHit.mode, up: !!(pbd && pbd.tpPrice > pbd.entryPrice) };
         if(pbHit.mode==='move'){
           const d = state.drawings.find(dd=>dd.id===pbHit.id);
           const t = timeFromXRobust(pt.x), p = priceFromYRobust(pt.y);
@@ -6994,8 +7063,10 @@
       if(dragging && typeof dragging==='object' && dragging.kind==='posbox'){
         const d = state.drawings.find(dd=>dd.id===dragging.id);
         if(!d){ dragging=null; return; }
-        if(dragging.mode==='tp'){ const p=priceFromYRobust(pt.y); if(p!=null&&p>0) d.tpPrice=clampPrice(p); }
-        else if(dragging.mode==='sl'){ const p=priceFromYRobust(pt.y); if(p!=null&&p>0) d.slPrice=clampPrice(p); }
+        // Ziel und Stop bleiben auf ihrer Seite des Einstiegs (sonst lag z. B. der Stop eines Longs ueber dem Einstieg)
+        const up = dragging.up, gap = d.entryPrice * 0.00005;
+        if(dragging.mode==='tp'){ const p=priceFromYRobust(pt.y); if(p!=null&&p>0) d.tpPrice=clampPrice(up ? Math.max(p, d.entryPrice+gap) : Math.min(p, d.entryPrice-gap)); }
+        else if(dragging.mode==='sl'){ const p=priceFromYRobust(pt.y); if(p!=null&&p>0) d.slPrice=clampPrice(up ? Math.min(p, d.entryPrice-gap) : Math.max(p, d.entryPrice+gap)); }
         else if(dragging.mode==='entry'){
           // Einstieg bleibt zwischen Stop und Ziel — sonst kippte die Box
           const p=priceFromYRobust(pt.y);
@@ -7105,7 +7176,12 @@
           if(hd && hd.type === 'text') editTextDrawing(hd);
         }
       }
-      if(dragging && typeof dragging==='object') saveState();
+      if(dragging && typeof dragging==='object'){
+        const dd = dragging.kind==='posbox' && state.drawings.find(x => x.id === dragging.id);
+        const moved = mouseDownXY ? Math.hypot(xyFromEvent(e).x - mouseDownXY.x, xyFromEvent(e).y - mouseDownXY.y) >= 5 : true;
+        if(dd && moved){ if(boxLinkedTo(dd)){ syncOrderFromBox(dd); renderDrawings(); } else offerBoxOrder(dd); }
+        saveState();
+      }
       if(scaleExtras.freeze) freezePriceScale(false);
       dragging = null; moveGrab = null; mouseDownXY = null;
     }
@@ -7430,7 +7506,7 @@
     if(actions && actions.length){
       const row = document.createElement('div'); row.className = 'toast-actions';
       actions.forEach(a => {
-        const b = document.createElement('button'); b.type = 'button'; b.className = 'btn'; b.textContent = a.label;
+        const b = document.createElement('button'); b.type = 'button'; b.className = 'btn' + (a.primary ? ' tj-save' : ''); b.textContent = a.label;
         b.addEventListener('click', ev => { ev.stopPropagation(); t.hidden = true; clearTimeout(toastTimer); a.fn(); });
         row.appendChild(b);
       });
