@@ -2634,7 +2634,7 @@
     renderDrawings();
     saveState();
   }
-  function clearDrawings(){ pushDrawUndo(); tombDrawings(state.drawings.map(d => d.id)); state.drawings = []; state.selectedDrawingId = null; renderDrawings(); saveState(); }
+  function clearDrawings(){ pushDrawUndo(); const gone = state.drawings.filter(d => !isLocked(d)); tombDrawings(gone.map(d => d.id)); state.drawings = state.drawings.filter(isLocked); state.selectedDrawingId = null; renderDrawings(); saveState(); }
   // Merkt sich geloeschte Zeichnungen ("Grabsteine"), damit sie beim Zusammenfuehren mit dem Stand
   // eines anderen Fensters/Geraets nicht zurueckkommen.
   function tombDrawings(ids){
@@ -2673,6 +2673,7 @@
   function deleteDrawing(id){
     const idx = state.drawings.findIndex(d=>d.id===id);
     if(idx===-1) return;
+    if(isLocked(state.drawings[idx])){ showToast('🔒 Gesperrt – erst entsperren (Schloss in der Leiste über dem Objekt).', 3000); return; }
     pushDrawUndo();
     state.drawings.splice(idx,1);
     tombDrawings([id]);
@@ -2713,7 +2714,7 @@
   function nudgeSelectedDrawing(direction, big){
     if(!state.selectedDrawingId) return;
     const d = state.drawings.find(dd=>dd.id===state.selectedDrawingId);
-    if(!d) return;
+    if(!d || isLocked(d)) return;
     pushDrawUndo();
     const refPrice = d.entryPrice ?? (d.p1 && d.p1.price) ?? (state.data.length ? currentBar().close : 1);
     const step = priceStepFor(refPrice) * (big ? 10 : 1) * direction;
@@ -2732,7 +2733,7 @@
   function nudgeSelectedDrawingTime(direction, big){
     if(!state.selectedDrawingId) return;
     const d = state.drawings.find(dd=>dd.id===state.selectedDrawingId);
-    if(!d) return;
+    if(!d || isLocked(d)) return;
     const barSec = state.barSeconds || 900;
     const step = barSec * (big ? 10 : 1) * direction;
     if(d.type==='posbox'){
@@ -2951,7 +2952,7 @@
     const d = state.selectedDrawingId && !state.reviewing ? state.drawings.find(x => x.id === state.selectedDrawingId) : null;
     const bb = d ? getDrawingBBox(d) : null;
     if(!d || !bb || state.activeTool !== 'cursor'){ bar.hidden = true; selBarKey = ''; return; }
-    const key = [d.id, d.type, d.color || '', d.alert ? 1 : 0, d.text ? 1 : 0, d.textSize || '', d.textPos || '', state.position ? 1 : 0, state.pendingOrder ? 1 : 0, d.type === 'posbox' ? (d.tpPrice < d.entryPrice ? 's' : 'l') + (boxLinkedTo(d) ? 'k' : '') : ''].join('|');
+    const key = [d.id, d.type, isLocked(d) ? 'L' : '', d.color || '', d.alert ? 1 : 0, d.text ? 1 : 0, d.textSize || '', d.textPos || '', state.position ? 1 : 0, state.pendingOrder ? 1 : 0, d.type === 'posbox' ? (d.tpPrice < d.entryPrice ? 's' : 'l') + (boxLinkedTo(d) ? 'k' : '') : ''].join('|');
     if(key !== selBarKey){
       selBarKey = key;
       let html = '';
@@ -2977,6 +2978,8 @@
           + `<button class="sb-btn" data-sb="tpos" title="Wo der Text im Rechteck steht (antippen zum Wechseln)">⌖ ${RECT_TEXT_POS_NAME[pos]}</button>`;
       }
       html += `<button class="sb-btn" data-sb="dup" title="Kopie anlegen">⧉ Kopie</button>`;
+      html += VIS.lock ? `<button class="sb-btn on" data-sb="unlockall" title="Alle Objekte sind gesperrt – antippen zum Entsperren">🔒 Alle entsperren</button>`
+        : `<button class="sb-btn${d.locked ? ' on' : ''}" data-sb="lock" title="${d.locked ? 'Gesperrt – antippen zum Entsperren' : 'Sperren: lässt sich dann nicht mehr aus Versehen verschieben'}">${d.locked ? '🔒 Gesperrt' : '🔓 Sperren'}</button>`;
       bar.innerHTML = html;
     }
     bar.hidden = false;
@@ -3016,6 +3019,8 @@
         renderDrawings(); saveState();
       }
       else if(act === 'dup'){ duplicateDrawing(d); }
+      else if(act === 'lock'){ d.locked = !d.locked; if(!d.locked) delete d.locked; selBarKey = ''; renderDrawings(); saveState(); showToast(d.locked ? '🔒 Gesperrt – lässt sich nicht mehr verschieben. Nochmal antippen zum Entsperren.' : '🔓 Entsperrt.', 2500); }
+      else if(act === 'unlockall'){ setVis({ lock:false }); selBarKey = ''; renderDrawings(); showToast('🔓 Alle Objekte entsperrt.', 2500); }
       else if(act === 'trade'){ tradeFromBox(d); }
       else if(act === 'flip'){ flipPosbox(d); }
     });
@@ -3024,7 +3029,7 @@
     pushDrawUndo();
     const c = JSON.parse(JSON.stringify(d));
     c.id = 'd' + Date.now() + Math.floor(Math.random()*1000);
-    c.tv = 2; delete c.alert; delete c.linked;
+    c.tv = 2; delete c.alert; delete c.linked; delete c.locked;
     const shiftT = t => { const l = logicalFromTime(t); return l == null ? t : (timeFromLogical(l + 6) ?? t); };
     if(c.type === 'hline'){ const vb = visibleBoundsForClamp(); c.p1.price = c.p1.price + (vb ? (vb.pMax - vb.pMin) * 0.05 : c.p1.price * 0.002); }
     else {
@@ -3143,6 +3148,7 @@
     rect.setAttribute('fill','none'); rect.setAttribute('stroke','#2962FF'); rect.setAttribute('stroke-width','1.4'); rect.setAttribute('stroke-dasharray','4 3');
     svg.appendChild(rect);
 
+    if(isLocked(d)) return;   // gesperrt: kein Loeschen-x
     // Delete "×" badge — individually clickable even while the overlay itself
     // ignores pointer events (cursor tool active, so chart pan/zoom still works).
     // Immer im sichtbaren Chartbereich halten — bei waagrechten Linien lag das ✕ sonst
@@ -3748,10 +3754,12 @@
   // Kaufen/Verkaufen-Knoepfe. Wird je Geraet gemerkt. Standard: Trades nur die letzten 3, sonst alles an.
   const VIS_KEY = 'tradereplay_vis_v1', VIS_RECENT = 3;
   // Boxen: 'current' = nur die noch laufenden (rechter Rand noch nicht erreicht), dazu die ausgewaehlte und die mit Order
-  const VIS = { draw:true, boxes:'current', trades:'recent', qt:true };
+  const VIS = { draw:true, boxes:'current', trades:'recent', qt:true, lock:false };
   try{ const v = JSON.parse(localStorage.getItem(VIS_KEY) || 'null'); if(v) Object.assign(VIS, v); else if(localStorage.getItem(TRAILS_KEY) === '0') VIS.trades = 'off'; }catch(e){}
   if(VIS.boxes === true) VIS.boxes = 'current'; else if(VIS.boxes === false) VIS.boxes = 'off';
   function saveVis(){ try{ localStorage.setItem(VIS_KEY, JSON.stringify(VIS)); }catch(e){} }
+  // Gesperrt (Schloss): laesst sich antippen, aber nicht verschieben/aendern/loeschen — Ziehen bewegt dann den Chart
+  function isLocked(d){ return !!(d && (d.locked || VIS.lock)); }
   function trailsOn(){ return VIS.trades !== 'off'; }
   // Abgelaufen: der Trade dazu ist fertig, oder der Replay ist schon 30 Kerzen ueber die Box (bzw. ihr letztes
   // Anfassen) hinaus. Eine gerade gezeichnete Box bleibt also immer da.
@@ -3780,7 +3788,7 @@
     if(b){ const any = !VIS.draw || VIS.boxes === 'off' || VIS.trades === 'off' || !VIS.qt; b.classList.toggle('vis-off', any); }
     const tt = document.getElementById('trailsToggle'); if(tt) tt.checked = trailsOn();
     if(state.selectedDrawingId){ const sd = state.drawings.find(x => x.id === state.selectedDrawingId); if(sd && !drawingVisible(sd)) state.selectedDrawingId = null; }
-    if(rerender){ try{ rebuildTradeMarkers(); candleSeries.setMarkers(markers); }catch(e){} scheduleRenderDrawings(); }
+    if(rerender){ try{ rebuildTradeMarkers(); candleSeries.setMarkers(markers); }catch(e){} selBarKey = ''; scheduleRenderDrawings(); }
     renderVisMenu();
   }
   function setVis(patch){ Object.assign(VIS, patch); saveVis(); applyVis(true); }
@@ -3794,7 +3802,8 @@
       + `<div class="vm-row"><span>Zeichnungen<br><small>Linien, Zonen, Text</small></span>${onOff('draw')}</div>`
       + `<div class="vm-row"><span>TP/SL-Boxen<br><small>Aktuelle = noch nicht abgelaufen</small></span>${seg('boxes', [['all', 'Alle'], ['current', 'Aktuelle'], ['off', 'Aus']])}</div>`
       + `<div class="vm-row"><span>Trades</span>${seg('trades', [['all', 'Alle'], ['recent', 'Letzte 3'], ['off', 'Aus']])}</div>`
-      + `<div class="vm-row"><span>Kaufen/Verkaufen<br><small>oben links im Chart</small></span>${onOff('qt')}</div>`;
+      + `<div class="vm-row"><span>Kaufen/Verkaufen<br><small>oben links im Chart</small></span>${onOff('qt')}</div>`
+      + `<div class="vm-row"><span>🔒 Alle Objekte sperren<br><small>nicht mehr verschiebbar</small></span>${onOff('lock')}</div>`;
   }
   function openVisMenu(){
     const b = document.getElementById('visBtn'); if(!b) return;
@@ -3974,18 +3983,19 @@
   // war es zu leicht, aus Versehen alles zu loeschen).
   let clearArmedUntil = 0;
   els.clearDrawBtn.addEventListener('click', ()=>{
-    if(!state.drawings.length){ showToast('Keine Zeichnungen zum Löschen.'); return; }
+    const nDel = state.drawings.filter(d => !isLocked(d)).length, nLock = state.drawings.length - nDel;
+    if(!nDel){ showToast(nLock ? '🔒 Alle Zeichnungen sind gesperrt – nichts zu löschen.' : 'Keine Zeichnungen zum Löschen.'); return; }
     if(Date.now() > clearArmedUntil){
       clearArmedUntil = Date.now() + 4000;
       els.clearDrawBtn.classList.add('armed');
       setTimeout(() => els.clearDrawBtn.classList.remove('armed'), 4000);
-      showToast(`Nochmal tippen, um alle ${state.drawings.length} Zeichnungen zu löschen.`, 4000);
+      showToast(`Nochmal tippen, um ${nDel} Zeichnung${nDel === 1 ? '' : 'en'} zu löschen` + (nLock ? ` (${nLock} gesperrte bleiben).` : '.'), 4000);
       return;
     }
     clearArmedUntil = 0;
     els.clearDrawBtn.classList.remove('armed');
     clearDrawings();
-    showToast('Alle Zeichnungen gelöscht – „Rückgängig“ holt sie zurück.');
+    showToast((nLock ? 'Gelöscht – die gesperrten sind geblieben.' : 'Alle Zeichnungen gelöscht') + ' „Rückgängig“ holt sie zurück.');
   });
 
   // Zwei-Punkt-Werkzeuge (Rechteck, Trendlinie, Fibonacci, Messen): entweder ziehen (druecken,
@@ -7273,6 +7283,8 @@
           if(!pbHit) genHit = findGenericDrawingHit(pt.x, pt.y);
         }
       }
+      const lockedHit = (pbHit || genHit) && state.drawings.find(dd => dd.id === (pbHit || genHit).id);
+      if(lockedHit && isLocked(lockedHit)){ dragging = { kind:'locked', id:lockedHit.id }; return; }   // Chart darf sich bewegen
       if(pbHit){
         pushDrawUndo();
         const pbd = state.drawings.find(dd=>dd.id===pbHit.id);
@@ -7313,6 +7325,7 @@
         container.style.cursor = '';
         return;
       }
+      if(dragging && typeof dragging==='object' && dragging.kind==='locked') return;
       const pt = xyFromEvent(e);
       if(dragging && typeof dragging==='object' && dragging.kind==='posbox'){
         const d = state.drawings.find(dd=>dd.id===dragging.id);
