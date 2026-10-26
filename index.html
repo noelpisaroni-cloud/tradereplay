@@ -3412,6 +3412,7 @@
   // Box-Kanten in Pixeln. Auf grossen Zeitrahmen ist eine 5m-Box oft schmaler als eine Kerze —
   // dann nur in der Anzeige mindestens POSBOX_MIN_W breit (die gespeicherten Zeiten bleiben).
   const POSBOX_MIN_W = TOUCH_UI ? 22 : 14;
+  let posboxDragId = null;   // Box, die gerade gezogen wird (fuer die Hilfslinien)
   function posboxXs(d){
     let x1 = xFromTimeRobust(d.t1), x2 = xFromTimeRobust(d.t2);
     if(x1 == null || x2 == null) return [null, null];
@@ -3427,6 +3428,13 @@
     const isLong = d.tpPrice >= d.entryPrice;
     const qty = posboxQty(d);
 
+    // Hilfslinien nach links (gestrichelt): Ziel, Einstieg und Stop quer durch den Chart — so sieht man, welches
+    // Hoch/Tief bzw. welche Zone man anpeilt. Nur an der ausgewaehlten, gerade gezogenen oder mit Order verbundenen Box.
+    if(!d.id || state.selectedDrawingId === d.id || posboxDragId === d.id || boxLinkedTo(d)){
+      [[yTp, '#26A69A'], [yEntry, '#B2B5BE'], [ySl, '#EF5350']].forEach(([gy, gc]) => {
+        if(rx > 2) svg.appendChild(svgLine(0, gy, rx, gy, { stroke:gc, 'stroke-width':1, 'stroke-dasharray':'6 4', 'stroke-opacity':0.85, 'data-guide':'1' }));
+      });
+    }
     svg.appendChild(fillRect(rx, Math.min(yEntry,yTp), rw, Math.abs(yEntry-yTp), 'rgba(38,166,154,0.22)'));
     svg.appendChild(fillRect(rx, Math.min(yEntry,ySl), rw, Math.abs(yEntry-ySl), 'rgba(239,83,80,0.22)'));
     svg.appendChild(svgLine(rx, yTp, rx+rw, yTp, { stroke:'#26A69A', 'stroke-width':1.2 }));
@@ -7269,6 +7277,7 @@
         pushDrawUndo();
         const pbd = state.drawings.find(dd=>dd.id===pbHit.id);
         dragging = { kind:'posbox', id:pbHit.id, mode:pbHit.mode, up: !!(pbd && pbd.tpPrice > pbd.entryPrice) };
+        posboxDragId = pbHit.id;
         if(pbHit.mode==='move'){
           const d = state.drawings.find(dd=>dd.id===pbHit.id);
           const t = timeFromXRobust(pt.x), p = priceFromYRobust(pt.y);
@@ -7429,6 +7438,7 @@
       }
       if(scaleExtras.freeze) freezePriceScale(false);
       dragging = null; moveGrab = null; mouseDownXY = null;
+      if(posboxDragId){ posboxDragId = null; renderDrawings(); }
     }
 
     container.addEventListener('mousedown', onDown);
