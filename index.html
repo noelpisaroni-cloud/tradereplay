@@ -1118,6 +1118,9 @@
   .ptb-pnl{ font-weight:600; font-variant-numeric:tabular-nums; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .ptb-close{ height:32px; padding:0 13px; border-radius:8px; border:1px solid var(--down); background:transparent; color:var(--down); font-weight:600; font-size:12.5px; white-space:nowrap; }
   .ptb-close:hover{ background:var(--down-soft); }
+  .ptb-be{ height:32px; padding:0 12px; border-radius:8px; border:1px solid var(--accent, #2962FF); background:transparent; color:var(--accent, #2962FF); font-weight:700; font-size:12.5px; white-space:nowrap; }
+  .ptb-be.done, .be-btn.done{ opacity:.45; }
+  .be-btn{ width:auto !important; padding:0 7px !important; margin-right:4px; font-weight:700; color:var(--accent, #2962FF) !important; border-color:var(--accent, #2962FF) !important; }
   .ptb-spacer{ flex:1; }
   .ptb-acct{ display:flex; align-items:center; gap:18px; padding-right:4px; }
   .ptb-acct > div{ display:flex; flex-direction:column; line-height:1.15; }
@@ -1485,7 +1488,7 @@
           <div class="partial-btns"><button class="part-btn" data-partial="0.25" title="25 % der Position zum aktuellen Kurs schließen">25 %</button><button class="part-btn" data-partial="0.5" title="Die Hälfte der Position schließen">50 %</button><button class="part-btn" data-partial="0.75" title="75 % der Position schließen">75 %</button></div>
         </div>
         <div class="stat-line tpsl-row"><span class="k">Take-Profit</span><span class="v" id="posTp">–</span><button class="mini-btn" id="tpToggleBtn">+</button></div>
-        <div class="stat-line tpsl-row"><span class="k">Stop-Loss</span><span class="v" id="posSl">–</span><button class="mini-btn" id="slToggleBtn">+</button></div>
+        <div class="stat-line tpsl-row"><span class="k">Stop-Loss</span><span class="v" id="posSl">–</span><button class="mini-btn be-btn" id="beBtn" type="button" title="Break Even: Stop auf den Einstiegskurs setzen (Taste E)">BE</button><button class="mini-btn" id="slToggleBtn">+</button></div>
         <div class="stat-line" id="posLiqRow" hidden><span class="k">Liquidation</span><span class="v down-txt" id="posLiq">–</span></div>
         <div class="drag-hint">↕ TP-/SL-Linien lassen sich direkt im Chart per Drag verschieben.</div>
         <div class="field" style="margin-top:8px;">
@@ -1683,6 +1686,7 @@
     <div class="ptb-pos" id="ptbPos" hidden>
       <span class="pos-side" id="ptbSide">Long</span>
       <span class="ptb-pnl" id="ptbPnl">–</span>
+      <button class="ptb-be" id="ptbBe" type="button" title="Break Even: Stop auf den Einstiegskurs (Taste E)">BE</button>
       <button class="ptb-close" id="ptbClose" title="Position schließen (Taste X)">Schließen</button>
     </div>
     <div class="ptb-spacer"></div>
@@ -2959,7 +2963,8 @@
       if(d.type === 'posbox'){
         const isShort = d.tpPrice < d.entryPrice;
         const busy = !!(state.position || state.pendingOrder);
-        if(boxLinkedTo(d)) html += `<span class="sb-link" title="Ziel und Stop der Box ziehen – die Order wird mit angepasst">🔗 Order folgt der Box</span><span class="sb-sep"></span>`;
+        if(boxLinkedTo(d)) html += `<span class="sb-link" title="Ziel und Stop der Box ziehen – die Order wird mit angepasst">🔗 Order folgt der Box</span>`
+          + (state.position && state.position.boxId === d.id ? `<button class="sb-btn" data-sb="be" title="Break Even: Stop auf den Einstiegskurs">🛡 Break Even</button>` : '') + `<span class="sb-sep"></span>`;
         else {
           html += `<button class="sb-btn sb-trade${isShort ? ' short' : ''}" data-sb="trade" ${busy ? 'disabled title="Es läuft schon eine Position oder Order"' : 'title="Order mit genau diesem Einstieg, Ziel und Stop platzieren"'}>${isShort ? '▼' : '▲'} Order platzieren</button>`;
           html += `<button class="sb-btn" data-sb="flip" title="Long ↔ Short umdrehen">⇅ ${isShort ? 'zu Long' : 'zu Short'}</button><span class="sb-sep"></span>`;
@@ -3019,6 +3024,7 @@
         renderDrawings(); saveState();
       }
       else if(act === 'dup'){ duplicateDrawing(d); }
+      else if(act === 'be'){ setBreakEven(); selBarKey = ''; renderDrawings(); }
       else if(act === 'lock'){ d.locked = !d.locked; if(!d.locked) delete d.locked; selBarKey = ''; renderDrawings(); saveState(); showToast(d.locked ? '🔒 Gesperrt – lässt sich nicht mehr verschieben. Nochmal antippen zum Entsperren.' : '🔓 Entsperrt.', 2500); }
       else if(act === 'unlockall'){ setVis({ lock:false }); selBarKey = ''; renderDrawings(); showToast('🔓 Alle Objekte entsperrt.', 2500); }
       else if(act === 'trade'){ tradeFromBox(d); }
@@ -6081,6 +6087,8 @@
   // Journal und Trade-Historie — inklusive Rueckblick-Daten (TP/SL, Zeichnungen).
   let lastClosedAt = 0;
   function realizeClose(pos, exitPrice, exitTime, reason, frac){
+    // Stop auf Einstieg (Break Even) ausgeloest -> eigener Grund
+    if(reason === 'sl' && pos.slPrice != null && Math.abs(pos.slPrice - pos.entryPrice) < pos.entryPrice * 1e-7) reason = 'be';
     const exitNotional = pos.qty*exitPrice;
     const exitFee = exitNotional*state.feePct/100;
     const rawPnl = (exitPrice-pos.entryPrice)*pos.qty*(pos.side==='long'?1:-1);
@@ -6092,7 +6100,7 @@
 
     const balanceRef = pos.balanceAtEntry!=null ? pos.balanceAtEntry : state.startingBalance;
     const { rrRatio, riskAmount, riskPct, positionPct } = computeRiskMetrics(
-      pos.entryPrice, pos.tpPrice, pos.slPrice, pos.notional, pos.margin, pos.leverage, balanceRef, pos.side
+      pos.entryPrice, pos.tpPrice, pos.slInit ?? pos.slPrice, pos.notional, pos.margin, pos.leverage, balanceRef, pos.side
     );
     const rMultiple = riskAmount>0 ? netPnl/riskAmount : null;
     const checklist = pos.checklist || [];
@@ -6188,8 +6196,8 @@
     rebuildTradeMarkers();
     candleSeries.setMarkers(markers);
   }
-  const REASON_LABEL = { tp:'Take-Profit', sl:'Stop-Loss', manual:'Manuell', end:'Session-Ende', liquidation:'Liquidation', partial:'Teilweise' };
-  const REASON_SHORT = { tp:'TP', sl:'SL', manual:'Exit', end:'Ende', liquidation:'Liq.', partial:'Teil' };
+  const REASON_LABEL = { tp:'Take-Profit', sl:'Stop-Loss', be:'Break Even', manual:'Manuell', end:'Session-Ende', liquidation:'Liquidation', partial:'Teilweise' };
+  const REASON_SHORT = { tp:'TP', sl:'SL', be:'BE', manual:'Exit', end:'Ende', liquidation:'Liq.', partial:'Teil' };
   function addExitMarker(time, pnl, reason){
     rebuildTradeMarkers();
     candleSeries.setMarkers(markers);
@@ -6285,19 +6293,26 @@
     els.tpToggleBtn.className = 'mini-btn' + (pos.tpPrice!=null ? ' remove' : '');
     els.slToggleBtn.textContent = pos.slPrice!=null ? '✕' : '+';
     els.slToggleBtn.className = 'mini-btn' + (pos.slPrice!=null ? ' remove' : '');
+    { const beDone = pos.slPrice != null && (pos.side === 'long' ? pos.slPrice >= pos.entryPrice : pos.slPrice <= pos.entryPrice);
+      document.getElementById('beBtn').classList.toggle('done', beDone);
+      const pb = document.getElementById('ptbBe'); if(pb) pb.classList.toggle('done', beDone);
+      if(beDone && Math.abs(pos.slPrice - pos.entryPrice) < pos.entryPrice * 1e-7) els.posSl.textContent = px(pos.slPrice) + ' (BE)'; }
     syncProBar();
   }
 
   function setLevel(kind, price){
     const pos = state.position;
     if(!pos) return;
-    const eps = pos.entryPrice*0.00005;
+    // Grenze ist der aktuelle Kurs (nicht der Einstieg): so laesst sich der Stop auch ueber den Einstieg
+    // ziehen (Gewinn absichern / Break Even), ohne dass er sofort ausloest
+    const eps = pos.entryPrice*0.00005, cur = state.data.length ? currentBar().close : pos.entryPrice;
     if(kind==='tp'){
-      if(pos.side==='long') price = Math.max(price, pos.entryPrice+eps);
-      else price = Math.min(price, pos.entryPrice-eps);
+      if(pos.side==='long') price = Math.max(price, Math.max(pos.entryPrice, cur)+eps);
+      else price = Math.min(price, Math.min(pos.entryPrice, cur)-eps);
     } else {
-      if(pos.side==='long') price = Math.min(price, pos.entryPrice-eps);
-      else price = Math.max(price, pos.entryPrice+eps);
+      if(pos.slInit == null && pos.slPrice != null) pos.slInit = pos.slPrice;
+      if(pos.side==='long') price = Math.min(price, cur-eps);
+      else price = Math.max(price, cur+eps);
     }
     if(kind==='tp'){
       pos.tpPrice = price;
@@ -6317,6 +6332,21 @@
     saveState();
   }
 
+  // Break Even: Stop auf den Einstiegskurs. Geht nur im Plus — sonst wuerde die Position sofort ausgestoppt.
+  function setBreakEven(){
+    const pos = state.position;
+    if(!pos || state.reviewing) return;
+    const cur = currentBar().close, long = pos.side === 'long', e = pos.entryPrice;
+    if(long ? cur <= e : cur >= e){ showToast('Break Even geht erst, wenn der Trade im Plus ist (Kurs ' + (long ? 'über' : 'unter') + ' dem Einstieg ' + px(e) + ').', 4500); return; }
+    if(pos.slPrice != null && (long ? pos.slPrice >= e : pos.slPrice <= e)){ showToast('Der Stop steht schon auf Break Even oder sichert sogar Gewinn.', 3500); return; }
+    if(pos.slInit == null && pos.slPrice != null) pos.slInit = pos.slPrice;
+    pos.slPrice = e; pos.slPct = 0;
+    if(positionLines.sl) positionLines.sl.applyOptions({ price:e, title:'SL (BE)' });
+    else positionLines.sl = candleSeries.createPriceLine({ price:e, color:'#EF5350', lineWidth:2, lineStyle:LightweightCharts.LineStyle.Dashed, axisLabelVisible:true, title:'SL (BE)' });
+    const bx = linkedBox(); if(bx) bx.slPrice = e;
+    updatePositionUI(); renderDrawings(); saveState();
+    showToast('🛡 Break Even: Stop auf Einstieg ' + px(e) + ' – dieser Trade kann jetzt nicht mehr verlieren (nur Gebühren).', 4000);
+  }
   function removeLevel(kind){
     const pos = state.position;
     if(!pos) return;
@@ -7165,6 +7195,8 @@
   });
   els.tpToggleBtn.addEventListener('click', ()=> toggleLevel('tp'));
   els.slToggleBtn.addEventListener('click', ()=> toggleLevel('sl'));
+  document.getElementById('beBtn').addEventListener('click', setBreakEven);
+  { const pb = document.getElementById('ptbBe'); if(pb) pb.addEventListener('click', setBreakEven); }
 
   els.tpPlanBtn.addEventListener('click', ()=>{
     if(state.position) return;
@@ -7775,6 +7807,7 @@
     // or pending order exists, so no extra guard is needed here.
     else if(e.key==='b' || e.key==='B'){ e.preventDefault(); state.orderType==='limit' ? placeLimitOrder('long') : openPosition('long'); }
     else if(e.key==='s' || e.key==='S'){ e.preventDefault(); state.orderType==='limit' ? placeLimitOrder('short') : openPosition('short'); }
+    else if((e.key==='e' || e.key==='E') && state.position){ e.preventDefault(); setBreakEven(); }
     else if(e.key==='x' || e.key==='X'){ e.preventDefault(); if(state.position && !busyBlocked()){ const bar=currentBar(); closePosition(bar.close, bar.time, 'manual'); } }
   });
 
