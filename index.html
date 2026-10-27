@@ -743,7 +743,7 @@
   tr.jrow-loss > td:first-child{ box-shadow:inset 3px 0 0 #EF5350; }
   #historyBody td.note-cell{ max-width:220px; overflow:hidden; text-overflow:ellipsis; }
   /* Leiste ueber einer ausgewaehlten Zeichnung (wie bei TradingView): Farbe, Order, Alarm, Kopie */
-  .sel-bar{ position:absolute; z-index:9; display:flex; align-items:center; gap:4px; padding:4px; border-radius:10px; background:var(--panel); border:1px solid var(--line-strong, var(--line)); box-shadow:0 10px 26px -10px rgba(0,0,0,.7); white-space:nowrap; }
+  .sel-bar{ position:absolute; z-index:9; display:flex; align-items:center; gap:4px; padding:4px; border-radius:10px; background:var(--panel); border:1px solid var(--line-strong, var(--line)); box-shadow:0 10px 26px -10px rgba(0,0,0,.7); white-space:nowrap; flex-wrap:wrap; row-gap:4px; max-width:calc(100% - 8px); }
   .sel-bar[hidden]{ display:none; }
   .sel-bar .sw{ width:22px; height:22px; border-radius:50%; border:2px solid transparent; padding:0; flex:none; }
   .sel-bar .sw.on{ border-color:var(--ink); }
@@ -754,6 +754,9 @@
   .sel-bar .sb-trade{ background:var(--up); border-color:var(--up); color:#fff; }
   .sel-bar .sb-trade.short{ background:var(--down); border-color:var(--down); }
   @media (pointer:coarse){ .sel-bar .sw{ width:28px; height:28px; } .sel-bar .sb-btn{ height:34px; padding:0 11px; } }
+  .sel-bar .sb-lvl{ color:#4DB6AC; border-color:#4DB6AC; padding:0 7px; }
+  .sel-bar .sb-lvl-x{ padding:0 6px; margin-left:-3px; color:var(--ink-soft); }
+  .sel-bar .sb-lvl-add{ color:#4DB6AC; border-color:#4DB6AC; font-weight:700; }
   .sel-bar .sb-link{ font-size:12px; font-weight:600; color:var(--accent, #2962FF); padding:0 6px; white-space:nowrap; }
   .text-editor{ position:absolute; z-index:8; width:260px; max-width:calc(100% - 16px); padding:8px; border-radius:10px; background:var(--panel); border:1px solid var(--accent); box-shadow:0 12px 30px -10px rgba(0,0,0,.6); }
   .text-editor[hidden]{ display:none; }
@@ -2963,7 +2966,7 @@
     const d = state.selectedDrawingId && !state.reviewing ? state.drawings.find(x => x.id === state.selectedDrawingId) : null;
     const bb = d ? getDrawingBBox(d) : null;
     if(!d || !bb || state.activeTool !== 'cursor'){ bar.hidden = true; selBarKey = ''; return; }
-    const key = [d.id, d.type, isLocked(d) ? 'L' : '', d.color || '', d.alert ? 1 : 0, d.text ? 1 : 0, d.textSize || '', d.textPos || '', state.position ? 1 : 0, state.pendingOrder ? 1 : 0, d.type === 'posbox' ? (d.tpPrice < d.entryPrice ? 's' : 'l') + (boxLinkedTo(d) ? 'k' : '') : ''].join('|');
+    const key = [d.id, d.type, d.type === 'posbox' ? boxLevels(d).map(t => t.id + ':' + t.frac).join(',') : '', isLocked(d) ? 'L' : '', d.color || '', d.alert ? 1 : 0, d.text ? 1 : 0, d.textSize || '', d.textPos || '', state.position ? 1 : 0, state.pendingOrder ? 1 : 0, d.type === 'posbox' ? (d.tpPrice < d.entryPrice ? 's' : 'l') + (boxLinkedTo(d) ? 'k' : '') : ''].join('|');
     if(key !== selBarKey){
       selBarKey = key;
       let html = '';
@@ -2976,6 +2979,11 @@
           html += `<button class="sb-btn sb-trade${isShort ? ' short' : ''}" data-sb="trade" ${busy ? 'disabled title="Es läuft schon eine Position oder Order"' : 'title="Order mit genau diesem Einstieg, Ziel und Stop platzieren"'}>${isShort ? '▼' : '▲'} Order platzieren</button>`;
           html += `<button class="sb-btn" data-sb="flip" title="Long ↔ Short umdrehen">⇅ ${isShort ? 'zu Long' : 'zu Short'}</button><span class="sb-sep"></span>`;
         }
+        // Teil-Ziele: schon beim Setzen der Box, oder an der laufenden Position (nicht bei wartender Order: die nimmt die der Box)
+        const lv = boxLevels(d), usedLv = lv.reduce((a, t) => a + t.frac, 0);
+        html += lv.map((t, i) => `<button class="sb-btn sb-lvl" data-sb="lvl-frac" data-lid="${t.id}" title="Anteil ändern (antippen)">TP${i + 1} ${Math.round(t.frac * 100)} %</button><button class="sb-btn sb-lvl-x" data-sb="lvl-del" data-lid="${t.id}" title="Teil-Ziel entfernen">✕</button>`).join('');
+        if(lv.length < PTP_MAX && usedLv < 0.99) html += `<button class="sb-btn sb-lvl-add" data-sb="lvl-add" title="Teil-Ziel: dort wird ein Teil der Position automatisch geschlossen">＋ TP</button>`;
+        html += '<span class="sb-sep"></span>';
       }
       if(COLORABLE[d.type]){
         const cur = drawColor(d, DEFAULT_DRAW_COLOR[d.type] || '');
@@ -3035,6 +3043,9 @@
       else if(act === 'lock'){ d.locked = !d.locked; if(!d.locked) delete d.locked; selBarKey = ''; renderDrawings(); saveState(); showToast(d.locked ? '🔒 Gesperrt – lässt sich nicht mehr verschieben. Nochmal antippen zum Entsperren.' : '🔓 Entsperrt.', 2500); }
       else if(act === 'unlockall'){ setVis({ lock:false }); selBarKey = ''; renderDrawings(); showToast('🔓 Alle Objekte entsperrt.', 2500); }
       else if(act === 'trade'){ tradeFromBox(d); }
+      else if(act === 'lvl-add'){ boxAddLevel(d); }
+      else if(act === 'lvl-frac'){ boxLevelFrac(d, +b.dataset.lid); }
+      else if(act === 'lvl-del'){ boxLevelDel(d, +b.dataset.lid); }
       else if(act === 'flip'){ flipPosbox(d); }
     });
   })();
@@ -3063,9 +3074,54 @@
   function boxLinkedTo(d){ const p = state.position, o = state.pendingOrder; return !!(d && ((p && p.boxId === d.id) || (o && o.boxId === d.id))); }
   function linkedBox(){ const id = (state.position && state.position.boxId) || (state.pendingOrder && state.pendingOrder.boxId); return id ? state.drawings.find(d => d.id === id && d.type === 'posbox') || null : null; }
   function boxSide(d){ return d.tpPrice > d.entryPrice ? 'long' : 'short'; }
+  // Teil-Ziele an der Box, schon VOR dem Platzieren: d.ptps = [{ id, price, frac }]. Laeuft die Position aus
+  // dieser Box, gelten die Teil-Ziele der Position (pos.tps) — die Box zeigt dann diese.
+  function boxLevels(d){ const p = state.position; return (p && p.boxId === d.id) ? (p.tps || []) : (d.ptps || []); }
+  function boxOwnsLevels(d){ const p = state.position; return !(p && p.boxId === d.id); }
+  function sortBoxLevels(d){ if(!d.ptps) return; const long = boxSide(d) === 'long'; d.ptps.sort((a, b) => long ? a.price - b.price : b.price - a.price); }
+  function boxLevelClamp(d, price){
+    const lo = Math.min(d.entryPrice, d.tpPrice), hi = Math.max(d.entryPrice, d.tpPrice), g = (hi - lo) * 0.03;
+    return Math.min(hi - g, Math.max(lo + g, price));
+  }
+  function boxAddLevel(d){
+    if(!boxOwnsLevels(d)){ addPartialTp(); selBarKey = ''; renderDrawings(); return; }
+    d.ptps = d.ptps || [];
+    const used = d.ptps.reduce((a, t) => a + t.frac, 0);
+    if(d.ptps.length >= PTP_MAX || used >= 0.99){ showToast(d.ptps.length >= PTP_MAX ? 'Höchstens ' + PTP_MAX + ' Teil-Ziele.' : 'Die Teil-Ziele decken schon die ganze Position ab.'); return; }
+    pushDrawUndo();
+    const last = d.ptps.length ? d.ptps[d.ptps.length - 1].price : d.entryPrice;
+    d.ptps.push({ id: Date.now() % 1e9 + Math.floor(Math.random() * 1000), price: boxLevelClamp(d, last + (d.tpPrice - last) / 2), frac: Math.min(d.ptps.length ? 0.25 : 0.5, 1 - used) });
+    sortBoxLevels(d); selBarKey = ''; renderDrawings(); saveState();
+    showToast('Teil-Ziel in der Box: Linie ziehen zum Verschieben, Prozent antippen zum Ändern.', 3500);
+  }
+  function boxLevelFrac(d, id){
+    if(!boxOwnsLevels(d)){ cyclePartialTpFrac(id); selBarKey = ''; renderDrawings(); return; }
+    const t = (d.ptps || []).find(x => x.id === id); if(!t) return;
+    const others = d.ptps.reduce((a, x) => a + (x === t ? 0 : x.frac), 0), opts = PTP_FRACS.filter(f => f + others <= 1.0001);
+    const i = opts.findIndex(f => Math.abs(f - t.frac) < 0.005);
+    pushDrawUndo(); t.frac = opts.length ? opts[(i + 1) % opts.length] : t.frac;
+    selBarKey = ''; renderDrawings(); saveState();
+  }
+  function boxLevelDel(d, id){
+    if(!boxOwnsLevels(d)){ removePartialTp(id); selBarKey = ''; renderDrawings(); return; }
+    pushDrawUndo(); d.ptps = (d.ptps || []).filter(x => x.id !== id); if(!d.ptps.length) delete d.ptps;
+    selBarKey = ''; renderDrawings(); saveState();
+  }
+  function boxLevelPrice(d, id, price){
+    if(!boxOwnsLevels(d)){ setPartialTpPrice(id, price); return; }
+    const t = (d.ptps || []).find(x => x.id === id); if(t) t.price = boxLevelClamp(d, price);
+  }
+  // Teil-Ziele der Box an die (neue) Position uebergeben
+  function levelsToPosition(d, pos){
+    if(!d || !pos || !d.ptps || !d.ptps.length) return;
+    pos.qty0 = pos.qty; pos.tps = d.ptps.map(t => ({ id:t.id, frac:t.frac, price: ptpClamp(pos, t.price) }));
+    sortPtps(pos); delete d.ptps;
+  }
   function boxPlanText(d, entry){
     const rr = Math.abs(d.tpPrice - entry) / Math.abs(entry - d.slPrice);
-    return (boxSide(d) === 'long' ? '▲ Long' : '▼ Short') + ' – Einstieg ' + px(entry) + ' · Ziel ' + px(d.tpPrice) + ' (+' + distLabel(d.tpPrice, entry) + ') · Stop ' + px(d.slPrice)
+    const lv = boxLevels(d);
+    return (boxSide(d) === 'long' ? '▲ Long' : '▼ Short') + ' – Einstieg ' + px(entry) + (lv.length ? lv.map((t, i) => ' · TP' + (i + 1) + ' ' + px(t.price) + ' (' + Math.round(t.frac * 100) + ' %)').join('') : '')
+      + ' · Ziel ' + px(d.tpPrice) + ' (+' + distLabel(d.tpPrice, entry) + ') · Stop ' + px(d.slPrice)
       + ' (−' + distLabel(d.slPrice, entry) + ') · R/R 1:' + (isFinite(rr) ? rr.toFixed(2).replace('.', ',') : '–');
   }
   function boxEntryTol(price){ const ps = pipSize(state.symbol); return ps ? ps * 0.5 : price * 0.00005; }
@@ -3105,6 +3161,7 @@
     const p = state.position, o = state.pendingOrder;
     if(p){
       p.boxId = d.id; d.entryPrice = p.entryPrice;
+      levelsToPosition(d, p); drawPtpLines(); updatePositionUI();
       if(p.tpPrice != null) d.tpPrice = p.tpPrice;
       if(p.slPrice != null) d.slPrice = p.slPrice;
       showToast((side === 'long' ? 'Long' : 'Short') + ' eröffnet bei ' + px(p.entryPrice) + ' – Ziel ' + px(p.tpPrice) + ', Stop ' + px(p.slPrice) + '. Box ziehen passt die Order an.', 5000);
@@ -3421,6 +3478,7 @@
     pushDrawUndo();
     const tp = d.tpPrice, sl = d.slPrice, e = d.entryPrice;
     d.tpPrice = e - (tp - e); d.slPrice = e - (sl - e);
+    if(d.ptps) d.ptps.forEach(x => { x.price = e - (x.price - e); });
     renderDrawings(); saveState();
   }
 
@@ -3460,6 +3518,15 @@
     svg.appendChild(svgLine(rx, ySl, rx+rw, ySl, { stroke:'#EF5350', 'stroke-width':1.2 }));
     svg.appendChild(svgLine(rx, yEntry, rx+rw, yEntry, { stroke:'#B2B5BE', 'stroke-width':1.3 }));
 
+    // Teil-Ziele (TP1, TP2 ...) als gestrichelte Linien in der Box
+    const lvls = d.id ? boxLevels(d) : [];
+    const showGuides = !d.id || state.selectedDrawingId === d.id || posboxDragId === d.id || boxLinkedTo(d);
+    lvls.forEach((t, i) => {
+      const yl = yFromPriceRobust(t.price); if(yl == null) return;
+      if(showGuides && rx > 2) svg.appendChild(svgLine(0, yl, rx, yl, { stroke:'#4DB6AC', 'stroke-width':1, 'stroke-dasharray':'3 4', 'stroke-opacity':0.8, 'data-guide':'1' }));
+      svg.appendChild(svgLine(rx, yl, rx+rw, yl, { stroke:'#4DB6AC', 'stroke-width':1.6, 'stroke-dasharray':'5 3', 'data-lvl':String(t.id) }));
+      if(rw >= 50 || state.selectedDrawingId === d.id){ const txt = 'TP' + (i + 1) + ' · ' + Math.round(t.frac * 100) + ' %', w = txt.length * 10 * 0.56 + 14; svg.appendChild(svgPill(rx + rw - w/2 - 4, yl - 10, [txt], '#167A65', '#FFFFFF', 0.95, 10)); }
+    });
     // Griffe nur an der ausgewaehlten (bzw. mit einer Order verbundenen) Box — sonst sah der Chart bei vielen Boxen wie Konfetti aus
     if(state.selectedDrawingId === d.id || boxLinkedTo(d) || !d.id){
       [rx, rx+rw].forEach(hx => { svg.appendChild(handleSquare(hx, yTp)); svg.appendChild(handleSquare(hx, ySl)); });
@@ -5998,7 +6065,7 @@
       boxId:o.boxId||null
     };
     state.pendingOrder = null;
-    const fb = linkedBox(); if(fb) fb.entryPrice = fillPx;
+    const fb = linkedBox(); if(fb){ fb.entryPrice = fillPx; levelsToPosition(fb, state.position); }
     removePendingOrderLine();
     drawPositionLines();
     addEntryMarker(fillTime, o.side);
@@ -6161,7 +6228,7 @@
   // ---------- Teil-Ziele (mehrere TPs) ----------
   // pos.tps = [{ id, price, frac }] — frac = Anteil der URSPRUENGLICHEN Groesse (pos.qty0). Wird ein Teil-Ziel
   // erreicht, schliesst genau dieser Anteil zum Zielkurs; der Rest laeuft bis Haupt-TP/Stop weiter.
-  const PTP_MAX = 3, PTP_FRACS = [0.25, 0.33, 0.5, 0.75];
+  var PTP_MAX = 3, PTP_FRACS = [0.25, 0.33, 0.5, 0.75];   // var: wird schon von der Auswahlleiste gebraucht
   function ptpName(pos, tp){ return 'TP' + (pos.tps.indexOf(tp) + 1); }
   function sortPtps(pos){ const long = pos.side === 'long'; pos.tps.sort((a, b) => long ? a.price - b.price : b.price - a.price); }
   function drawPtpLines(){
@@ -7370,6 +7437,7 @@
         // whichever line is visually on top must NOT be hard-coded to "tp" here.
         if(inXLoose && Math.abs(y-yTp)<=DRAG_PX) return { id:d.id, mode:'tp' };
         if(inXLoose && Math.abs(y-ySl)<=DRAG_PX) return { id:d.id, mode:'sl' };
+        for(const t of boxLevels(d)){ const yl = yFromPriceRobust(t.price); if(yl != null && inXStrict && Math.abs(y-yl)<=DRAG_PX) return { id:d.id, mode:'lvl:' + t.id }; }
         if(inXStrict && Math.abs(y-yEntry)<=DRAG_PX) return { id:d.id, mode:'entry' };
         if(Math.abs(x-rx)<=DRAG_PX && inYLoose) return { id:d.id, mode:'left' };
         if(Math.abs(x-(rx+rw))<=DRAG_PX && inYLoose) return { id:d.id, mode:'right' };
@@ -7437,7 +7505,7 @@
         if(pbHit.mode==='move'){
           const d = state.drawings.find(dd=>dd.id===pbHit.id);
           const t = timeFromXRobust(pt.x), p = priceFromYRobust(pt.y);
-          moveGrab = { time:t, price:p, l:chart.timeScale().coordinateToLogical(pt.x), t1:d.t1, t2:d.t2, entry:d.entryPrice, tp:d.tpPrice, sl:d.slPrice };
+          moveGrab = { time:t, price:p, l:chart.timeScale().coordinateToLogical(pt.x), t1:d.t1, t2:d.t2, entry:d.entryPrice, tp:d.tpPrice, sl:d.slPrice, lv:(d.ptps || []).map(x => x.price) };
         }
         setChartInteractive(false);
         if(e.cancelable) e.preventDefault();
@@ -7478,6 +7546,7 @@
         const up = dragging.up, gap = d.entryPrice * 0.00005;
         if(dragging.mode==='tp'){ const p=priceFromYRobust(pt.y); if(p!=null&&p>0) d.tpPrice=clampPrice(up ? Math.max(p, d.entryPrice+gap) : Math.min(p, d.entryPrice-gap)); }
         else if(dragging.mode==='sl'){ const p=priceFromYRobust(pt.y); if(p!=null&&p>0) d.slPrice=clampPrice(up ? Math.min(p, d.entryPrice-gap) : Math.max(p, d.entryPrice+gap)); }
+        else if(dragging.mode.indexOf('lvl:')===0){ const p=priceFromYRobust(pt.y); if(p!=null&&p>0) boxLevelPrice(d, +dragging.mode.slice(4), p); }
         else if(dragging.mode==='entry'){
           // Einstieg bleibt zwischen Stop und Ziel — sonst kippte die Box
           const p=priceFromYRobust(pt.y);
@@ -7493,6 +7562,7 @@
             if(nt){ d.t1 = nt[0]; d.t2 = Math.max(nt[1], nt[0] + (state.barSeconds||900)); }
             else { const dt = clampShiftTime([moveGrab.t1, moveGrab.t2], t-moveGrab.time); d.t1=moveGrab.t1+dt; d.t2=moveGrab.t2+dt; }
             d.entryPrice=moveGrab.entry+dp; d.tpPrice=moveGrab.tp+dp; d.slPrice=moveGrab.sl+dp;
+            if(d.ptps && moveGrab.lv) d.ptps.forEach((x, i) => { if(moveGrab.lv[i] != null) x.price = moveGrab.lv[i] + dp; });
           }
         }
         renderDrawings();
