@@ -2764,7 +2764,7 @@
   // Pixel bounding box for one drawing, used both to hit-test a plain click
   // (rect/fib/posbox: anywhere inside counts) and to draw the selection outline.
   function getDrawingBBox(d){
-    const w = container.clientWidth;
+    const w = cW();
     if(d.type==='hline'){
       const y = yFromPriceRobust(d.p1.price);
       if(y==null) return null;
@@ -2801,7 +2801,7 @@
     if(d.type==='vline'){
       const x1=xFromTimeRobust(d.p1.time);
       if(x1==null) return null;
-      return { x:x1-4, y:0, w:8, h:container.clientHeight };
+      return { x:x1-4, y:0, w:8, h:cH() };
     }
     if(d.type==='text'){
       const x1=xFromTimeRobust(d.p1.time), y1=yFromPriceRobust(d.p1.price);
@@ -3224,8 +3224,8 @@
     // Immer im sichtbaren Chartbereich halten — bei waagrechten Linien lag das ✕ sonst
     // rechts ueber der Preisachse, bei senkrechten Linien oberhalb des Charts (unsichtbar).
     const badgeR = TOUCH_UI ? 13 : 9;
-    const plotW = (chart.timeScale().width && chart.timeScale().width()) || container.clientWidth;
-    const plotH = container.clientHeight - ((chart.timeScale().height && chart.timeScale().height()) || 0);
+    const plotW = (chart.timeScale().width && chart.timeScale().width()) || cW();
+    const plotH = cH() - ((chart.timeScale().height && chart.timeScale().height()) || 0);
     const bx = Math.max(badgeR+3, Math.min(bb.x+bb.w+pad, plotW-badgeR-3));
     const by = Math.max(badgeR+3, Math.min(bb.y-pad, plotH-badgeR-3));
     const g = document.createElementNS(NS_SVG,'g');
@@ -3313,7 +3313,7 @@
       d.text ? () => { pushDrawUndo(); delete d.text; renderDrawings(); saveState(); } : null);
   }
   function renderOne(svg, d){
-    const w = container.clientWidth, h = container.clientHeight;
+    const w = cW(), h = cH();
     if(d.type==='hline'){
       const y = yFromPriceRobust(d.p1.price);
       if(y==null) return;
@@ -3658,7 +3658,7 @@
     if(!els.sessionsToggle.checked || !state.data.length) return;
     const visible = chart.timeScale().getVisibleRange();
     if(!visible) return;
-    const w = container.clientWidth, h = container.clientHeight;
+    const w = cW(), h = cH();
     for(const day of enumerateBerlinDays(visible.from, visible.to)){
       for(const sess of SESSIONS){
         const t1 = berlinWallTimeToEpoch(day.year, day.month, day.day, sess.startHour, sess.startMin);
@@ -3692,7 +3692,7 @@
     const hl = highLowInRange(asiaStart, asiaEnd);
     if(!hl) return;
     const x1 = xFromTimeRobust(asiaEnd);
-    const x2 = xFromTimeRobust(nyEnd) ?? container.clientWidth;
+    const x2 = xFromTimeRobust(nyEnd) ?? cW();
     drawLevelSegment(svg, hl.high, x1, x2, '#9b6dff', 'Asia High');
     drawLevelSegment(svg, hl.low, x1, x2, '#9b6dff', 'Asia Low');
   }
@@ -3708,7 +3708,7 @@
     if(!hl) return;
     const nextDayStart = berlinWallTimeToEpoch(today.year, today.month, today.day, 23, 59) + 60;
     const x1 = xFromTimeRobust(todayStart) ?? 0;
-    const x2 = xFromTimeRobust(nextDayStart) ?? container.clientWidth;
+    const x2 = xFromTimeRobust(nextDayStart) ?? cW();
     drawLevelSegment(svg, hl.high, x1, x2, '#E0A438', 'PDH');
     drawLevelSegment(svg, hl.low, x1, x2, '#E0A438', 'PDL');
   }
@@ -3727,7 +3727,7 @@
     }
     if(openPrice==null) return;
     const x1 = xFromTimeRobust(openTime) ?? 0;
-    const x2 = container.clientWidth;
+    const x2 = cW();
     drawLevelSegment(svg, openPrice, x1, x2, '#26A69A', 'Weekly Open');
   }
 
@@ -3814,7 +3814,7 @@
     }
     const x1 = xFromTimeRobust(entryTime);
     const yEntry = yFromPriceRobust(entryPrice);
-    const w = container.clientWidth;
+    const w = cW();
     if(x1==null || yEntry==null) return;
     if(tpPrice!=null){
       const yTp = yFromPriceRobust(tpPrice);
@@ -3853,6 +3853,7 @@
     if(!d) return false;
     if(d.type !== 'posbox') return VIS.draw;
     if(boxLinkedTo(d) || d.id === state.selectedDrawingId) return VIS.boxes !== 'off' || boxLinkedTo(d);
+    if(state.reviewing) return VIS.boxes !== 'off';   // Rueckblick: die Boxen von damals zeigen
     return VIS.boxes === 'all' || (VIS.boxes === 'current' && !posboxPast(d));
   }
   // Bei "letzte 3": Index der ersten gezeigten Trade-Zeile im Journal
@@ -3915,9 +3916,13 @@
     if(!state.data.length || !state.journal.length || (!trailsOn() && focusTrade == null)) return;
     const nowT = state.data[state.cursor] ? state.data[state.cursor].time : Infinity;
     const at = t => { const i = barIndexAtOrBefore(t); return i >= 0 ? state.data[i].time : null; };
-    const cw = container.clientWidth, ch = container.clientHeight, plotW = Math.max(60, cw - 70);
+    const cw = cW(), ch = cH(), plotW = Math.max(60, cw - 70);
     const { nr } = tradeNumbers();
-    const mk = (tag, attrs) => { const el = document.createElementNS(NS_SVG, tag); for(const k in attrs) el.setAttribute(k, attrs[k]); el.setAttribute('pointer-events', 'none'); return el; };
+    // Als Text zusammenbauen und am Ende auf einmal einsetzen — deutlich schneller als hunderte einzelne Elemente
+    // (beim Ziehen des Charts wird das jedes Bild neu gebaut)
+    const out = [];
+    const esc = v => String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+    const mk = (tag, attrs, inner) => { let a = ''; for(const k in attrs) a += ' ' + k + '="' + esc(attrs[k]) + '"'; return '<' + tag + a + ' pointer-events="none">' + (inner || '') + '</' + tag + '>'; };
     // Schild: Text auf farbigem Grund, an (x, y) ausgerichtet; bleibt im Chart und weicht anderen Schildern aus
     const placed = [];
     const hits = (bx, by, bw, h) => placed.some(r => bx < r.x + r.w + 3 && bx + bw + 3 > r.x && by < r.y + r.h + 3 && by + h + 3 > r.y);
@@ -3936,12 +3941,10 @@
       }
       placed.push({ x: bx, y: by, w: bw, h });
       if(Math.abs(by - by0) > 2){   // verschoben: duenne Linie zum Punkt
-        svg.appendChild(mk('line', { x1: x, y1: y, x2: align === 'right' ? bx + bw : bx, y2: by + h/2, stroke: fill, 'stroke-width': 1, 'stroke-opacity': 0.7 }));
+        out.push(mk('line', { x1: x, y1: y, x2: align === 'right' ? bx + bw : bx, y2: by + h/2, stroke: fill, 'stroke-width': 1, 'stroke-opacity': 0.7 }));
       }
-      const g = mk('g', { 'data-trail-label': '1' });
-      g.appendChild(mk('rect', { x: bx, y: by, width: bw, height: h, rx: 5, fill, 'fill-opacity': strong ? 1 : 0.85, stroke: 'rgba(0,0,0,0.35)', 'stroke-width': 1 }));
-      const tx = mk('text', { x: bx + (strong ? 7 : 5), y: by + h/2 + fs*0.36, 'font-size': fs, 'font-weight': 700, fill: '#fff' });
-      tx.textContent = txt; g.appendChild(tx); svg.appendChild(g);
+      out.push(mk('g', { 'data-trail-label': '1' }, mk('rect', { x: bx, y: by, width: bw, height: h, rx: 5, fill, 'fill-opacity': strong ? 1 : 0.85, stroke: 'rgba(0,0,0,0.35)', 'stroke-width': 1 })
+        + mk('text', { x: bx + (strong ? 7 : 5), y: by + h/2 + fs*0.36, 'font-size': fs, 'font-weight': 700, fill: '#fff' }, esc(txt))));
     };
     const done = new Set(), from = recentTradeFrom();
     state.journal.forEach((t, i) => {
@@ -3951,17 +3954,18 @@
       if(eT == null || xT == null || xT > nowT) return;
       const x1 = xFromTimeRobust(eT), x2 = xFromTimeRobust(xT), y1 = yFromPriceRobust(t.entryPrice), y2 = yFromPriceRobust(t.exitPrice);
       if(x1 == null || x2 == null || y1 == null || y2 == null) return;
+      if(!focus && (x2 < -60 || x1 > cw + 60)) return;   // ausserhalb des sichtbaren Bereichs: nichts zeichnen
       const w = Math.max(6, x2 - x1), win = (t.pnl || 0) >= 0, col = win ? '#26A69A' : '#EF5350', sideCol = t.side === 'long' ? '#26A69A' : '#EF5350';
       const tp = t.tpPrice != null ? t.tpPrice : (t.review && t.review.tp), sl = t.slPrice != null ? t.slPrice : (t.review && t.review.sl);
       const zone = (price, fill, stroke) => { const y = yFromPriceRobust(price); if(y == null) return;
-        svg.appendChild(mk('rect', { x: x1, y: Math.min(y, y1), width: w, height: Math.max(1, Math.abs(y - y1)), fill, stroke, 'stroke-width': 1 })); };
+        out.push(mk('rect', { x: x1, y: Math.min(y, y1), width: w, height: Math.max(1, Math.abs(y - y1)), fill, stroke, 'stroke-width': 1 })); };
       if(tp != null) zone(tp, focus ? 'rgba(38,166,154,0.26)' : 'rgba(38,166,154,0.09)', focus ? 'rgba(38,166,154,0.45)' : 'rgba(38,166,154,0.25)');
       if(sl != null) zone(sl, focus ? 'rgba(239,83,80,0.26)' : 'rgba(239,83,80,0.09)', focus ? 'rgba(239,83,80,0.45)' : 'rgba(239,83,80,0.25)');
       // Einstiegskurs als Linie bis zum Ausstieg, dazu die Linie Einstieg -> Ausstieg
-      svg.appendChild(mk('line', { x1, y1, x2: x1 + w, y2: y1, stroke: sideCol, 'stroke-width': 1, 'stroke-opacity': 0.8 }));
-      svg.appendChild(mk('line', { x1, y1, x2, y2, stroke: col, 'stroke-width': focus ? 3 : 2, 'data-trail': String(nr[i]) }));
-      svg.appendChild(mk('circle', { cx: x1, cy: y1, r: focus ? 5 : 4, fill: sideCol, stroke: '#fff', 'stroke-width': 1.5 }));
-      svg.appendChild(mk('circle', { cx: x2, cy: y2, r: focus ? 5 : 4, fill: col, stroke: '#fff', 'stroke-width': 1.5 }));
+      out.push(mk('line', { x1, y1, x2: x1 + w, y2: y1, stroke: sideCol, 'stroke-width': 1, 'stroke-opacity': 0.8 }));
+      out.push(mk('line', { x1, y1, x2, y2, stroke: col, 'stroke-width': focus ? 3 : 2, 'data-trail': String(nr[i]) }));
+      out.push(mk('circle', { cx: x1, cy: y1, r: focus ? 5 : 4, fill: sideCol, stroke: '#fff', 'stroke-width': 1.5 }));
+      out.push(mk('circle', { cx: x2, cy: y2, r: focus ? 5 : 4, fill: col, stroke: '#fff', 'stroke-width': 1.5 }));
       // Schilder: Einstieg einmal pro Trade (Teilverkaeufe teilen ihn), Ausstieg je Teil mit Ergebnis
       const ek = t.entryTime + '|' + t.side;
       // kurz (Standard) – ausfuehrlich nur, wenn der Trade ueber „📍 Im Chart“ hervorgehoben ist
@@ -3969,6 +3973,7 @@
       const hasR = t.rMultiple != null && isFinite(t.rMultiple), rTxt = hasR ? (t.rMultiple >= 0 ? '+' : '') + t.rMultiple.toFixed(1).replace('.', ',') + ' R' : '';
       badge(focus ? '#' + nr[i] + ' ' + (REASON_SHORT[t.reason] || t.reason) + ' ' + usdSigned(t.pnl || 0) + (hasR ? ' · ' + rTxt : '') : '#' + nr[i] + ' ' + (hasR ? rTxt : usdSigned(t.pnl || 0)), x2 + 6, y2, col, 'left', 'mid', focus);
     });
+    if(out.length){ const g = document.createElementNS(NS_SVG, 'g'); g.innerHTML = out.join(''); svg.appendChild(g); }
   }
   // Springt im Chart zu einem Trade dieser Session und hebt ihn hervor.
   function focusTradeInChart(idx){
@@ -3996,10 +4001,26 @@
     applyVis(false);
   })();
 
+  // Groesse des Charts nur EINMAL pro Bild messen: jedes Auslesen von clientWidth nach neuen SVG-Elementen
+  // zwang den Browser zu einer Layout-Berechnung — bei vielen Zeichnungen ruckelte das Ziehen des Charts.
+  let frameSize = null;
+  function cW(){ return frameSize ? frameSize.w : container.clientWidth; }
+  function cH(){ return frameSize ? frameSize.h : container.clientHeight; }
   function renderDrawings(){
     syncCompLines();
-    const svg = els.drawOverlay;
-    while(svg.firstChild) svg.removeChild(svg.firstChild);
+    const overlay = els.drawOverlay;
+    frameSize = { w: container.clientWidth, h: container.clientHeight };
+    // Alles zuerst in eine (noch nicht eingehaengte) Gruppe zeichnen und dann auf einmal einsetzen
+    const svg = document.createElementNS(NS_SVG, 'g');
+    try{ renderDrawingsInto(svg); }
+    finally{ frameSize = null; }
+    overlay.replaceChildren(svg);
+    updateSelBar();
+    // Angefangene Form (erster Punkt gesetzt) wieder mitzeichnen — sonst verschwand sie bei jedem
+    // Neuaufbau (Abspielen, neue Kerze, Preisskala), auf dem iPad gibt es dazwischen keine Mausbewegung.
+    if(drawStart && state.activeTool!=='cursor') renderPreview(state.activeTool, drawStart, drawPreviewPt || drawStart);
+  }
+  function renderDrawingsInto(svg){
     renderSessionsAndLevels(svg);
     renderTradeTrails(svg);
     renderRiskRewardZone(svg);
@@ -4016,10 +4037,6 @@
       const sel = state.drawings.find(dd=>dd.id===state.selectedDrawingId);
       if(sel) renderSelection(svg, sel); else state.selectedDrawingId=null;
     }
-    updateSelBar();
-    // Angefangene Form (erster Punkt gesetzt) wieder mitzeichnen — sonst verschwand sie bei jedem
-    // Neuaufbau (Abspielen, neue Kerze, Preisskala), auf dem iPad gibt es dazwischen keine Mausbewegung.
-    if(drawStart && state.activeTool!=='cursor') renderPreview(state.activeTool, drawStart, drawPreviewPt || drawStart);
   }
 
   function clearPreview(){
@@ -7538,6 +7555,10 @@
         return;
       }
       if(dragging && typeof dragging==='object' && dragging.kind==='locked') return;
+      // Chart wird geschoben (Finger oder gedrueckte Maus, nichts von uns gegriffen): keine Treffer-Suche fuer den
+      // Mauszeiger — die kostete bei jedem Bild Zeit und liess das Ziehen ruckeln. Die Zeichnungen folgen ueber das
+      // Ereignis der Zeitachse; bei Aenderung nur der Preisskala hier einmal pro Bild nachziehen.
+      if(!dragging && (e.type === 'touchmove' || e.buttons !== 0)){ scheduleRenderDrawings(); return; }
       const pt = xyFromEvent(e);
       if(dragging && typeof dragging==='object' && dragging.kind==='posbox'){
         const d = state.drawings.find(dd=>dd.id===dragging.id);
