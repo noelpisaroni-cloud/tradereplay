@@ -697,6 +697,12 @@
   .ind-legend i{ width:9px; height:2px; border-radius:1px; display:inline-block; }
   .ind-legend b{ color:var(--ink); font-weight:600; }
   #stepBackBtn.is-blocked{ opacity:.45; }
+  .ptp-box{ padding:2px 0 6px; }
+  .ptp-row{ display:flex; align-items:center; gap:6px; font-size:12.5px; padding:3px 0; }
+  .ptp-row .ptp-n{ color:#26A69A; font-weight:700; min-width:30px; }
+  .ptp-row b{ flex:1; font-variant-numeric:tabular-nums; }
+  .ptp-row .ptp-frac{ width:auto !important; padding:0 8px !important; font-weight:700; }
+  .ptp-add{ width:auto !important; padding:0 10px !important; color:#26A69A !important; border-color:#26A69A !important; font-weight:700; }
   .partial-row{ display:flex; align-items:center; justify-content:space-between; gap:8px; padding:4px 0; font-size:13px; }
   .partial-row .k{ color:var(--ink-soft); }
   .partial-btns{ display:flex; gap:4px; }
@@ -1488,6 +1494,7 @@
           <div class="partial-btns"><button class="part-btn" data-partial="0.25" title="25 % der Position zum aktuellen Kurs schließen">25 %</button><button class="part-btn" data-partial="0.5" title="Die Hälfte der Position schließen">50 %</button><button class="part-btn" data-partial="0.75" title="75 % der Position schließen">75 %</button></div>
         </div>
         <div class="stat-line tpsl-row"><span class="k">Take-Profit</span><span class="v" id="posTp">–</span><button class="mini-btn" id="tpToggleBtn">+</button></div>
+        <div class="ptp-box" id="ptpBox"><div class="ptp-list" id="ptpList"></div><button class="mini-btn ptp-add" id="ptpAddBtn" type="button" title="Weiteres Ziel: dort wird ein Teil der Position automatisch geschlossen (Linie im Chart ziehbar)">+ Teil-Ziel</button></div>
         <div class="stat-line tpsl-row"><span class="k">Stop-Loss</span><span class="v" id="posSl">–</span><button class="mini-btn be-btn" id="beBtn" type="button" title="Break Even: Stop auf den Einstiegskurs setzen (Taste E)">BE</button><button class="mini-btn" id="slToggleBtn">+</button></div>
         <div class="stat-line" id="posLiqRow" hidden><span class="k">Liquidation</span><span class="v down-txt" id="posLiq">–</span></div>
         <div class="drag-hint">↕ TP-/SL-Linien lassen sich direkt im Chart per Drag verschieben.</div>
@@ -6061,6 +6068,7 @@
   }
 
   function checkPositionAgainstBar(bar){
+    checkPartialTps(bar);
     const pos = state.position;
     if(!pos) return;
     let reason=null, price=null;
@@ -6150,6 +6158,102 @@
 
   // Teilweise schliessen: frac (z. B. 0.5) der Position zum aktuellen Schlusskurs; der Rest
   // laeuft mit denselben TP/SL weiter. Marge, Gebuehr und Groesse werden anteilig aufgeteilt.
+  // ---------- Teil-Ziele (mehrere TPs) ----------
+  // pos.tps = [{ id, price, frac }] — frac = Anteil der URSPRUENGLICHEN Groesse (pos.qty0). Wird ein Teil-Ziel
+  // erreicht, schliesst genau dieser Anteil zum Zielkurs; der Rest laeuft bis Haupt-TP/Stop weiter.
+  const PTP_MAX = 3, PTP_FRACS = [0.25, 0.33, 0.5, 0.75];
+  function ptpName(pos, tp){ return 'TP' + (pos.tps.indexOf(tp) + 1); }
+  function sortPtps(pos){ const long = pos.side === 'long'; pos.tps.sort((a, b) => long ? a.price - b.price : b.price - a.price); }
+  function drawPtpLines(){
+    Object.keys(positionLines).forEach(k => { if(k.indexOf('ptp_') === 0){ try{ candleSeries.removePriceLine(positionLines[k]); }catch(e){} delete positionLines[k]; } });
+    const pos = state.position; if(!pos || !pos.tps) return;
+    pos.tps.forEach(tp => { positionLines['ptp_' + tp.id] = candleSeries.createPriceLine({ price:tp.price, color:'#4DB6AC', lineWidth:2, lineStyle:LightweightCharts.LineStyle.SparseDotted, axisLabelVisible:true, title:ptpName(pos, tp) + ' ' + Math.round(tp.frac * 100) + '%' }); });
+  }
+  function ptpClamp(pos, price){
+    const cur = currentBar().close, eps = pos.entryPrice * 0.00005;
+    return pos.side === 'long' ? Math.max(price, Math.max(cur, pos.entryPrice) + eps) : Math.min(price, Math.min(cur, pos.entryPrice) - eps);
+  }
+  function addPartialTp(){
+    const pos = state.position; if(!pos || state.reviewing) return;
+    pos.tps = pos.tps || [];
+    if(pos.tps.length >= PTP_MAX){ showToast('Höchstens ' + PTP_MAX + ' Teil-Ziele.'); return; }
+    if(pos.qty0 == null) pos.qty0 = pos.qty;
+    const used = pos.tps.reduce((a, t) => a + t.frac, 0);
+    if(used >= 0.99){ showToast('Die Teil-Ziele decken schon die ganze Position ab.'); return; }
+    const long = pos.side === 'long', dir = long ? 1 : -1, e = pos.entryPrice;
+    const last = pos.tps.length ? pos.tps[pos.tps.length - 1].price : e;
+    const risk = Math.abs(e - (pos.slInit ?? pos.slPrice ?? e * (1 - dir * 0.002)));
+    let price = pos.tpPrice != null ? last + (pos.tpPrice - last) / 2 : last + dir * Math.max(risk, e * 0.001);
+    price = ptpClamp(pos, price);
+    const frac = Math.min(pos.tps.length ? 0.25 : 0.5, 1 - used);
+    pos.tps.push({ id: Date.now() % 1e9 + Math.floor(Math.random() * 1000), price, frac });
+    sortPtps(pos); drawPtpLines(); updatePositionUI(); saveState();
+    showToast('Teil-Ziel gesetzt: ' + Math.round(frac * 100) + ' % bei ' + px(price) + ' – Linie im Chart ziehen zum Verschieben.', 3500);
+  }
+  function setPartialTpPrice(id, price){
+    const pos = state.position; if(!pos || !pos.tps) return;
+    const tp = pos.tps.find(t => t.id === id); if(!tp) return;
+    tp.price = ptpClamp(pos, price);
+    const l = positionLines['ptp_' + id]; if(l) l.applyOptions({ price: tp.price });
+    updatePositionUI(); saveState();
+  }
+  function cyclePartialTpFrac(id){
+    const pos = state.position; if(!pos || !pos.tps) return;
+    const tp = pos.tps.find(t => t.id === id); if(!tp) return;
+    const others = pos.tps.reduce((a, t) => a + (t === tp ? 0 : t.frac), 0);
+    const opts = PTP_FRACS.filter(f => f + others <= 1.0001);
+    const i = opts.findIndex(f => Math.abs(f - tp.frac) < 0.005);
+    tp.frac = opts.length ? opts[(i + 1) % opts.length] : tp.frac;
+    drawPtpLines(); updatePositionUI(); saveState();
+  }
+  function removePartialTp(id){
+    const pos = state.position; if(!pos || !pos.tps) return;
+    pos.tps = pos.tps.filter(t => t.id !== id);
+    drawPtpLines(); updatePositionUI(); saveState();
+  }
+  function renderPtpList(pos){
+    const list = document.getElementById('ptpList'); if(!list) return;
+    const tps = pos.tps || [], q0 = pos.qty0 || pos.qty;
+    list.innerHTML = tps.map(tp => `<div class="ptp-row"><span class="ptp-n">${ptpName(pos, tp)}</span><b>${px(tp.price)}</b>`
+      + `<button class="mini-btn ptp-frac" data-ptp-frac="${tp.id}" title="Anteil ändern (antippen)">${Math.round(tp.frac * 100)} %</button>`
+      + `<button class="mini-btn remove" data-ptp-del="${tp.id}" title="Teil-Ziel entfernen">✕</button></div>`).join('');
+    const add = document.getElementById('ptpAddBtn');
+    if(add) add.hidden = tps.length >= PTP_MAX || tps.reduce((a, t) => a + t.frac, 0) >= 0.99;
+    void q0;
+  }
+  // Ein Teil der Position zu einem bestimmten Kurs schliessen (frac = Anteil der AKTUELLEN Groesse)
+  function closePartAt(frac, price, time, reason){
+    const pos = state.position;
+    const part = { ...pos, qty:pos.qty*frac, notional:pos.notional*frac, margin:pos.margin*frac, entryFee:pos.entryFee*frac };
+    const net = realizeClose(part, price, time, reason, frac);
+    pos.qty *= (1-frac); pos.notional *= (1-frac); pos.margin *= (1-frac); pos.entryFee *= (1-frac);
+    pos.partials = (pos.partials || []).concat([{ time, price, frac, pnl:net }]);
+    addExitMarker(time, net, 'partial');
+    return net;
+  }
+  // Pro Kerze: erreichte Teil-Ziele ausfuehren. Liegt der Stop in derselben Kerze, gilt (wie beim Haupt-Ziel) der Stop zuerst.
+  function checkPartialTps(bar){
+    const pos = state.position;
+    if(!pos || !pos.tps || !pos.tps.length) return;
+    const long = pos.side === 'long', open = bar.open;
+    const stop = long ? (pos.liqPrice!=null ? Math.max(pos.slPrice ?? -Infinity, pos.liqPrice) : pos.slPrice)
+                      : (pos.liqPrice!=null ? Math.min(pos.slPrice ?? Infinity, pos.liqPrice) : pos.slPrice);
+    const stopHit = stop != null && (long ? bar.low <= stop : bar.high >= stop);
+    let any = false;
+    for(const tp of pos.tps.slice()){
+      if(!state.position) break;
+      const gap = long ? open >= tp.price : open <= tp.price, hit = long ? bar.high >= tp.price : bar.low <= tp.price;
+      if(!hit || (stopHit && !gap)) continue;
+      const fill = gap ? open : tp.price, name = ptpName(pos, tp), want = Math.min(pos.qty, tp.frac * (pos.qty0 || pos.qty));
+      pos.tps = pos.tps.filter(t => t !== tp);
+      if(want >= pos.qty * 0.999){ drawPtpLines(); closePosition(fill, bar.time, 'tp'); return; }
+      const net = closePartAt(want / pos.qty, fill, bar.time, 'ptp');
+      any = true;
+      const msg = name + ' erreicht: ' + Math.round(tp.frac * 100) + ' % geschlossen (' + usdSigned(net) + '), der Rest läuft weiter.';
+      setTimeout(() => showToast(msg, 4000), 0);   // nach der allgemeinen Ausstiegs-Meldung
+    }
+    if(any){ drawPtpLines(); updateAccountUI(); updatePositionUI(); renderJournal(); renderStats(); refreshHistoryTabIfOpen(); }
+  }
   function closePartial(frac){
     const pos = state.position;
     if(!pos || state.reviewing || !(frac > 0) || busyBlocked()) return;
@@ -6185,6 +6289,7 @@
     if(pos.tpPrice!=null) positionLines.tp = candleSeries.createPriceLine({ price:pos.tpPrice, color:'#26A69A', lineWidth:2, lineStyle:LightweightCharts.LineStyle.Dashed, axisLabelVisible:true, title:'TP' });
     if(pos.slPrice!=null) positionLines.sl = candleSeries.createPriceLine({ price:pos.slPrice, color:'#EF5350', lineWidth:2, lineStyle:LightweightCharts.LineStyle.Dashed, axisLabelVisible:true, title:'SL' });
     if(pos.liqPrice!=null) positionLines.liq = candleSeries.createPriceLine({ price:pos.liqPrice, color:'#E0A438', lineWidth:1, lineStyle:LightweightCharts.LineStyle.Solid, axisLabelVisible:true, title:'Liquidation' });
+    drawPtpLines();
   }
   function removePositionLines(){
     Object.values(positionLines).forEach(l => { try{ candleSeries.removePriceLine(l); }catch(e){} });
@@ -6196,8 +6301,8 @@
     rebuildTradeMarkers();
     candleSeries.setMarkers(markers);
   }
-  const REASON_LABEL = { tp:'Take-Profit', sl:'Stop-Loss', be:'Break Even', manual:'Manuell', end:'Session-Ende', liquidation:'Liquidation', partial:'Teilweise' };
-  const REASON_SHORT = { tp:'TP', sl:'SL', be:'BE', manual:'Exit', end:'Ende', liquidation:'Liq.', partial:'Teil' };
+  const REASON_LABEL = { tp:'Take-Profit', sl:'Stop-Loss', be:'Break Even', ptp:'Teil-Ziel', manual:'Manuell', end:'Session-Ende', liquidation:'Liquidation', partial:'Teilweise' };
+  const REASON_SHORT = { tp:'TP', sl:'SL', be:'BE', ptp:'Teil-TP', manual:'Exit', end:'Ende', liquidation:'Liq.', partial:'Teil' };
   function addExitMarker(time, pnl, reason){
     rebuildTradeMarkers();
     candleSeries.setMarkers(markers);
@@ -6280,6 +6385,7 @@
     els.posQty.textContent = usd(pos.notional,0) + ' @ ' + pos.leverage + 'x' + (pos.partials && pos.partials.length ? ' (Rest)' : '');
     els.posTp.textContent = pos.tpPrice!=null ? px(pos.tpPrice) + ' (' + pos.tpPct.toFixed(2) + '%)' : '– aus –';
     els.posSl.textContent = pos.slPrice!=null ? px(pos.slPrice) + ' (' + pos.slPct.toFixed(2) + '%)' : '– aus –';
+    renderPtpList(pos);
     els.posLiqRow.hidden = pos.liqPrice==null;
     if(pos.liqPrice!=null) els.posLiq.textContent = px(pos.liqPrice);
     // Only reset the note field when a DIFFERENT position is now shown — this
@@ -6418,7 +6524,7 @@
         <td class="num">${px(t.exitPrice)}</td>
         <td class="num">${usd(t.notional,0)}</td>
         <td class="num">${t.leverage}x</td>
-        <td><span class="chip ${t.reason==='tp'?'tp':(t.reason==='sl'||t.reason==='liquidation')?'sl':'manual'}">${REASON_LABEL[t.reason]||t.reason}</span></td>
+        <td><span class="chip ${(t.reason==='tp'||t.reason==='ptp')?'tp':(t.reason==='sl'||t.reason==='liquidation')?'sl':'manual'}">${REASON_LABEL[t.reason]||t.reason}</span></td>
         <td>${t.strategyName ? escapeHtml(t.strategyName) : '<span class="chip manual">–</span>'}</td>
         <td>${scoreBadgeHtml(t.score, t.grade, t.feedback)}</td>
         <td>${tjCellHtml(t)}</td>
@@ -7196,6 +7302,11 @@
   els.tpToggleBtn.addEventListener('click', ()=> toggleLevel('tp'));
   els.slToggleBtn.addEventListener('click', ()=> toggleLevel('sl'));
   document.getElementById('beBtn').addEventListener('click', setBreakEven);
+  document.getElementById('ptpAddBtn').addEventListener('click', addPartialTp);
+  document.getElementById('ptpList').addEventListener('click', e => {
+    const f = e.target.closest('[data-ptp-frac]'), d = e.target.closest('[data-ptp-del]');
+    if(f) cyclePartialTpFrac(+f.dataset.ptpFrac); else if(d) removePartialTp(+d.dataset.ptpDel);
+  });
   { const pb = document.getElementById('ptbBe'); if(pb) pb.addEventListener('click', setBreakEven); }
 
   els.tpPlanBtn.addEventListener('click', ()=>{
@@ -7218,6 +7329,7 @@
     function findNear(y){
       const pos = state.position;
       if(pos){
+        for(const tp of (pos.tps || [])){ const ty = yFromPriceRobust(tp.price); if(ty!=null && Math.abs(y-ty)<=DRAG_PX) return 'ptp:' + tp.id; }
         if(pos.tpPrice!=null){
           const ty = yFromPriceRobust(pos.tpPrice);
           if(ty!=null && Math.abs(y-ty)<=DRAG_PX) return 'tp';
@@ -7434,7 +7546,8 @@
       if(dragging){
         const price = priceFromYRobust(pt.y);
         if(price!=null && price>0){
-          if(dragging==='draftTp') setDraftLevel('tp', price);
+          if(typeof dragging==='string' && dragging.indexOf('ptp:')===0) setPartialTpPrice(+dragging.slice(4), price);
+          else if(dragging==='draftTp') setDraftLevel('tp', price);
           else if(dragging==='draftSl') setDraftLevel('sl', price);
           else setLevel(dragging, price);
         }
@@ -8337,7 +8450,7 @@
           <td><span class="chip ${t.side}">${t.side === 'long' ? 'Long' : 'Short'}</span></td>
           <td class="num">${t.entryTime != null ? fmtTimeY(t.entryTime) : '–'} · ${t.entryPrice != null ? px(t.entryPrice) : ''}</td>
           <td class="num">${t.exitTime != null ? fmtTimeY(t.exitTime) : '–'} · ${t.exitPrice != null ? px(t.exitPrice) : ''}</td>
-          <td><span class="chip ${t.reason==='tp'?'tp':(t.reason==='sl'||t.reason==='liquidation')?'sl':'manual'}">${REASON_LABEL[t.reason] || t.reason || '–'}</span></td>
+          <td><span class="chip ${(t.reason==='tp'||t.reason==='ptp')?'tp':(t.reason==='sl'||t.reason==='liquidation')?'sl':'manual'}">${REASON_LABEL[t.reason] || t.reason || '–'}</span></td>
           <td>${t.strategyName ? escapeHtml(t.strategyName) : '–'}</td>
           <td>${tjCellHtml(t)}</td>
           <td class="num ${(t.pnl || 0) >= 0 ? 'up-txt' : 'down-txt'}">${usdSigned(t.pnl || 0)}</td>
