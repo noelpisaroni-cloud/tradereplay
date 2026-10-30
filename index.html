@@ -4345,7 +4345,7 @@
   // passiert hier nichts mehr (nur nachsehen, ob die Datei schon da ist).
   // Neue Version veroeffentlicht? Dann Hinweis mit Knopf (nur Web-Version). Vorher blieb eine auf dem iPad
   // geoeffnete App oft tagelang auf dem alten Stand, weil sie nie ganz geschlossen wurde.
-  const APP_BUILD = '202610301715';
+  const APP_BUILD = '202610301732';
   function checkForAppUpdate(){
     if(!archivePrefetchAllowed()) return;
     let shown = false;
@@ -6351,8 +6351,9 @@
   function sortPtps(pos){ const long = pos.side === 'long'; pos.tps.sort((a, b) => long ? a.price - b.price : b.price - a.price); }
   function drawPtpLines(){
     Object.keys(positionLines).forEach(k => { if(k.indexOf('ptp_') === 0){ try{ candleSeries.removePriceLine(positionLines[k]); }catch(e){} delete positionLines[k]; } });
-    const pos = state.position; if(!pos || !pos.tps) return;
+    const pos = state.position; if(!pos || !pos.tps){ try{ syncCompLines(); }catch(e){} return; }
     pos.tps.forEach(tp => { positionLines['ptp_' + tp.id] = candleSeries.createPriceLine({ price:tp.price, color:'#4DB6AC', lineWidth:2, lineStyle:LightweightCharts.LineStyle.SparseDotted, axisLabelVisible:true, title:ptpName(pos, tp) + ' ' + Math.round(tp.frac * 100) + '%' }); });
+    try{ syncCompLines(); }catch(e){}   // auch im 2. Chart
   }
   function ptpClamp(pos, price){
     const cur = currentBar().close, eps = pos.entryPrice * 0.00005;
@@ -6380,6 +6381,7 @@
     const tp = pos.tps.find(t => t.id === id); if(!tp) return;
     tp.price = ptpClamp(pos, price);
     const l = positionLines['ptp_' + id]; if(l) l.applyOptions({ price: tp.price });
+    try{ syncCompLines(); }catch(e){}
     updatePositionUI(); saveState();
   }
   function cyclePartialTpFrac(id){
@@ -7189,7 +7191,9 @@
   function syncCompLines(){
     if(!comp || !comp.on || !comp.series) return;
     const pos = state.position, po = state.pendingOrder;
-    const sig = pos ? [pos.entryPrice, pos.tpPrice, pos.slPrice, pos.liqPrice].join('|') : (po ? 'L' + [po.limitPrice, po.tpPrice, po.slPrice].join('|') : '');
+    // Teil-Ziele: der Position, bzw. bei wartender Order die der verbundenen Box
+    const lb = po && !pos ? linkedBox() : null, lvls = pos ? (pos.tps || []) : ((lb && lb.ptps) || []);
+    const sig = (pos ? [pos.entryPrice, pos.tpPrice, pos.slPrice, pos.liqPrice].join('|') : (po ? 'L' + [po.limitPrice, po.tpPrice, po.slPrice].join('|') : '')) + '|' + lvls.map(t => t.price + ':' + t.frac).join(',');
     if(sig === comp.lineSig) return;
     comp.lineSig = sig;
     Object.values(comp.lines).forEach(l => { try{ comp.series.removePriceLine(l); }catch(e){} });
@@ -7203,7 +7207,10 @@
       if(pos.liqPrice != null) comp.lines.liq = mk(pos.liqPrice, '#E0A438', LS.Solid, 'Liquidation', 1);
     } else if(po){
       comp.lines.limit = mk(po.limitPrice, '#E0A438', LS.Dotted, po.side === 'long' ? 'Limit Long' : 'Limit Short', 1);
+      if(po.tpPrice != null) comp.lines.tp = mk(po.tpPrice, '#26A69A', LS.Dashed, 'TP', 1);
+      if(po.slPrice != null) comp.lines.sl = mk(po.slPrice, '#EF5350', LS.Dashed, 'SL', 1);
     }
+    lvls.forEach((t, i) => { comp.lines['ptp' + i] = mk(t.price, '#4DB6AC', LS.SparseDotted, 'TP' + (i + 1) + ' ' + Math.round(t.frac * 100) + '%', 1); });
   }
   function setCompanion(on, tf){
     comp.on = on;
