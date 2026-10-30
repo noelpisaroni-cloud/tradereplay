@@ -191,6 +191,13 @@
   .vis-menu .vm-seg button.on{ background:var(--accent); color:#fff; }
   @media (pointer:coarse){ .vis-menu .vm-seg button{ height:36px; padding:0 11px; } }
   html.vis-noqt .chart-overlay-tl .quick-trade{ display:none !important; }
+  .vis-menu .vm-hid-head{ font-weight:700; }
+  .vis-menu .vm-obj{ display:flex; align-items:center; gap:8px; width:100%; min-height:38px; padding:0 8px; margin:2px 0; border-radius:8px; border:1px solid var(--line); background:transparent; color:var(--ink); font-size:12.5px; text-align:left; }
+  .vis-menu .vm-obj .vm-obj-l{ flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .vis-menu .vm-obj .vm-obj-s{ font-weight:700; color:#26A69A; }
+  .vis-menu .vm-obj.off{ opacity:.55; } .vis-menu .vm-obj.off .vm-obj-s{ color:var(--ink-soft); }
+  .vis-menu .vm-hid button, .vis-menu .vm-show-all{ height:30px; padding:0 10px; border-radius:8px; border:1px solid var(--line); background:transparent; color:var(--accent, #2962FF); font-weight:600; font-size:12px; flex:none; }
+  .vis-menu{ max-height:calc(100vh - 16px); overflow-y:auto; }
   .draw-sep-v{ width:20px; height:1px; background:var(--line); margin:2px 0; }
   .draw-hint-row{ font-size:11.5px; color:var(--ink-faint); padding:0 0 6px; }
   .draw-hint-row[hidden]{ display:none; }
@@ -3003,6 +3010,7 @@
           + `<button class="sb-btn" data-sb="tpos" title="Wo der Text im Rechteck steht (antippen zum Wechseln)">⌖ ${RECT_TEXT_POS_NAME[pos]}</button>`;
       }
       html += `<button class="sb-btn" data-sb="dup" title="Kopie anlegen">⧉ Kopie</button>`;
+      html += `<button class="sb-btn" data-sb="hide" title="Nur dieses Objekt ausblenden – wieder einblenden über das Auge links">👁 Ausblenden</button>`;
       html += VIS.lock ? `<button class="sb-btn on" data-sb="unlockall" title="Alle Objekte sind gesperrt – antippen zum Entsperren">🔒 Alle entsperren</button>`
         : `<button class="sb-btn${d.locked ? ' on' : ''}" data-sb="lock" title="${d.locked ? 'Gesperrt – antippen zum Entsperren' : 'Sperren: lässt sich dann nicht mehr aus Versehen verschieben'}">${d.locked ? '🔒 Gesperrt' : '🔓 Sperren'}</button>`;
       bar.innerHTML = html;
@@ -3044,6 +3052,8 @@
         renderDrawings(); saveState();
       }
       else if(act === 'dup'){ duplicateDrawing(d); }
+      else if(act === 'hide'){ d.hidden = true; state.selectedDrawingId = null; selBarKey = ''; renderDrawings(); saveState(); applyVis(false);
+        showToast(DRAW_NAME[d.type] + ' ausgeblendet – wieder einblenden über das Auge links.', 4000, [{ label:'Rückgängig', fn:() => { delete d.hidden; renderDrawings(); saveState(); applyVis(false); } }]); }
       else if(act === 'be'){ setBreakEven(); selBarKey = ''; renderDrawings(); }
       else if(act === 'lock'){ d.locked = !d.locked; if(!d.locked) delete d.locked; selBarKey = ''; renderDrawings(); saveState(); showToast(d.locked ? '🔒 Gesperrt – lässt sich nicht mehr verschieben. Nochmal antippen zum Entsperren.' : '🔓 Entsperrt.', 2500); }
       else if(act === 'unlockall'){ setVis({ lock:false }); selBarKey = ''; renderDrawings(); showToast('🔓 Alle Objekte entsperrt.', 2500); }
@@ -3058,7 +3068,7 @@
     pushDrawUndo();
     const c = JSON.parse(JSON.stringify(d));
     c.id = 'd' + Date.now() + Math.floor(Math.random()*1000);
-    c.tv = 2; delete c.alert; delete c.linked; delete c.locked;
+    c.tv = 2; delete c.alert; delete c.linked; delete c.locked; delete c.hidden;
     const shiftT = t => { const l = logicalFromTime(t); return l == null ? t : (timeFromLogical(l + 6) ?? t); };
     if(c.type === 'hline'){ const vb = visibleBoundsForClamp(); c.p1.price = c.p1.price + (vb ? (vb.pMax - vb.pMin) * 0.05 : c.p1.price * 0.002); }
     else {
@@ -3924,7 +3934,7 @@
   }
   function posboxTouch(d){ if(d && d.type === 'posbox' && state.data.length && state.data[state.cursor]) d.at = state.data[state.cursor].time; }
   function drawingVisible(d){
-    if(!d) return false;
+    if(!d || d.hidden) return false;   // einzeln ausgeblendet (Knopf in der Leiste ueber dem Objekt)
     if(d.type !== 'posbox') return VIS.draw;
     if(boxLinkedTo(d) || d.id === state.selectedDrawingId) return VIS.boxes !== 'off' || boxLinkedTo(d);
     if(state.reviewing) return VIS.boxes !== 'off';   // Rueckblick: die Boxen von damals zeigen
@@ -3936,11 +3946,23 @@
     const keys = []; for(let i = state.journal.length - 1; i >= 0; i--){ const k = state.journal[i].entryTime + '|' + state.journal[i].side; if(!keys.includes(k)) keys.push(k); if(keys.length > VIS_RECENT){ return i + 1; } }
     return 0;
   }
+  const DRAW_NAME = { hline:'Linie', ray:'Strahl', trendline:'Trendlinie', vline:'Senkrechte Linie', rect:'Rechteck', fib:'Fibonacci', text:'Text', measure:'Messung', posbox:'TP/SL-Box', vprofile:'Volumen-Profil' };
+  // Liste ALLER Objekte im Chart — jedes einzeln per Antippen ein-/ausblenden
+  function hiddenDrawingsHtml(){
+    const list = state.drawings;
+    if(!list.length) return '';
+    const esc = v => String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+    const nHid = list.filter(d => d.hidden).length;
+    const label = d => esc(DRAW_NAME[d.type] || d.type) + (d.text ? ' · ' + esc(String(d.text).slice(0, 18))
+      : (d.type === 'hline' || d.type === 'ray') ? ' · ' + px(d.p1.price) : d.type === 'posbox' ? ' · ' + (d.tpPrice > d.entryPrice ? 'Long' : 'Short') + ' ' + px(d.entryPrice) : '');
+    return `<div class="vm-row vm-hid-head"><span>Objekte im Chart (${list.length})<br><small>antippen zum Ein-/Ausblenden</small></span>${nHid ? '<button type="button" class="vm-show-all" data-vshowall="1">Alle einblenden</button>' : ''}</div>`
+      + list.slice().reverse().map(d => `<button type="button" class="vm-obj${d.hidden ? ' off' : ''}" data-vtoggle="${esc(d.id)}"><span class="vm-eye">${d.hidden ? '🚫' : '👁'}</span><span class="vm-obj-l">${label(d)}</span><span class="vm-obj-s">${d.hidden ? 'aus' : 'an'}</span></button>`).join('');
+  }
   function visAllHidden(){ return !VIS.draw && VIS.boxes === 'off' && VIS.trades === 'off' && !VIS.qt; }
   function applyVis(rerender){
     document.documentElement.classList.toggle('vis-noqt', !VIS.qt);
     const b = document.getElementById('visBtn');
-    if(b){ const any = !VIS.draw || VIS.boxes === 'off' || VIS.trades === 'off' || !VIS.qt; b.classList.toggle('vis-off', any); }
+    if(b){ const any = !VIS.draw || VIS.boxes === 'off' || VIS.trades === 'off' || !VIS.qt || state.drawings.some(d => d.hidden); b.classList.toggle('vis-off', any); }
     const tt = document.getElementById('trailsToggle'); if(tt) tt.checked = trailsOn();
     if(state.selectedDrawingId){ const sd = state.drawings.find(x => x.id === state.selectedDrawingId); if(sd && !drawingVisible(sd)) state.selectedDrawingId = null; }
     if(rerender){ try{ rebuildTradeMarkers(); candleSeries.setMarkers(markers); }catch(e){} selBarKey = ''; scheduleRenderDrawings(); }
@@ -3958,7 +3980,8 @@
       + `<div class="vm-row"><span>TP/SL-Boxen<br><small>Aktuelle = noch nicht abgelaufen</small></span>${seg('boxes', [['all', 'Alle'], ['current', 'Aktuelle'], ['off', 'Aus']])}</div>`
       + `<div class="vm-row"><span>Trades</span>${seg('trades', [['all', 'Alle'], ['recent', 'Letzte 3'], ['off', 'Aus']])}</div>`
       + `<div class="vm-row"><span>Kaufen/Verkaufen<br><small>oben links im Chart</small></span>${onOff('qt')}</div>`
-      + `<div class="vm-row"><span>🔒 Alle Objekte sperren<br><small>nicht mehr verschiebbar</small></span>${onOff('lock')}</div>`;
+      + `<div class="vm-row"><span>🔒 Alle Objekte sperren<br><small>nicht mehr verschiebbar</small></span>${onOff('lock')}</div>`
+      + hiddenDrawingsHtml();
   }
   function openVisMenu(){
     const b = document.getElementById('visBtn'); if(!b) return;
@@ -3967,6 +3990,15 @@
       document.body.appendChild(visMenuEl);
       visMenuEl.addEventListener('click', e => {
         e.stopPropagation();
+        const tog = e.target.closest('[data-vtoggle]'), showAll = e.target.closest('[data-vshowall]');
+        if(tog || showAll){
+          state.drawings.forEach(d => {
+            if(showAll){ delete d.hidden; return; }
+            if(d.id !== tog.dataset.vtoggle) return;
+            if(d.hidden) delete d.hidden; else { d.hidden = true; if(state.selectedDrawingId === d.id) state.selectedDrawingId = null; }
+          });
+          selBarKey = ''; renderDrawings(); saveState(); applyVis(false); return;
+        }
         const all = e.target.closest('[data-vall]');
         if(all){
           if(visAllHidden()){ const p = VIS.prev || {}; setVis({ draw: p.draw ?? true, boxes: p.boxes && p.boxes !== 'off' ? p.boxes : 'current', trades: p.trades && p.trades !== 'off' ? p.trades : 'recent', qt: p.qt ?? true }); }
@@ -4089,6 +4121,7 @@
     try{ renderDrawingsInto(svg); }
     finally{ frameSize = null; }
     overlay.replaceChildren(svg);
+    try{ const vb = document.getElementById('visBtn'); if(vb) vb.classList.toggle('vis-off', !VIS.draw || VIS.boxes === 'off' || VIS.trades === 'off' || !VIS.qt || state.drawings.some(x => x.hidden)); }catch(e){}
     updateSelBar();
     // Angefangene Form (erster Punkt gesetzt) wieder mitzeichnen — sonst verschwand sie bei jedem
     // Neuaufbau (Abspielen, neue Kerze, Preisskala), auf dem iPad gibt es dazwischen keine Mausbewegung.
@@ -4345,7 +4378,7 @@
   // passiert hier nichts mehr (nur nachsehen, ob die Datei schon da ist).
   // Neue Version veroeffentlicht? Dann Hinweis mit Knopf (nur Web-Version). Vorher blieb eine auf dem iPad
   // geoeffnete App oft tagelang auf dem alten Stand, weil sie nie ganz geschlossen wurde.
-  const APP_BUILD = '202610301732';
+  const APP_BUILD = '202610301912';
   function checkForAppUpdate(){
     if(!archivePrefetchAllowed()) return;
     let shown = false;
