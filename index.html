@@ -4272,6 +4272,30 @@
   // Web-Version (App-Modus): die Archive der groesseren Zeitrahmen (15m bis 1T) still im Hintergrund in den
   // Speicher der App legen — dann klappt der Wechsel z. B. auf 30m auch spaeter ohne Internet. Einmal geladen,
   // passiert hier nichts mehr (nur nachsehen, ob die Datei schon da ist).
+  // Neue Version veroeffentlicht? Dann Hinweis mit Knopf (nur Web-Version). Vorher blieb eine auf dem iPad
+  // geoeffnete App oft tagelang auf dem alten Stand, weil sie nie ganz geschlossen wurde.
+  const APP_BUILD = '202610301228';
+  function checkForAppUpdate(){
+    if(!archivePrefetchAllowed()) return;
+    let shown = false;
+    const check = async () => {
+      if(shown || document.visibilityState !== 'visible') return;
+      try{
+        const r = await fetch('index.html?u=' + Date.now(), { cache:'no-store' });
+        if(!r.ok) return;
+        const m = (await r.text()).match(/const APP_BUILD = '(\d+)'/);
+        if(!m || !(m[1] > APP_BUILD)) return;
+        shown = true;
+        showToast('Es gibt eine neue Version von TradeReplay. Deine Sessions und Trades bleiben erhalten.', 600000, [
+          { label:'↻ Jetzt aktualisieren', primary:true, fn:() => { try{ saveState(); }catch(e){} location.reload(); } },
+          { label:'Später', fn:() => { setTimeout(() => { shown = false; }, 10 * 60000); } }
+        ]);
+      }catch(e){}
+    };
+    setTimeout(check, 8000);
+    setInterval(check, 3 * 60000);
+    document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible') setTimeout(check, 1500); });
+  }
   function archivePrefetchAllowed(){
     let test = false; try{ test = localStorage.getItem('tradereplay_sw_test') === '1'; }catch(e){}
     return !window.claude && 'caches' in window && 'serviceWorker' in navigator && (/github\.io$/.test(location.hostname) || test);
@@ -9988,6 +10012,7 @@
     renderActiveStrategySelect();
     if(CLOUD.on){ CLOUD.needFull = true; cloudSchedule(1200); }
     setTimeout(() => { prefetchArchives().catch(() => {}); }, 20000);
+    checkForAppUpdate();
     window.addEventListener('online', () => setTimeout(() => { prefetchArchives().catch(() => {}); }, 5000));
   })();
 })();
