@@ -3947,15 +3947,15 @@
     return 0;
   }
   const DRAW_NAME = { hline:'Linie', ray:'Strahl', trendline:'Trendlinie', vline:'Senkrechte Linie', rect:'Rechteck', fib:'Fibonacci', text:'Text', measure:'Messung', posbox:'TP/SL-Box', vprofile:'Volumen-Profil' };
-  // Liste ALLER Objekte im Chart — jedes einzeln per Antippen ein-/ausblenden
+  // Nur die einzeln ausgeblendeten Objekte — antippen blendet wieder ein (alle aufzulisten war zu lang)
   function hiddenDrawingsHtml(){
-    const list = state.drawings;
+    const list = state.drawings.filter(d => d.hidden);
     if(!list.length) return '';
     const esc = v => String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
     const nHid = list.filter(d => d.hidden).length;
     const label = d => esc(DRAW_NAME[d.type] || d.type) + (d.text ? ' · ' + esc(String(d.text).slice(0, 18))
       : (d.type === 'hline' || d.type === 'ray') ? ' · ' + px(d.p1.price) : d.type === 'posbox' ? ' · ' + (d.tpPrice > d.entryPrice ? 'Long' : 'Short') + ' ' + px(d.entryPrice) : '');
-    return `<div class="vm-row vm-hid-head"><span>Objekte im Chart (${list.length})<br><small>antippen zum Ein-/Ausblenden</small></span>${nHid ? '<button type="button" class="vm-show-all" data-vshowall="1">Alle einblenden</button>' : ''}</div>`
+    return `<div class="vm-row vm-hid-head"><span>Ausgeblendet (${list.length})<br><small>antippen zum Wiedereinblenden</small></span>${nHid > 1 ? '<button type="button" class="vm-show-all" data-vshowall="1">Alle einblenden</button>' : ''}</div>`
       + list.slice().reverse().map(d => `<button type="button" class="vm-obj${d.hidden ? ' off' : ''}" data-vtoggle="${esc(d.id)}"><span class="vm-eye">${d.hidden ? '🚫' : '👁'}</span><span class="vm-obj-l">${label(d)}</span><span class="vm-obj-s">${d.hidden ? 'aus' : 'an'}</span></button>`).join('');
   }
   function visAllHidden(){ return !VIS.draw && VIS.boxes === 'off' && VIS.trades === 'off' && !VIS.qt; }
@@ -4378,7 +4378,7 @@
   // passiert hier nichts mehr (nur nachsehen, ob die Datei schon da ist).
   // Neue Version veroeffentlicht? Dann Hinweis mit Knopf (nur Web-Version). Vorher blieb eine auf dem iPad
   // geoeffnete App oft tagelang auf dem alten Stand, weil sie nie ganz geschlossen wurde.
-  const APP_BUILD = '202610301912';
+  const APP_BUILD = '202610301920';
   function checkForAppUpdate(){
     if(!archivePrefetchAllowed()) return;
     let shown = false;
