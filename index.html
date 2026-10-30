@@ -1358,6 +1358,7 @@
             <button class="draw-btn" data-tool="hline" title="Horizontale Linie"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><line x1="3" y1="12" x2="21" y2="12" stroke="currentColor" stroke-width="1.8" stroke-dasharray="3.5 3"/></svg></button>
             <button class="draw-btn" data-tool="vline" title="Vertikale Linie"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><line x1="12" y1="3" x2="12" y2="21" stroke="currentColor" stroke-width="1.8" stroke-dasharray="3.5 3"/></svg></button>
             <button class="draw-btn" data-tool="rect" title="Rechteck / Zone"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="4" y="6" width="16" height="12" rx="1.5" stroke="currentColor" stroke-width="1.8"/></svg></button>
+            <button class="draw-btn" data-tool="vprofile" title="Volumen-Profil: von einem Punkt zum anderen ziehen (zeigt, bei welchen Preisen am meisten gehandelt wurde)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="4" y="3" width="16" height="18" rx="1.5" stroke="currentColor" stroke-width="1.4" stroke-dasharray="2 2"/><path d="M6 6h5M6 9h9M6 12h12M6 15h7M6 18h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
             <button class="draw-btn" data-tool="fib" title="Fibonacci-Retracement"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><line x1="3" y1="5" x2="21" y2="5" stroke="currentColor" stroke-width="1.6"/><line x1="3" y1="9.7" x2="17" y2="9.7" stroke="currentColor" stroke-width="1.6"/><line x1="3" y1="14.3" x2="21" y2="14.3" stroke="currentColor" stroke-width="1.6"/><line x1="3" y1="19" x2="13" y2="19" stroke="currentColor" stroke-width="1.6"/></svg></button>
             <button class="draw-btn" data-tool="text" title="Text in den Chart schreiben (Notiz antippen zum Bearbeiten)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 6V4.5h14V6"/><path d="M12 4.5V19.5"/><path d="M9 19.5h6"/></svg></button>
             <button class="draw-btn" data-tool="measure" title="Messwerkzeug (Preis, Prozent &amp; Kerzenanzahl zwischen zwei Punkten)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="9" width="18" height="6" rx="1" stroke="currentColor" stroke-width="1.6"/><line x1="7" y1="9" x2="7" y2="12" stroke="currentColor" stroke-width="1.4"/><line x1="11" y1="9" x2="11" y2="15" stroke="currentColor" stroke-width="1.4"/><line x1="15" y1="9" x2="15" y2="12" stroke="currentColor" stroke-width="1.4"/></svg></button>
@@ -2104,7 +2105,7 @@
     if(!on) candleSeries.applyOptions({ autoscaleInfoProvider: candleAutoscale });
   }
   const volumeSeries = chart.addHistogramSeries({
-    priceFormat:{ type:'volume' }, priceScaleId:''
+    priceFormat:{ type:'volume' }, priceScaleId:'', lastValueVisible:false, priceLineVisible:false
   });
   volumeSeries.priceScale().applyOptions({ scaleMargins:{ top:0.82, bottom:0 } });
   // Volumen ist standardmaessig AUS, damit der Chart so schlicht aussieht wie das
@@ -2229,6 +2230,7 @@
     ray: 'Klicken, um einen horizontalen Strahl zu setzen, der nur nach rechts weiterl&auml;uft.',
     hline: 'Klicken, um eine horizontale Linie zu setzen.',
     vline: 'Klicken, um eine senkrechte Linie an diesem Zeitpunkt zu setzen.',
+    vprofile: 'Volumen-Profil: vom Start- zum Endpunkt ziehen (oder zwei Punkte antippen). Rot = Preis mit dem meisten Volumen (POC), gestrichelt = Bereich mit 70 % des Volumens.',
     rect: 'Ziehen oder zwei Ecken nacheinander antippen, um eine Zone aufzuspannen. Danach Ecken/Kanten ziehen zum Anpassen; zum Verschieben einfach hineinfassen und ziehen.',
     fib: 'Von Hoch zu Tief (oder umgekehrt) ziehen &ndash; oder beide Punkte nacheinander antippen.',
     text: 'Tippe in den Chart, wo der Text stehen soll, und schreib los. Eine Notiz antippen (oder doppelklicken), um sie zu ändern.',
@@ -2568,7 +2570,7 @@
     const okT = t => typeof t === 'number' && isFinite(t);
     const fixT = t => okT(t) ? t : fallbackT;
     const fixP = p => (typeof p === 'number' && isFinite(p) && p > ref/1000 && p < ref*1000) ? p : ref;
-    const TWO_POINT = { rect:1, trendline:1, fib:1, measure:1 };
+    const TWO_POINT = { rect:1, trendline:1, fib:1, measure:1, vprofile:1 };
     state.drawings = state.drawings.filter(d => !(TWO_POINT[d.type] && (!d.p1 || !d.p2 || (d.p1.time === d.p2.time && d.p1.price === d.p2.price))));
     // Rechteck ohne Breite oder ohne Hoehe ist unsichtbar (meist zweimal an dieselbe Stelle getippt)
     state.drawings = state.drawings.filter(d => !(d.type === 'rect' && d.p1 && d.p2 && !d.text && (d.p1.time === d.p2.time || Math.abs(d.p1.price - d.p2.price) < ref * 1e-5)));
@@ -2778,7 +2780,7 @@
       if(x1==null||y1==null||x2==null||y2==null) return null;
       return { x:Math.min(x1,x2), y:Math.min(y1,y2), w:Math.abs(x2-x1), h:Math.abs(y2-y1) };
     }
-    if(d.type==='rect'){
+    if(d.type==='rect' || d.type==='vprofile'){
       const x1=xFromTimeRobust(d.p1.time), y1=yFromPriceRobust(d.p1.price), x2=xFromTimeRobust(d.p2.time), y2=yFromPriceRobust(d.p2.price);
       if(x1==null||y1==null||x2==null||y2==null) return null;
       return { x:Math.min(x1,x2), y:Math.min(y1,y2), w:Math.abs(x2-x1), h:Math.abs(y2-y1) };
@@ -2854,7 +2856,7 @@
       const dx = Math.max(bb.x-x, 0, x-(bb.x+bb.w)), dy = Math.max(bb.y-y, 0, y-(bb.y+bb.h));
       return Math.max(dx, dy);
     }
-    if(d.type==='rect' || d.type==='posbox'){
+    if(d.type==='rect' || d.type==='posbox' || d.type==='vprofile'){
       const bb = getDrawingBBox(d);
       if(!bb) return Infinity;
       const inX = x>=bb.x-HIT && x<=bb.x+bb.w+HIT, inY = y>=bb.y-HIT && y<=bb.y+bb.h+HIT;
@@ -2913,7 +2915,7 @@
           const bb = getDrawingBBox(d);
           if(bb && x>=bb.x && x<=bb.x+bb.w && y>=bb.y-HIT && y<=bb.y+bb.h+HIT) return { id:d.id, mode:'move' };
         }
-      } else if(d.type==='rect'){
+      } else if(d.type==='rect' || d.type==='vprofile'){
         // Full 8-handle bounding-box resize (4 corners + 4 edge midpoints),
         // like a standard shape editor (PowerPoint/Figma/TradingView) — not
         // just the two raw draw-points.
@@ -3247,7 +3249,7 @@
     // 'rect' gets full bounding-box resize handles (4 corners + 4 edge
     // midpoints), like a standard shape editor — mirrors findGenericDrawingHit's
     // hit-testing for the same 8 modes.
-    if(d.type==='rect'){
+    if(d.type==='rect' || d.type==='vprofile'){
       const left=bb.x, right=bb.x+bb.w, top=bb.y, bottom=bb.y+bb.h, midX=bb.x+bb.w/2, midY=bb.y+bb.h/2;
       [[left,top],[right,top],[left,bottom],[right,bottom]].forEach(([hx,hy]) => svg.appendChild(handleCircle(hx,hy)));
       [[midX,top],[midX,bottom],[left,midY],[right,midY]].forEach(([hx,hy]) => svg.appendChild(handleSquare(hx,hy)));
@@ -3315,7 +3317,64 @@
       txt => { const v = (txt || '').trim(); if(v !== (d.text || '')){ pushDrawUndo(); if(v) d.text = v; else delete d.text; } renderDrawings(); saveState(); },
       d.text ? () => { pushDrawUndo(); delete d.text; renderDrawings(); saveState(); } : null);
   }
+  // Volumen-Profil ueber einen Zeitraum: Volumen je Preisstufe (ohne echtes Volumen: Tick-Volumen-Ersatz je Kerze,
+  // gleichmaessig ueber Hoch–Tief verteilt). Nur bereits sichtbare Kerzen — die Zukunft bleibt verborgen.
+  function volumeProfile(d){
+    const tA = Math.min(d.p1.time, d.p2.time), tB = Math.max(d.p1.time, d.p2.time), data = state.data;
+    if(!data.length) return null;
+    let i = Math.max(0, barIndexFloor(tA)); if(data[i].time < tA) i++;
+    const bars = [];
+    for(; i <= state.cursor && i < data.length && data[i].time <= tB; i++) bars.push(data[i]);
+    if(!bars.length) return null;
+    let lo = Infinity, hi = -Infinity; bars.forEach(b => { if(b.low < lo) lo = b.low; if(b.high > hi) hi = b.high; });
+    if(!(hi > lo)) hi = lo + lo * 1e-5;
+    const yHi = yFromPriceRobust(hi), yLo = yFromPriceRobust(lo);
+    const n = Math.max(12, Math.min(70, Math.round(Math.abs((yLo ?? 0) - (yHi ?? 0)) / 5) || 24)), step = (hi - lo) / n;
+    const up = new Float64Array(n), dn = new Float64Array(n);
+    bars.forEach(b => {
+      const w = barVolume(b), k0 = Math.min(n - 1, Math.floor((b.low - lo) / step)), k1 = Math.min(n - 1, Math.floor((b.high - lo) / step)), per = w / (k1 - k0 + 1), arr = b.close >= b.open ? up : dn;
+      for(let k = k0; k <= k1; k++) arr[k] += per;
+    });
+    const tot = Array.from(up, (v, k) => v + dn[k]), sum = tot.reduce((a, v) => a + v, 0);
+    let poc = 0; tot.forEach((v, k) => { if(v > tot[poc]) poc = k; });
+    let a = poc, b2 = poc, acc = tot[poc];
+    while(acc < sum * 0.7 && (a > 0 || b2 < n - 1)){
+      const below = a > 0 ? tot[a - 1] : -1, above = b2 < n - 1 ? tot[b2 + 1] : -1;
+      if(above >= below){ b2++; acc += tot[b2]; } else { a--; acc += tot[a]; }
+    }
+    return { lo, hi, n, step, up, dn, tot, poc, vaLo: a, vaHi: b2, bars: bars.length };
+  }
+  function renderVolumeProfile(svg, d){
+    const vp = volumeProfile(d);
+    if(vp){ d.p1.price = vp.hi; d.p2.price = vp.lo; }   // Kasten passt sich an Hoch/Tief des Zeitraums an
+    const x1r = xFromTimeRobust(d.p1.time), x2r = xFromTimeRobust(d.p2.time);
+    if(x1r == null || x2r == null) return;
+    const x1 = Math.min(x1r, x2r), x2 = Math.max(x1r, x2r), yT = yFromPriceRobust(d.p1.price), yB = yFromPriceRobust(d.p2.price);
+    if(yT == null || yB == null) return;
+    svg.appendChild(fillRect(x1, Math.min(yT, yB), Math.max(1, x2 - x1), Math.abs(yB - yT), 'rgba(41,98,255,0.06)'));
+    if(!vp){ svg.appendChild(svgText(x1 + 4, Math.min(yT, yB) - 4, 'Volumen-Profil: noch keine Kerzen', { fill:'#8A93A6', 'font-size':'11px' })); return; }
+    const maxV = Math.max(...vp.tot) || 1, maxW = Math.min((x2 - x1) * 0.45, 280);
+    const yOf = p => yFromPriceRobust(p);
+    let html = '';
+    for(let k = 0; k < vp.n; k++){
+      const ya = yOf(vp.lo + (k + 1) * vp.step), yb = yOf(vp.lo + k * vp.step);
+      if(ya == null || yb == null) continue;
+      const top = Math.min(ya, yb) + 0.5, h = Math.max(1, Math.abs(yb - ya) - 1), inVa = k >= vp.vaLo && k <= vp.vaHi, op = inVa ? 0.5 : 0.22;
+      const wu = vp.up[k] / maxV * maxW, wd = vp.dn[k] / maxV * maxW;
+      if(wu > 0.3) html += `<rect x="${x1}" y="${top}" width="${wu}" height="${h}" fill="#4FA8C6" fill-opacity="${op}"/>`;
+      if(wd > 0.3) html += `<rect x="${x1 + wu}" y="${top}" width="${wd}" height="${h}" fill="#E0577F" fill-opacity="${op}"/>`;
+    }
+    const pocP = vp.lo + (vp.poc + 0.5) * vp.step, vah = vp.lo + (vp.vaHi + 1) * vp.step, val = vp.lo + vp.vaLo * vp.step;
+    const yP = yOf(pocP), yVah = yOf(vah), yVal = yOf(val);
+    if(yP != null) html += `<line x1="${x1}" y1="${yP}" x2="${x2}" y2="${yP}" stroke="#EF5350" stroke-width="1.6" data-poc="1"/>`;
+    [yVah, yVal].forEach(y => { if(y != null) html += `<line x1="${x1}" y1="${y}" x2="${x2}" y2="${y}" stroke="#D1D4DC" stroke-width="1" stroke-dasharray="4 3" stroke-opacity="0.8"/>`; });
+    const g = document.createElementNS(NS_SVG, 'g'); g.setAttribute('data-vprofile', '1'); g.innerHTML = html; svg.appendChild(g);
+    if(state.selectedDrawingId === d.id || x2 - x1 > 120){
+      svg.appendChild(svgPill(x1 + Math.min(150, (x2 - x1) / 2), Math.min(yT, yB) - 12, ['POC ' + px(pocP) + ' · VAH ' + px(vah) + ' · VAL ' + px(val)], '#2A2E39', '#FFFFFF', 0.92, 10));
+    }
+  }
   function renderOne(svg, d){
+    if(d.type==='vprofile'){ renderVolumeProfile(svg, d); return; }
     const w = cW(), h = cH();
     if(d.type==='hline'){
       const y = yFromPriceRobust(d.p1.price);
@@ -4122,7 +4181,7 @@
     const start = (sx!=null && sy!=null) ? { x:sx, y:sy } : drawStartXY;
     if(!start || Math.hypot(xy.x - start.x, xy.y - start.y) < TWO_POINT_MIN_PX) return false;
     // Rechteck ohne Breite/Hoehe (z. B. Magnet hat beide Punkte auf dieselbe Kerze gezogen): weiter auf den zweiten Punkt warten
-    if(state.activeTool === 'rect' && (pt.time === drawStart.time || Math.abs(pt.price - drawStart.price) < drawStart.price * 1e-5)) return false;
+    if((state.activeTool === 'rect' || state.activeTool === 'vprofile') && (pt.time === drawStart.time || Math.abs(pt.price - drawStart.price) < drawStart.price * 1e-5)) return false;
     addDrawing({ type: state.activeTool, p1: drawStart, p2: pt });
     cancelTwoPoint();
     setActiveTool('cursor');
@@ -4274,7 +4333,7 @@
   // passiert hier nichts mehr (nur nachsehen, ob die Datei schon da ist).
   // Neue Version veroeffentlicht? Dann Hinweis mit Knopf (nur Web-Version). Vorher blieb eine auf dem iPad
   // geoeffnete App oft tagelang auf dem alten Stand, weil sie nie ganz geschlossen wurde.
-  const APP_BUILD = '202610301228';
+  const APP_BUILD = '202610301622';
   function checkForAppUpdate(){
     if(!archivePrefetchAllowed()) return;
     let shown = false;
@@ -4998,7 +5057,10 @@
   }
 
   function toCandlePoint(bar){ return { time:bar.time, open:bar.open, high:bar.high, low:bar.low, close:bar.close }; }
-  function toVolumePoint(bar){ return { time:bar.time, value:bar.volume, color: bar.close>=bar.open ? 'rgba(79,165,139,0.28)' : 'rgba(207,103,98,0.28)' }; }
+  // Devisen/Gold haben in den Daten kein Volumen (ueberall 0). Dann Tick-Volumen-Ersatz aus der Kerzengroesse
+  // (verlaeuft bei Forex fast wie das Tick-Volumen, das TradingView zeigt) — statt einer flachen 0-Linie.
+  function barVolume(bar){ return bar.volume > 0 ? bar.volume : Math.round((bar.high - bar.low) / (bar.close || 1) * 1e6) + 1; }
+  function toVolumePoint(bar){ return { time:bar.time, value:barVolume(bar), color: bar.close>=bar.open ? 'rgba(79,165,139,0.32)' : 'rgba(207,103,98,0.32)' }; }
 
   // ---------- formatting ----------
   function decimalsFor(v){ const av=Math.abs(v); if(av<1) return 5; if(av<10) return 4; return 2; }
