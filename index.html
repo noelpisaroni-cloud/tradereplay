@@ -3559,6 +3559,15 @@
     if(x2 - x1 < POSBOX_MIN_W) x2 = x1 + POSBOX_MIN_W;
     return [x1, x2];
   }
+  // Preisschild rechts auf der Preisachse (wie bei TradingView) — fuer die gestrichelten Hilfslinien der Box
+  function axisPriceTag(svg, y, price, bg){
+    const ax = plotRightX(), aw = cW() - ax;
+    if(!(aw > 20) || y == null || y < 0 || y > cH()) return;
+    const h = 18, g = document.createElementNS(NS_SVG, 'g'); g.setAttribute('data-axis-tag', '1');
+    g.appendChild(fillRect(ax + 1, y - h/2, aw - 2, h, bg));
+    g.appendChild(svgText(ax + aw/2, y + 4, px(price), { fill:'#FFFFFF', 'font-size':'11.5px', 'font-weight':'700', 'text-anchor':'middle' }));
+    svg.appendChild(g);
+  }
   function renderPosbox(svg, d){
     const [x1, x2] = posboxXs(d);
     const yTp = yFromPriceRobust(d.tpPrice), yEntry = yFromPriceRobust(d.entryPrice), ySl = yFromPriceRobust(d.slPrice);
@@ -3570,8 +3579,10 @@
     // Hilfslinien nach links (gestrichelt): Ziel, Einstieg und Stop quer durch den Chart — so sieht man, welches
     // Hoch/Tief bzw. welche Zone man anpeilt. Nur an der ausgewaehlten, gerade gezogenen oder mit Order verbundenen Box.
     if(!d.id || state.selectedDrawingId === d.id || posboxDragId === d.id || boxLinkedTo(d)){
-      [[yTp, '#26A69A'], [yEntry, '#B2B5BE'], [ySl, '#EF5350']].forEach(([gy, gc]) => {
+      [[yTp, '#26A69A', d.tpPrice], [yEntry, '#B2B5BE', d.entryPrice], [ySl, '#EF5350', d.slPrice]].forEach(([gy, gc, gp]) => {
         if(rx > 2) svg.appendChild(svgLine(0, gy, rx, gy, { stroke:gc, 'stroke-width':1, 'stroke-dasharray':'6 4', 'stroke-opacity':0.85, 'data-guide':'1' }));
+        // Laeuft die Position schon, zeigt die Achse Ziel/Stop/Einstieg bereits selbst — dann keine doppelten Schilder
+        if(!(state.position && state.position.boxId === d.id)) axisPriceTag(svg, gy, gp, gc === '#B2B5BE' ? '#5D6170' : gc);
       });
     }
     svg.appendChild(fillRect(rx, Math.min(yEntry,yTp), rw, Math.abs(yEntry-yTp), 'rgba(38,166,154,0.22)'));
@@ -3586,6 +3597,7 @@
     lvls.forEach((t, i) => {
       const yl = yFromPriceRobust(t.price); if(yl == null) return;
       if(showGuides && rx > 2) svg.appendChild(svgLine(0, yl, rx, yl, { stroke:'#4DB6AC', 'stroke-width':1, 'stroke-dasharray':'3 4', 'stroke-opacity':0.8, 'data-guide':'1' }));
+      if(showGuides && !(state.position && state.position.boxId === d.id)) axisPriceTag(svg, yl, t.price, '#2E8B83');
       svg.appendChild(svgLine(rx, yl, rx+rw, yl, { stroke:'#4DB6AC', 'stroke-width':1.6, 'stroke-dasharray':'5 3', 'data-lvl':String(t.id) }));
       if(rw >= 50 || state.selectedDrawingId === d.id){ const txt = 'TP' + (i + 1) + ' · ' + Math.round(t.frac * 100) + ' %', w = txt.length * 10 * 0.56 + 14; svg.appendChild(svgPill(rx + rw - w/2 - 4, yl - 10, [txt], '#167A65', '#FFFFFF', 0.95, 10)); }
     });
@@ -4333,7 +4345,7 @@
   // passiert hier nichts mehr (nur nachsehen, ob die Datei schon da ist).
   // Neue Version veroeffentlicht? Dann Hinweis mit Knopf (nur Web-Version). Vorher blieb eine auf dem iPad
   // geoeffnete App oft tagelang auf dem alten Stand, weil sie nie ganz geschlossen wurde.
-  const APP_BUILD = '202610301622';
+  const APP_BUILD = '202610301715';
   function checkForAppUpdate(){
     if(!archivePrefetchAllowed()) return;
     let shown = false;
