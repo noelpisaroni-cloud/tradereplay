@@ -1074,6 +1074,9 @@
   .pro-tradebar, .pro-clock, .rb-grip, .fs-exit{ display:none; }
   .chart-card.chart-fullscreen .fs-exit{ display:inline-flex; position:absolute; top:10px; right:12px; z-index:20; align-items:center; gap:6px;
     height:32px; padding:0 12px; border-radius:8px; border:1px solid var(--line-strong, var(--line)); background:var(--panel); color:var(--ink); font-size:12.5px; font-weight:600; }
+  /* Im Vollbild rechts Platz fuer „Vollbild beenden“ lassen — sonst lag er ueber den Knoepfen (2. Chart, Vollbild ...) */
+  .chart-card.chart-fullscreen .chart-head{ padding-right:190px !important; }
+  @media (max-width:760px){ .chart-card.chart-fullscreen .chart-head{ padding-right:56px !important; } .chart-card.chart-fullscreen .fs-exit .fs-lbl{ display:none; } }
   html[data-layout="pro"][data-design="dunkel"]{
     --bg:#0b0d12; --panel:#0e1117; --panel-alt:#171b23; --panel-hover:#20252f;
     --line:#1e222b; --line-strong:#2c313c;
@@ -1477,7 +1480,7 @@
             </div>
           </div>
         </div>
-        <button class="fs-exit" id="fsExitBtn" title="Vollbild beenden (Esc)">✕ Vollbild beenden</button>
+        <button class="fs-exit" id="fsExitBtn" title="Vollbild beenden (Esc)">✕<span class="fs-lbl"> Vollbild beenden</span></button>
         <div class="resize-corner" id="chartCornerHandle" title="Chart-Karte in beide Richtungen ziehen">
           <svg width="16" height="16" viewBox="0 0 16 16"><g stroke="currentColor" stroke-width="1.4"><line x1="14" y1="3" x2="3" y2="14"/><line x1="14" y1="8" x2="8" y2="14"/><line x1="14" y1="13" x2="13" y2="14"/></g></svg>
         </div>
