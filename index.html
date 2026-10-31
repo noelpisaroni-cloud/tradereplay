@@ -4571,7 +4571,7 @@
   // passiert hier nichts mehr (nur nachsehen, ob die Datei schon da ist).
   // Neue Version veroeffentlicht? Dann Hinweis mit Knopf (nur Web-Version). Vorher blieb eine auf dem iPad
   // geoeffnete App oft tagelang auf dem alten Stand, weil sie nie ganz geschlossen wurde.
-  const APP_BUILD = '202610311215';
+  const APP_BUILD = '202610311221';
   function checkForAppUpdate(){
     if(!archivePrefetchAllowed()) return;
     let shown = false;
@@ -7366,6 +7366,10 @@
       scheduleCompRender();
     }).observe(el);
     comp.chart.timeScale().subscribeVisibleLogicalRangeChange(scheduleCompRender);
+    // Preisachse ziehen/zoomen meldet die Chart-Bibliothek nicht -> bei jeder Bewegung im Chart neu zeichnen,
+    // damit Linien/Boxen sofort mitwandern (vorher blieben sie stehen, bis man irgendwo hingetippt hat)
+    const follow = e => { if(e.type !== 'mousemove' || e.buttons !== 0) scheduleCompRender(); };
+    ['touchmove', 'mousemove', 'wheel', 'touchend', 'mouseup', 'dblclick'].forEach(t => el.addEventListener(t, follow, { capture:true, passive:true }));
     wireCompDrawing();
   }
   function compShowMsg(text){
