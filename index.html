@@ -2324,20 +2324,23 @@
     // --- Antippen = auswaehlen, Ziehen = verschieben (Cursor aktiv); gesperrte bewegen sich nicht
     let grab = null;
     const shiftT = (t, dx) => inComp(() => { const x = xFromTimeRobust(t); return x == null ? t : (timeFromXRobust(x + dx) ?? t); });
+    // Nur die AUSGEWAEHLTE Zeichnung laesst sich hier ziehen — sonst erwischte man beim Schieben des Charts staendig
+    // eine Linie und verschob sie. Antippen waehlt aus, Antippen ins Leere hebt die Auswahl auf.
     function grabDown(e){
-      if(state.activeTool !== 'cursor' || !compReady() || VIS.compDraw === false || (e.touches && e.touches.length > 1)) return;
+      if(state.activeTool !== 'cursor' || !compReady() || (e.touches && e.touches.length > 1)) return;
       const xy = evXY(e, el);
-      const id = inComp(() => findDrawingHit(xy.x, xy.y));
-      if(!id) return;
-      const d = state.drawings.find(x => x.id === id); if(!d) return;
-      grab = { id, x0: xy.x, y0: xy.y, moved: false, locked: isLocked(d), orig: JSON.parse(JSON.stringify(d)), p0: inComp(() => priceFromYRobust(xy.y)) };
-      if(!grab.locked){ comp.chart.applyOptions({ handleScroll:false, handleScale:false }); e.stopPropagation(); if(e.cancelable) e.preventDefault(); }
+      const id = VIS.compDraw === false ? null : inComp(() => findDrawingHit(xy.x, xy.y));
+      const d = id && state.drawings.find(x => x.id === id);
+      const canDrag = !!(d && d.id === state.selectedDrawingId && !isLocked(d));
+      grab = { id: d ? d.id : null, x0: xy.x, y0: xy.y, moved: false, drag: canDrag, orig: d ? JSON.parse(JSON.stringify(d)) : null, p0: inComp(() => priceFromYRobust(xy.y)) };
+      if(canDrag){ comp.chart.applyOptions({ handleScroll:false, handleScale:false }); e.stopPropagation(); if(e.cancelable) e.preventDefault(); }
     }
     el.addEventListener('mousedown', grabDown, true); el.addEventListener('touchstart', grabDown, { capture:true, passive:false });
     const grabMove = e => {
-      if(!grab || grab.locked) return;
+      if(!grab) return;
       const xy = evXY(e, el), dx = xy.x - grab.x0;
       if(!grab.moved && Math.hypot(dx, xy.y - grab.y0) < 5) return;
+      if(!grab.drag){ grab.moved = true; return; }   // Chart wird geschoben
       if(!grab.moved){ pushDrawUndo(); grab.moved = true; }
       const d = state.drawings.find(x => x.id === grab.id), o = grab.orig; if(!d) return;
       const pNow = inComp(() => priceFromYRobust(xy.y)), dp = (pNow != null && grab.p0 != null) ? pNow - grab.p0 : 0;
@@ -2353,10 +2356,11 @@
     const grabUp = () => {
       if(!grab) return;
       const g = grab; grab = null;
-      comp.chart.applyOptions({ handleScroll:true, handleScale:true });
-      const d = state.drawings.find(x => x.id === g.id);
-      if(g.moved && d){ if(d.type === 'posbox'){ posboxTouch(d); if(boxLinkedTo(d)) syncOrderFromBox(d); } saveState(); }
-      else if(d){ selectDrawing(g.id); }
+      if(g.drag) comp.chart.applyOptions({ handleScroll:true, handleScale:true });
+      const d = g.id && state.drawings.find(x => x.id === g.id);
+      if(g.moved){ if(g.drag && d){ if(d.type === 'posbox'){ posboxTouch(d); if(boxLinkedTo(d)) syncOrderFromBox(d); } saveState(); renderDrawings(); } return; }
+      if(d) selectDrawing(g.id);
+      else if(state.selectedDrawingId) deselectDrawing();   // ins Leere getippt
       renderDrawings();
     };
     window.addEventListener('mouseup', grabUp); window.addEventListener('touchend', grabUp); window.addEventListener('touchcancel', grabUp);
@@ -2565,7 +2569,7 @@
     return s.xA + slope*(t-s.tA);
   }
   function yFromPriceRobust(p){
-    if(VIEW_COMP){ const y = comp.series.priceToCoordinate(p); return y == null ? null : y; }
+    if(VIEW_COMP){ if(compMap) return compMap.ya + (p - compMap.pa) * compMap.k; const y = comp.series.priceToCoordinate(p); return y == null ? null : y; }
     const y = yFromPrice(p);
     if(y!=null) return y;
     const s = priceSamplePoints();
@@ -4228,16 +4232,29 @@
     if(l >= n) return Math.round(T[n] + (l - n) * bs);
     const i = Math.floor(l); return Math.round(T[i] + (l - i) * (T[i + 1] - T[i]));
   }
+  // Pro Bild nur EINMAL bei der Chart-Bibliothek nachfragen: Zeit- und Preisachse sind innerhalb eines Bildes linear
+  // (Kerzenabstand bzw. Preis je Pixel). Vorher kostete jede Abfrage pro Punkt pro Zeichnung spuerbar Zeit.
+  let compMap = null;
+  function compMapNow(){
+    try{
+      const ts = comp.chart.timeScale(), x0 = ts.logicalToCoordinate(0), x1 = ts.logicalToCoordinate(1);
+      const h = document.getElementById('compContainer').clientHeight || 300;
+      const pa = comp.series.coordinateToPrice(20), pb = comp.series.coordinateToPrice(h - 40);
+      if(x0 == null || x1 == null || pa == null || pb == null || pa === pb || comp.series.priceScale().options().mode !== 0) return null;
+      return { x0, bs: x1 - x0, pa, ya: 20, k: (h - 60) / (pb - pa) };
+    }catch(e){ return null; }
+  }
   function compX(t){
     const l = compLogicalFromTime(t); if(l == null) return null;
+    if(compMap) return compMap.x0 + l * compMap.bs;
     const ts = comp.chart.timeScale(), f = Math.floor(l), a = ts.logicalToCoordinate(f), b = ts.logicalToCoordinate(f + 1);
     if(a == null || b == null) return null;
     return a + (b - a) * (l - f);
   }
   function inComp(fn){
-    const el = document.getElementById('compContainer'), prev = frameSize, pv = VIEW_COMP;
-    VIEW_COMP = true; frameSize = { w: el.clientWidth, h: el.clientHeight };
-    try{ return fn(); } finally{ VIEW_COMP = pv; frameSize = prev; }
+    const el = document.getElementById('compContainer'), prev = frameSize, pv = VIEW_COMP, pm = compMap;
+    VIEW_COMP = true; frameSize = { w: el.clientWidth, h: el.clientHeight }; compMap = compMapNow();
+    try{ return fn(); } finally{ VIEW_COMP = pv; frameSize = prev; compMap = pm; }
   }
   function compReady(){ return !!(comp && comp.on && comp.chart && comp.series && comp.times && comp.times.length); }
   function renderCompDrawings(){
@@ -4247,8 +4264,10 @@
     if(!compReady() || state.reviewing || (VIS.compDraw === false && !compDraft)){ ov.replaceChildren(); return; }
     const root = document.createElementNS(NS_SVG, 'g');
     inComp(() => {
+      const w = cW();
       state.drawings.forEach(d => {
         if(!drawingVisible(d) || d.type === 'vprofile') return;
+        if(d.id !== state.selectedDrawingId && drawingOffscreen(d, w)) return;
         const g = document.createElementNS(NS_SVG, 'g'); g.setAttribute('data-cdid', d.id);
         if(d.type === 'posbox' && d.id !== state.selectedDrawingId && !boxLinkedTo(d) && posboxPast(d)) g.setAttribute('opacity', '0.4');
         root.appendChild(g); try{ renderOne(g, d); }catch(e){}
@@ -4262,6 +4281,17 @@
     const off = VIS.compDraw === false;
     b.classList.toggle('off', off); b.textContent = off ? '🚫 Zeichnungen aus' : '👁 Zeichnungen';
     b.title = off ? 'Zeichnungen in diesem Chart wieder einblenden' : 'Zeichnungen in diesem Chart ausblenden (der linke Chart bleibt, wie er ist)';
+  }
+  // Liegt die Zeichnung ganz ausserhalb des sichtbaren Bereichs? Dann gar nicht erst zeichnen (spart beim
+  // Ziehen des Charts viel Zeit, wenn sehr viele Objekte in der Session sind). Waagrechte Linien gehen immer quer.
+  function drawingOffscreen(d, w){
+    if(d.type === 'hline') return false;
+    const ts = d.type === 'posbox' ? [d.t1, d.t2] : [d.p1 && d.p1.time, d.p2 && d.p2.time].filter(t => t != null);
+    if(!ts.length) return false;
+    let lo = Infinity, hi = -Infinity;
+    for(const t of ts){ const x = xFromTimeRobust(t); if(x == null) return false; if(x < lo) lo = x; if(x > hi) hi = x; }
+    if(d.type === 'ray') return lo > w + 40;
+    return hi < -60 || lo > w + 60;
   }
   function scheduleCompRender(){ if(compRenderPending) return; compRenderPending = true; requestAnimationFrame(renderCompDrawings); }
   function renderDrawings(){
@@ -4286,8 +4316,10 @@
     renderRiskRewardZone(svg);
     // Jede Zeichnung in eine eigene Gruppe — so laesst sich pruefen, dass wirklich jede gezeichnet wird.
     const nowT = state.data.length && state.data[state.cursor] ? state.data[state.cursor].time : Infinity;
+    const viewW = cW();
     state.drawings.forEach(d => {
       if(!drawingVisible(d)) return;
+      if(d.id !== state.selectedDrawingId && drawingOffscreen(d, viewW)) return;
       const g = document.createElementNS(NS_SVG,'g'); g.setAttribute('data-did', d.id);
       // Abgelaufene TP/SL-Boxen (liegen ganz in der Vergangenheit, keine Order dran) blasser — der Chart bleibt lesbar
       if(d.type === 'posbox' && d.id !== state.selectedDrawingId && !boxLinkedTo(d) && posboxPast(d)) g.setAttribute('opacity', '0.4');
@@ -4531,7 +4563,7 @@
   // passiert hier nichts mehr (nur nachsehen, ob die Datei schon da ist).
   // Neue Version veroeffentlicht? Dann Hinweis mit Knopf (nur Web-Version). Vorher blieb eine auf dem iPad
   // geoeffnete App oft tagelang auf dem alten Stand, weil sie nie ganz geschlossen wurde.
-  const APP_BUILD = '202610311014';
+  const APP_BUILD = '202610311148';
   function checkForAppUpdate(){
     if(!archivePrefetchAllowed()) return;
     let shown = false;
@@ -5262,9 +5294,13 @@
 
   // ---------- formatting ----------
   function decimalsFor(v){ const av=Math.abs(v); if(av<1) return 5; if(av<10) return 4; return 2; }
-  const usd = (v, d) => { const dec = (d===undefined) ? decimalsFor(v) : d; return (v<0?'-€':'€') + Math.abs(v).toLocaleString('de-DE', {minimumFractionDigits:dec, maximumFractionDigits:dec}); };
+  // Zahlen-Formatierer je Nachkommastellen nur einmal anlegen: toLocaleString mit Optionen baut ihn jedes Mal neu
+  // und war beim Ziehen des Charts (Preis-Schilder an vielen Linien) einer der groessten Bremsklötze
+  const NUM_FMT = {};
+  function fmtNum(v, dec){ const f = NUM_FMT[dec] || (NUM_FMT[dec] = new Intl.NumberFormat('de-DE', { minimumFractionDigits:dec, maximumFractionDigits:dec })); return f.format(v); }
+  const usd = (v, d) => { const dec = (d===undefined) ? decimalsFor(v) : d; return (v<0?'-€':'€') + fmtNum(Math.abs(v), dec); };
   // Kurse (EUR/USD 1,1387 · BTC 77.250,00) ohne Euro-Zeichen — € nur fuer Kontostand, Gewinn und Groesse
-  const px = (v, d) => { if(v == null || !isFinite(v)) return '–'; const dec = (d===undefined) ? decimalsFor(v) : d; return (v<0?'-':'') + Math.abs(v).toLocaleString('de-DE', {minimumFractionDigits:dec, maximumFractionDigits:dec}); };
+  const px = (v, d) => { if(v == null || !isFinite(v)) return '–'; const dec = (d===undefined) ? decimalsFor(v) : d; return (v<0?'-':'') + fmtNum(Math.abs(v), dec); };
   const usdSigned = (v) => (v>=0?'+':'-') + '€' + Math.abs(v).toLocaleString('de-DE', {minimumFractionDigits:2, maximumFractionDigits:2});
   const pctSigned = (v) => (v>=0?'+':'') + v.toFixed(2) + '%';
   const priceFmt = (v) => v.toLocaleString('de-DE', {minimumFractionDigits:2, maximumFractionDigits: v<10?4:2});
@@ -7857,7 +7893,7 @@
       // Chart wird geschoben (Finger oder gedrueckte Maus, nichts von uns gegriffen): keine Treffer-Suche fuer den
       // Mauszeiger — die kostete bei jedem Bild Zeit und liess das Ziehen ruckeln. Die Zeichnungen folgen ueber das
       // Ereignis der Zeitachse; bei Aenderung nur der Preisskala hier einmal pro Bild nachziehen.
-      if(!dragging && (e.type === 'touchmove' || e.buttons !== 0)){ scheduleRenderDrawings(); return; }
+      if(!dragging && (e.type === 'touchmove' || e.buttons !== 0)){ if(container.contains(e.target)) scheduleRenderDrawings(); return; }
       const pt = xyFromEvent(e);
       if(dragging && typeof dragging==='object' && dragging.kind==='posbox'){
         const d = state.drawings.find(dd=>dd.id===dragging.id);
