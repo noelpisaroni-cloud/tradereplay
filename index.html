@@ -670,10 +670,14 @@
   /* ---------- Zweiter Chart ---------- */
   .chart-row{ display:flex; gap:8px; align-items:stretch; }
   #chartContainer{ flex:1 1 0; min-width:0; width:auto; }
-  .chart-comp{ flex:0 0 38%; min-width:240px; display:flex; flex-direction:column; border-left:1px solid var(--line); padding-left:8px; }
+  .chart-comp{ flex:0 0 38%; min-width:240px; display:flex; flex-direction:column; border-left:1px solid var(--line); padding-left:8px; overflow:hidden; container-type:inline-size; }
   .chart-comp[hidden]{ display:none; }
-  .comp-head{ display:flex; align-items:center; gap:8px; padding:0 0 6px; }
-  .comp-head select{ height:28px; width:auto; min-width:92px; font-size:12px; padding-top:0; padding-bottom:0; }
+  .comp-head{ display:flex; align-items:center; gap:6px; padding:0 0 6px; min-width:0; }
+  .comp-head > button{ flex:none; }
+  .comp-head select{ height:28px; width:auto; min-width:76px; flex:0 1 auto; font-size:12px; padding-top:0; padding-bottom:0; }
+  /* schmaler 2. Chart: Knoepfe kompakt, damit nichts ueber den Rand ins Order-Feld rutscht */
+  @container (max-width:470px){ .comp-head .comp-vis-btn .cv-lbl{ display:none; } }
+  @container (max-width:340px){ .comp-head .comp-sub{ display:none; } }
   .comp-sub{ flex:1; min-width:0; font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--ink-faint); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .comp-body{ position:relative; flex:1; min-height:200px; }
   #compContainer{ position:absolute; inset:0; }
@@ -1187,7 +1191,7 @@
     html[data-layout="pro"] footer{ display:none; }
     html[data-layout="pro"] .app-toast{ bottom:76px; }
   }
-  @media (min-width:1000px){ html[data-layout="pro"] .topbar #indMenuBtn .lbl{ display:inline; } }
+  @media (min-width:1200px){ html[data-layout="pro"] .topbar #indMenuBtn .lbl{ display:inline; } }
   @media (min-width:1000px) and (max-width:1499px){
     html[data-layout="pro"] .topbar .tool-btn:not(#indMenuBtn) .lbl{ display:none; }
     html[data-layout="pro"] .topbar #manageStrategiesBtn .lbl{ display:none; }
@@ -1200,6 +1204,12 @@
     html[data-layout="pro"] .session-bar .session-label{ display:none; }
     html[data-layout="pro"] .range-bar .pro-clock{ display:none; }
     html[data-layout="pro"] .range-bar{ overflow:hidden; min-width:0; }
+    html[data-layout="pro"] .topbar .symbol-select{ flex:none; width:128px; }
+    html[data-layout="pro"] .topbar{ gap:5px; }
+    html[data-layout="pro"] .topbar #tfTabs button{ padding-left:7px; padding-right:7px; }
+    html[data-layout="pro"] .topbar .tool-btn.pos-tool{ padding-left:8px; padding-right:8px; }
+    html[data-layout="pro"] .session-bar #newSessionBtn .ns-lbl{ display:none; }
+    html[data-layout="pro"] .session-bar #newSessionBtn{ width:28px; padding:0; justify-content:center; }
   }
   @media (max-width:999.98px){
     html[data-layout="pro"] body{ padding-bottom:calc(58px + env(safe-area-inset-bottom, 0px)); }
@@ -1420,7 +1430,7 @@
                 </select>
                 <span class="comp-sub" id="compSub"></span>
                 <button class="mini-btn" id="compResetBtn" type="button" title="Ansicht zurücksetzen (Preisachse passt sich wieder den Kerzen an)">⟲</button>
-                <button class="mini-btn comp-vis-btn" id="compVisBtn" type="button" title="Zeichnungen in diesem Chart aus-/einblenden">👁 Zeichnungen</button>
+                <button class="mini-btn comp-vis-btn" id="compVisBtn" type="button" title="Zeichnungen in diesem Chart aus-/einblenden">👁<span class="cv-lbl"> Zeichnungen</span></button>
                 <button class="mini-btn" id="compCloseBtn" title="Zweiten Chart schließen">✕</button>
               </div>
               <div class="comp-body"><div id="compContainer"></div><svg id="compOverlay"></svg><div class="comp-msg" id="compMsg" hidden></div></div>
@@ -1475,7 +1485,7 @@
                 <button class="btn sess-ov-btn" id="sessOverviewBtn" type="button" title="Alle Sessions im Überblick: Zeitraum, Fortschritt, Trades, Gewinn – und Namen vergeben">☰ Übersicht</button>
               </div>
               <div class="session-actions">
-                <button class="btn" id="newSessionBtn" title="Neue Zufalls-Session aus dem aktuellen Markt starten"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg>Neue Zufalls-Session</button>
+                <button class="btn" id="newSessionBtn" title="Neue Zufalls-Session aus dem aktuellen Markt starten"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg><span class="ns-lbl">Neue Zufalls-Session</span></button>
                 <button class="btn" id="restartSessionBtn" title="Dieselbe Session von vorn beginnen">↺ Neustart</button>
                 <button class="btn icon" id="bottomToggleBtn" type="button" title="Journal, Statistik und Kaufen-Leiste unten aus-/einblenden"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 14h18"/><path class="bt-arrow" d="M9.5 9.5L12 7l2.5 2.5"/></svg></button>
                 <div class="menu-wrap">
@@ -4293,7 +4303,7 @@
     const b = document.getElementById('compVisBtn'); if(!b) return;
     const off = VIS.compDraw === false;
     if(b._off === off) return; b._off = off;
-    b.classList.toggle('off', off); b.textContent = off ? '🚫 Zeichnungen aus' : '👁 Zeichnungen';
+    b.classList.toggle('off', off); b.innerHTML = off ? '🚫<span class="cv-lbl"> Zeichnungen aus</span>' : '👁<span class="cv-lbl"> Zeichnungen</span>';
     b.title = off ? 'Zeichnungen in diesem Chart wieder einblenden' : 'Zeichnungen in diesem Chart ausblenden (der linke Chart bleibt, wie er ist)';
   }
   // Liegt die Zeichnung ganz ausserhalb des sichtbaren Bereichs? Dann gar nicht erst zeichnen (spart beim
@@ -4577,7 +4587,7 @@
   // passiert hier nichts mehr (nur nachsehen, ob die Datei schon da ist).
   // Neue Version veroeffentlicht? Dann Hinweis mit Knopf (nur Web-Version). Vorher blieb eine auf dem iPad
   // geoeffnete App oft tagelang auf dem alten Stand, weil sie nie ganz geschlossen wurde.
-  const APP_BUILD = '202610311227';
+  const APP_BUILD = '202610311232';
   function checkForAppUpdate(){
     if(!archivePrefetchAllowed()) return;
     let shown = false;
