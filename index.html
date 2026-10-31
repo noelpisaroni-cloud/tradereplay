@@ -1419,6 +1419,7 @@
                   <option value="1h">1 Std</option><option value="4h">4 Std</option><option value="1d">1 Tag</option>
                 </select>
                 <span class="comp-sub" id="compSub"></span>
+                <button class="mini-btn" id="compResetBtn" type="button" title="Ansicht zurücksetzen (Preisachse passt sich wieder den Kerzen an)">⟲</button>
                 <button class="mini-btn comp-vis-btn" id="compVisBtn" type="button" title="Zeichnungen in diesem Chart aus-/einblenden">👁 Zeichnungen</button>
                 <button class="mini-btn" id="compCloseBtn" title="Zweiten Chart schließen">✕</button>
               </div>
@@ -2356,7 +2357,7 @@
     const grabUp = () => {
       if(!grab) return;
       const g = grab; grab = null;
-      if(g.drag) comp.chart.applyOptions({ handleScroll:true, handleScale:true });
+      if(g.drag) comp.chart.applyOptions({ handleScroll:true, handleScale:COMP_SCALE });
       const d = g.id && state.drawings.find(x => x.id === g.id);
       if(g.moved){ if(g.drag && d){ if(d.type === 'posbox'){ posboxTouch(d); if(boxLinkedTo(d)) syncOrderFromBox(d); } saveState(); renderDrawings(); } return; }
       if(d) selectDrawing(g.id);
@@ -4563,7 +4564,7 @@
   // passiert hier nichts mehr (nur nachsehen, ob die Datei schon da ist).
   // Neue Version veroeffentlicht? Dann Hinweis mit Knopf (nur Web-Version). Vorher blieb eine auf dem iPad
   // geoeffnete App oft tagelang auf dem alten Stand, weil sie nie ganz geschlossen wurde.
-  const APP_BUILD = '202610311148';
+  const APP_BUILD = '202610311153';
   function checkForAppUpdate(){
     if(!archivePrefetchAllowed()) return;
     let shown = false;
@@ -5558,6 +5559,7 @@
   function resetChartView(){
     chart.priceScale('right').applyOptions({ autoScale: true });
     applyDefaultView();
+    if(comp && comp.on) compResetView();
   }
   // Standard-Ansicht: ~8px pro Kerze (wie im Wunsch-Vorbild des Nutzers), also die
   // letzten paar Dutzend Kerzen bis zum aktuellen Moment statt die GANZE Historie
@@ -7323,6 +7325,12 @@
     }
     return same ? w.bars : null;
   }
+  var COMP_SCALE = { mouseWheel:true, pinch:true, axisPressedMouseMove:{ time:true, price:false }, axisDoubleClickReset:{ time:true, price:true } };
+  function compResetView(){
+    if(!comp || !comp.chart) return;
+    comp.chart.priceScale('right').applyOptions({ autoScale:true });
+    refreshCompanion(true);
+  }
   function ensureCompChart(){
     if(comp.chart) return;
     const el = document.getElementById('compContainer');
@@ -7330,8 +7338,10 @@
       width: el.clientWidth || 320, height: el.clientHeight || 320, localization: { locale: CHART_LOCALE },
       layout: { background:{ color:THEME.chartBg }, textColor:THEME.text, fontFamily:THEME.font },
       grid: { vertLines:{ color:THEME.grid }, horzLines:{ color:THEME.grid } },
-      rightPriceScale: { borderColor:THEME.border },
+      rightPriceScale: { borderColor:THEME.border, autoScale:true },
       timeScale: { borderColor:THEME.border, timeVisible:true, secondsVisible:false, rightOffset:4 },
+      // Preisachse nicht per Ziehen verzerrbar (passierte auf dem iPad versehentlich beim Schieben)
+      handleScale: COMP_SCALE,
       crosshair: {
         mode: LightweightCharts.CrosshairMode.Normal,
         vertLine: { color:THEME.cross, width:1, style:LightweightCharts.LineStyle.Dotted, labelBackgroundColor:THEME.label },
@@ -7394,6 +7404,7 @@
       const visible = Math.max(40, Math.round((document.getElementById('compContainer').clientWidth - 64) / 8));
       const last = j - startIdx;
       comp.chart.timeScale().setVisibleLogicalRange({ from:last - visible + 6, to:last + 6 });
+      comp.chart.priceScale('right').applyOptions({ autoScale:true });
     } else {
       for(let k = comp.shown + 1; k <= j; k++) comp.series.update(toCandlePoint(bars[k]));
       comp.shown = j;
@@ -7461,6 +7472,7 @@
     setCompanion(true, COMP_DEFAULT_FOR[state.tf] || '1h');
   });
   document.getElementById('compCloseBtn').addEventListener('click', () => setCompanion(false));
+  document.getElementById('compResetBtn').addEventListener('click', compResetView);
   document.getElementById('compTfSelect').addEventListener('change', e => {
     comp.tf = e.target.value;
     try{ localStorage.setItem(COMP_TF_KEY, comp.tf); }catch(err){}
