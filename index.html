@@ -4239,7 +4239,7 @@
   function compMapNow(){
     try{
       const ts = comp.chart.timeScale(), x0 = ts.logicalToCoordinate(0), x1 = ts.logicalToCoordinate(1);
-      const h = document.getElementById('compContainer').clientHeight || 300;
+      const h = compSize().h || 300;
       const pa = comp.series.coordinateToPrice(20), pb = comp.series.coordinateToPrice(h - 40);
       if(x0 == null || x1 == null || pa == null || pb == null || pa === pb || comp.series.priceScale().options().mode !== 0) return null;
       return { x0, bs: x1 - x0, pa, ya: 20, k: (h - 60) / (pb - pa) };
@@ -4252,9 +4252,15 @@
     if(a == null || b == null) return null;
     return a + (b - a) * (l - f);
   }
+  // Groesse des 2. Charts merken (kommt vom ResizeObserver): clientWidth/-Height pro Bild abzufragen
+  // zwang den Browser beim Ziehen jedes Mal, das ganze Layout neu zu berechnen -> Ruckeln.
+  function compSize(){
+    if(!comp.size || !comp.size.w){ const el = document.getElementById('compContainer'); comp.size = { w: el.clientWidth, h: el.clientHeight }; }
+    return comp.size;
+  }
   function inComp(fn){
-    const el = document.getElementById('compContainer'), prev = frameSize, pv = VIEW_COMP, pm = compMap;
-    VIEW_COMP = true; frameSize = { w: el.clientWidth, h: el.clientHeight }; compMap = compMapNow();
+    const prev = frameSize, pv = VIEW_COMP, pm = compMap, sz = compSize();
+    VIEW_COMP = true; frameSize = { w: sz.w, h: sz.h }; compMap = compMapNow();
     try{ return fn(); } finally{ VIEW_COMP = pv; frameSize = prev; compMap = pm; }
   }
   function compReady(){ return !!(comp && comp.on && comp.chart && comp.series && comp.times && comp.times.length); }
@@ -4280,6 +4286,7 @@
   function updateCompVisBtn(){
     const b = document.getElementById('compVisBtn'); if(!b) return;
     const off = VIS.compDraw === false;
+    if(b._off === off) return; b._off = off;
     b.classList.toggle('off', off); b.textContent = off ? '🚫 Zeichnungen aus' : '👁 Zeichnungen';
     b.title = off ? 'Zeichnungen in diesem Chart wieder einblenden' : 'Zeichnungen in diesem Chart ausblenden (der linke Chart bleibt, wie er ist)';
   }
@@ -4564,7 +4571,7 @@
   // passiert hier nichts mehr (nur nachsehen, ob die Datei schon da ist).
   // Neue Version veroeffentlicht? Dann Hinweis mit Knopf (nur Web-Version). Vorher blieb eine auf dem iPad
   // geoeffnete App oft tagelang auf dem alten Stand, weil sie nie ganz geschlossen wurde.
-  const APP_BUILD = '202610311153';
+  const APP_BUILD = '202610311157';
   function checkForAppUpdate(){
     if(!archivePrefetchAllowed()) return;
     let shown = false;
@@ -7355,6 +7362,7 @@
     new ResizeObserver(entries => {
       const { width:w, height:h } = entries[0].contentRect;
       if(w > 0 && h > 0) comp.chart.applyOptions({ width:Math.floor(w), height:Math.floor(h) });
+      comp.size = { w, h };
       scheduleCompRender();
     }).observe(el);
     comp.chart.timeScale().subscribeVisibleLogicalRangeChange(scheduleCompRender);
