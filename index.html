@@ -677,6 +677,8 @@
   .comp-sub{ flex:1; min-width:0; font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--ink-faint); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .comp-body{ position:relative; flex:1; min-height:200px; }
   #compContainer{ position:absolute; inset:0; }
+  #compOverlay{ position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:5; }
+  #compOverlay.active{ pointer-events:auto; cursor:crosshair; touch-action:none; }
   .comp-msg{ position:absolute; inset:0; z-index:5; display:flex; align-items:center; justify-content:center; text-align:center; padding:18px; font-size:12px; line-height:1.5; color:var(--ink-soft); background:rgba(14,17,23,.88); }
   .comp-msg[hidden]{ display:none; }
   .chart-card.chart-fullscreen .chart-row{ flex:1; min-height:0; }
@@ -1415,7 +1417,7 @@
                 <span class="comp-sub" id="compSub"></span>
                 <button class="mini-btn" id="compCloseBtn" title="Zweiten Chart schließen">✕</button>
               </div>
-              <div class="comp-body"><div id="compContainer"></div><div class="comp-msg" id="compMsg" hidden></div></div>
+              <div class="comp-body"><div id="compContainer"></div><svg id="compOverlay"></svg><div class="comp-msg" id="compMsg" hidden></div></div>
             </div>
             </div>
             <div class="resize-handle-h" id="chartResizeHandle" title="Chart-Höhe ziehen"></div>
@@ -2272,11 +2274,89 @@
   const slotSeen = {};
   function pushDrawUndo(){ try{ drawUndo.push(JSON.stringify(state.drawings)); if(drawUndo.length > 80) drawUndo.shift(); }catch(e){} }
 
+  // Werkzeuge, die auch im 2. Chart gehen: 1 = ein Tipp, 2 = zwei Punkte
+  var COMP_TOOLS = { hline:1, ray:1, vline:1, rect:2, trendline:2, fib:2, measure:2 };
+  var compWired = false;
+  function wireCompDrawing(){
+    if(compWired) return; compWired = true;
+    const ov = document.getElementById('compOverlay'), el = document.getElementById('compContainer');
+    const evXY = (e, box) => { const r = box.getBoundingClientRect(), t = (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0]) || e; return { x: t.clientX - r.left, y: t.clientY - r.top }; };
+    const ptOf = (e, box) => { const xy = evXY(e, box); return inComp(() => ({ x: xy.x, y: xy.y, time: timeFromXRobust(xy.x), price: priceFromYRobust(xy.y) })); };
+    // --- Zeichnen (Werkzeug aktiv): ziehen oder zwei Punkte antippen, wie im Haupt-Chart
+    let start = null, waitSecond = false;
+    const finish = p => {
+      const tool = state.activeTool;
+      if(!start || Math.hypot(p.x - start.x, p.y - start.y) < TWO_POINT_MIN_PX) return;
+      if(tool === 'rect' && (p.time === start.time || Math.abs(p.price - start.price) < start.price * 1e-5)) return;
+      addDrawing({ type: tool, p1: { time: start.time, price: start.price }, p2: { time: p.time, price: p.price } });
+      start = null; waitSecond = false; compDraft = null; setActiveTool('cursor');
+    };
+    function down(e){
+      const tool = state.activeTool; if(!COMP_TOOLS[tool] || !compReady()) return;
+      if(e.cancelable) e.preventDefault(); e.stopPropagation();
+      const p = ptOf(e, ov); if(p.time == null || p.price == null) return;
+      if(COMP_TOOLS[tool] === 1){ addDrawing({ type: tool, p1: { time: p.time, price: p.price } }); setActiveTool('cursor'); return; }
+      if(start && waitSecond){ finish(p); return; }
+      start = p; waitSecond = false; compDraft = { type: tool, p1: { time: p.time, price: p.price }, p2: { time: p.time, price: p.price } };
+      scheduleCompRender();
+    }
+    ov.addEventListener('mousedown', down); ov.addEventListener('touchstart', down, { passive:false });
+    const moveDraw = e => { if(!start || !compDraft) return; const p = ptOf(e, ov); if(p.time == null || p.price == null) return; compDraft.p2 = { time: p.time, price: p.price }; scheduleCompRender(); if(e.cancelable) e.preventDefault(); };
+    ov.addEventListener('mousemove', moveDraw); ov.addEventListener('touchmove', moveDraw, { passive:false });
+    const upDraw = e => {
+      if(!start || waitSecond) return;
+      const p = ptOf(e, ov);
+      if(p.time != null && Math.hypot(p.x - start.x, p.y - start.y) >= TWO_POINT_MIN_PX) finish(p);
+      else { waitSecond = true; showToast('Erster Punkt gesetzt – jetzt den zweiten Punkt antippen.', 2500); }
+    };
+    window.addEventListener('mouseup', upDraw); window.addEventListener('touchend', upDraw);
+    // --- Antippen = auswaehlen, Ziehen = verschieben (Cursor aktiv); gesperrte bewegen sich nicht
+    let grab = null;
+    const shiftT = (t, dx) => inComp(() => { const x = xFromTimeRobust(t); return x == null ? t : (timeFromXRobust(x + dx) ?? t); });
+    function grabDown(e){
+      if(state.activeTool !== 'cursor' || !compReady() || (e.touches && e.touches.length > 1)) return;
+      const xy = evXY(e, el);
+      const id = inComp(() => findDrawingHit(xy.x, xy.y));
+      if(!id) return;
+      const d = state.drawings.find(x => x.id === id); if(!d) return;
+      grab = { id, x0: xy.x, y0: xy.y, moved: false, locked: isLocked(d), orig: JSON.parse(JSON.stringify(d)), p0: inComp(() => priceFromYRobust(xy.y)) };
+      if(!grab.locked){ comp.chart.applyOptions({ handleScroll:false, handleScale:false }); e.stopPropagation(); if(e.cancelable) e.preventDefault(); }
+    }
+    el.addEventListener('mousedown', grabDown, true); el.addEventListener('touchstart', grabDown, { capture:true, passive:false });
+    const grabMove = e => {
+      if(!grab || grab.locked) return;
+      const xy = evXY(e, el), dx = xy.x - grab.x0;
+      if(!grab.moved && Math.hypot(dx, xy.y - grab.y0) < 5) return;
+      if(!grab.moved){ pushDrawUndo(); grab.moved = true; }
+      const d = state.drawings.find(x => x.id === grab.id), o = grab.orig; if(!d) return;
+      const pNow = inComp(() => priceFromYRobust(xy.y)), dp = (pNow != null && grab.p0 != null) ? pNow - grab.p0 : 0;
+      if(d.type === 'posbox'){ d.t1 = shiftT(o.t1, dx); d.t2 = shiftT(o.t2, dx); d.entryPrice = o.entryPrice + dp; d.tpPrice = o.tpPrice + dp; d.slPrice = o.slPrice + dp; if(o.ptps) d.ptps = o.ptps.map(t => ({ ...t, price: t.price + dp })); }
+      else {
+        if(d.p1){ d.p1.time = d.type === 'hline' ? o.p1.time : shiftT(o.p1.time, dx); d.p1.price = d.type === 'vline' ? o.p1.price : o.p1.price + dp; }
+        if(d.p2){ d.p2.time = shiftT(o.p2.time, dx); d.p2.price = o.p2.price + dp; }
+      }
+      renderDrawings();
+      if(e.cancelable) e.preventDefault();
+    };
+    window.addEventListener('mousemove', grabMove); window.addEventListener('touchmove', grabMove, { passive:false });
+    const grabUp = () => {
+      if(!grab) return;
+      const g = grab; grab = null;
+      comp.chart.applyOptions({ handleScroll:true, handleScale:true });
+      const d = state.drawings.find(x => x.id === g.id);
+      if(g.moved && d){ if(d.type === 'posbox'){ posboxTouch(d); if(boxLinkedTo(d)) syncOrderFromBox(d); } saveState(); }
+      else if(d){ selectDrawing(g.id); }
+      renderDrawings();
+    };
+    window.addEventListener('mouseup', grabUp); window.addEventListener('touchend', grabUp); window.addEventListener('touchcancel', grabUp);
+  }
   function setActiveTool(tool){
     state.activeTool = tool;
     els.drawToolbar.querySelectorAll('.draw-btn[data-tool]').forEach(b => b.classList.toggle('active', b.dataset.tool===tool));
     document.querySelectorAll('[data-pos-tool]').forEach(b => b.classList.toggle('active', b.dataset.posTool===tool));
     els.drawOverlay.classList.toggle('active', tool!=='cursor');
+    { const co = document.getElementById('compOverlay'); if(co) co.classList.toggle('active', !!COMP_TOOLS[tool]); }
+    if(compDraft){ compDraft = null; scheduleCompRender(); }
     const hint = TOOL_HINTS[tool] || '';
     els.drawHint.innerHTML = hint;
     els.drawHintRow.hidden = !hint;
@@ -2444,6 +2524,7 @@
     return { pA, yA, pB, yB };
   }
   function timeFromXRobust(x){
+    if(VIEW_COMP){ const lc = comp.chart.timeScale().coordinateToLogical(x); return lc == null ? null : compTimeFromLogical(lc); }
     const l = chart.timeScale().coordinateToLogical(x);
     if(l!=null){
       const t = timeFromLogical(l);
@@ -2455,6 +2536,7 @@
     return Math.round(s.tA + slope*(x-s.xA));
   }
   function priceFromYRobust(y){
+    if(VIEW_COMP){ const pc = comp.series.coordinateToPrice(y); return pc == null ? null : pc; }
     const p = candleSeries.coordinateToPrice(y);
     if(p!=null) return p;
     const s = priceSamplePoints();
@@ -2463,6 +2545,7 @@
     return s.pA + slope*(y-s.yA);
   }
   function xFromTimeRobust(t){
+    if(VIEW_COMP) return compX(t);
     const x = xFromTime(t);
     if(x!=null) return x;
     const s = timeSamplePoints();
@@ -2471,6 +2554,7 @@
     return s.xA + slope*(t-s.tA);
   }
   function yFromPriceRobust(p){
+    if(VIEW_COMP){ const y = comp.series.priceToCoordinate(p); return y == null ? null : y; }
     const y = yFromPrice(p);
     if(y!=null) return y;
     const s = priceSamplePoints();
@@ -3267,7 +3351,7 @@
   }
 
   // Rechter Rand der Kerzenflaeche (ohne Preisachse) — Beschriftungen sollen die Achsen-Zahlen nicht ueberdecken
-  function plotRightX(){ try{ const w = chart.timeScale().width(); if(w > 0) return w; }catch(e){} return container.clientWidth; }
+  function plotRightX(){ try{ const w = (VIEW_COMP ? comp.chart : chart).timeScale().width(); if(w > 0) return w; }catch(e){} return cW(); }
   function svgLine(x1,y1,x2,y2,extra){
     const el = document.createElementNS(NS_SVG,'line');
     el.setAttribute('x1',x1); el.setAttribute('y1',y1); el.setAttribute('x2',x2); el.setAttribute('y2',y2);
@@ -4112,8 +4196,59 @@
   let frameSize = null;
   function cW(){ return frameSize ? frameSize.w : container.clientWidth; }
   function cH(){ return frameSize ? frameSize.h : container.clientHeight; }
+  // ---------- Zeichnungen im 2. Chart ----------
+  // Dieselben Zeichnungen (gleiche Zeit/Preis) erscheinen in beiden Charts. Beim Zeichnen im 2. Chart werden die
+  // Umrechnungen Zeit/Preis <-> Pixel per VIEW_COMP auf dessen Zeitachse und Preisskala umgeschaltet.
+  var VIEW_COMP = false, compDraft = null, compRenderPending = false;   // var: wird schon vor dieser Zeile gebraucht
+  function compLogicalFromTime(t){
+    const T = comp.times, bs = (TF_MS[comp.tf] || 900000) / 1000;
+    if(!T || !T.length || typeof t !== 'number' || !isFinite(t)) return null;
+    const n = T.length - 1;
+    if(t <= T[0]) return (t - T[0]) / bs;
+    if(t >= T[n]) return n + (t - T[n]) / bs;
+    let lo = 0, hi = n; while(lo < hi){ const m = (lo + hi + 1) >> 1; if(T[m] <= t) lo = m; else hi = m - 1; }
+    const sp = T[lo + 1] - T[lo]; return lo + (sp > 0 ? (t - T[lo]) / sp : 0);
+  }
+  function compTimeFromLogical(l){
+    const T = comp.times, bs = (TF_MS[comp.tf] || 900000) / 1000;
+    if(!T || !T.length || typeof l !== 'number' || !isFinite(l)) return null;
+    const n = T.length - 1;
+    if(l <= 0) return Math.round(T[0] + l * bs);
+    if(l >= n) return Math.round(T[n] + (l - n) * bs);
+    const i = Math.floor(l); return Math.round(T[i] + (l - i) * (T[i + 1] - T[i]));
+  }
+  function compX(t){
+    const l = compLogicalFromTime(t); if(l == null) return null;
+    const ts = comp.chart.timeScale(), f = Math.floor(l), a = ts.logicalToCoordinate(f), b = ts.logicalToCoordinate(f + 1);
+    if(a == null || b == null) return null;
+    return a + (b - a) * (l - f);
+  }
+  function inComp(fn){
+    const el = document.getElementById('compContainer'), prev = frameSize, pv = VIEW_COMP;
+    VIEW_COMP = true; frameSize = { w: el.clientWidth, h: el.clientHeight };
+    try{ return fn(); } finally{ VIEW_COMP = pv; frameSize = prev; }
+  }
+  function compReady(){ return !!(comp && comp.on && comp.chart && comp.series && comp.times && comp.times.length); }
+  function renderCompDrawings(){
+    compRenderPending = false;
+    const ov = document.getElementById('compOverlay'); if(!ov) return;
+    if(!compReady() || state.reviewing){ ov.replaceChildren(); return; }
+    const root = document.createElementNS(NS_SVG, 'g');
+    inComp(() => {
+      state.drawings.forEach(d => {
+        if(!drawingVisible(d) || d.type === 'vprofile') return;
+        const g = document.createElementNS(NS_SVG, 'g'); g.setAttribute('data-cdid', d.id);
+        if(d.type === 'posbox' && d.id !== state.selectedDrawingId && !boxLinkedTo(d) && posboxPast(d)) g.setAttribute('opacity', '0.4');
+        root.appendChild(g); try{ renderOne(g, d); }catch(e){}
+      });
+      if(compDraft){ const g = document.createElementNS(NS_SVG, 'g'); g.setAttribute('opacity', '0.75'); root.appendChild(g); try{ renderOne(g, compDraft); }catch(e){} }
+    });
+    ov.replaceChildren(root);
+  }
+  function scheduleCompRender(){ if(compRenderPending) return; compRenderPending = true; requestAnimationFrame(renderCompDrawings); }
   function renderDrawings(){
     syncCompLines();
+    try{ renderCompDrawings(); }catch(e){}
     const overlay = els.drawOverlay;
     frameSize = { w: container.clientWidth, h: container.clientHeight };
     // Alles zuerst in eine (noch nicht eingehaengte) Gruppe zeichnen und dann auf einmal einsetzen
@@ -4378,7 +4513,7 @@
   // passiert hier nichts mehr (nur nachsehen, ob die Datei schon da ist).
   // Neue Version veroeffentlicht? Dann Hinweis mit Knopf (nur Web-Version). Vorher blieb eine auf dem iPad
   // geoeffnete App oft tagelang auf dem alten Stand, weil sie nie ganz geschlossen wurde.
-  const APP_BUILD = '202610301920';
+  const APP_BUILD = '202610310924';
   function checkForAppUpdate(){
     if(!archivePrefetchAllowed()) return;
     let shown = false;
@@ -7156,7 +7291,10 @@
     new ResizeObserver(entries => {
       const { width:w, height:h } = entries[0].contentRect;
       if(w > 0 && h > 0) comp.chart.applyOptions({ width:Math.floor(w), height:Math.floor(h) });
+      scheduleCompRender();
     }).observe(el);
+    comp.chart.timeScale().subscribeVisibleLogicalRangeChange(scheduleCompRender);
+    wireCompDrawing();
   }
   function compShowMsg(text){
     const m = document.getElementById('compMsg');
@@ -7219,7 +7357,9 @@
       if(o !== null && bucketSec > bars[j].time) comp.series.update({ time:bucketSec, open:o, high:h, low:l, close:c });
     }
     document.getElementById('compSub').textContent = 'bis ' + fmtTime(bars[j].time) + ' UTC';
+    try{ comp.times = comp.series.data().map(b => b.time); }catch(e){ comp.times = null; }
     syncCompLines();
+    scheduleCompRender();
   }
   function syncCompLines(){
     if(!comp || !comp.on || !comp.series) return;
