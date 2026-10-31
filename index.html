@@ -4571,7 +4571,7 @@
   // passiert hier nichts mehr (nur nachsehen, ob die Datei schon da ist).
   // Neue Version veroeffentlicht? Dann Hinweis mit Knopf (nur Web-Version). Vorher blieb eine auf dem iPad
   // geoeffnete App oft tagelang auf dem alten Stand, weil sie nie ganz geschlossen wurde.
-  const APP_BUILD = '202610311157';
+  const APP_BUILD = '202610311215';
   function checkForAppUpdate(){
     if(!archivePrefetchAllowed()) return;
     let shown = false;
@@ -7332,7 +7332,7 @@
     }
     return same ? w.bars : null;
   }
-  var COMP_SCALE = { mouseWheel:true, pinch:true, axisPressedMouseMove:{ time:true, price:false }, axisDoubleClickReset:{ time:true, price:true } };
+  var COMP_SCALE = { mouseWheel:true, pinch:true, axisPressedMouseMove:{ time:true, price:true }, axisDoubleClickReset:{ time:true, price:true } };
   function compResetView(){
     if(!comp || !comp.chart) return;
     comp.chart.priceScale('right').applyOptions({ autoScale:true });
@@ -7347,7 +7347,7 @@
       grid: { vertLines:{ color:THEME.grid }, horzLines:{ color:THEME.grid } },
       rightPriceScale: { borderColor:THEME.border, autoScale:true },
       timeScale: { borderColor:THEME.border, timeVisible:true, secondsVisible:false, rightOffset:4 },
-      // Preisachse nicht per Ziehen verzerrbar (passierte auf dem iPad versehentlich beim Schieben)
+      // Preisachse per Ziehen strecken/stauchen; ⟲ oder Doppeltippen auf die Achse stellt wieder automatisch ein
       handleScale: COMP_SCALE,
       crosshair: {
         mode: LightweightCharts.CrosshairMode.Normal,
