@@ -677,6 +677,8 @@
   .comp-sub{ flex:1; min-width:0; font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--ink-faint); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .comp-body{ position:relative; flex:1; min-height:200px; }
   #compContainer{ position:absolute; inset:0; }
+  .comp-vis-btn{ width:auto !important; padding:0 9px !important; font-size:12px; font-weight:600; white-space:nowrap; margin-left:auto; }
+  .comp-vis-btn.off{ color:var(--accent, #2962FF) !important; border-color:var(--accent, #2962FF) !important; }
   #compOverlay{ position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:5; }
   #compOverlay.active{ pointer-events:auto; cursor:crosshair; touch-action:none; }
   .comp-msg{ position:absolute; inset:0; z-index:5; display:flex; align-items:center; justify-content:center; text-align:center; padding:18px; font-size:12px; line-height:1.5; color:var(--ink-soft); background:rgba(14,17,23,.88); }
@@ -1085,6 +1087,8 @@
     height:32px; padding:0 12px; border-radius:8px; border:1px solid var(--line-strong, var(--line)); background:var(--panel); color:var(--ink); font-size:12.5px; font-weight:600; }
   /* Im Vollbild rechts Platz fuer „Vollbild beenden“ lassen — sonst lag er ueber den Knoepfen (2. Chart, Vollbild ...) */
   .chart-card.chart-fullscreen .chart-head{ padding-right:190px !important; }
+  /* rechter Chart: im Vollbild unter „Vollbild beenden“ beginnen, damit dessen Knoepfe frei bleiben */
+  .chart-card.chart-fullscreen .chart-comp{ padding-top:50px; }
   @media (max-width:760px){ .chart-card.chart-fullscreen .chart-head{ padding-right:56px !important; } .chart-card.chart-fullscreen .fs-exit .fs-lbl{ display:none; } }
   html[data-layout="pro"][data-design="dunkel"]{
     --bg:#0b0d12; --panel:#0e1117; --panel-alt:#171b23; --panel-hover:#20252f;
@@ -1415,6 +1419,7 @@
                   <option value="1h">1 Std</option><option value="4h">4 Std</option><option value="1d">1 Tag</option>
                 </select>
                 <span class="comp-sub" id="compSub"></span>
+                <button class="mini-btn comp-vis-btn" id="compVisBtn" type="button" title="Zeichnungen in diesem Chart aus-/einblenden">👁 Zeichnungen</button>
                 <button class="mini-btn" id="compCloseBtn" title="Zweiten Chart schließen">✕</button>
               </div>
               <div class="comp-body"><div id="compContainer"></div><svg id="compOverlay"></svg><div class="comp-msg" id="compMsg" hidden></div></div>
@@ -2280,6 +2285,11 @@
   function wireCompDrawing(){
     if(compWired) return; compWired = true;
     const ov = document.getElementById('compOverlay'), el = document.getElementById('compContainer');
+    document.getElementById('compVisBtn').addEventListener('click', () => {
+      VIS.compDraw = VIS.compDraw === false; saveVis(); renderCompDrawings();
+      showToast(VIS.compDraw ? 'Zeichnungen im 2. Chart wieder sichtbar.' : 'Zeichnungen im 2. Chart ausgeblendet – im linken Chart bleiben sie.', 2500);
+    });
+    updateCompVisBtn();
     const evXY = (e, box) => { const r = box.getBoundingClientRect(), t = (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0]) || e; return { x: t.clientX - r.left, y: t.clientY - r.top }; };
     const ptOf = (e, box) => { const xy = evXY(e, box); return inComp(() => ({ x: xy.x, y: xy.y, time: timeFromXRobust(xy.x), price: priceFromYRobust(xy.y) })); };
     // --- Zeichnen (Werkzeug aktiv): ziehen oder zwei Punkte antippen, wie im Haupt-Chart
@@ -2294,6 +2304,7 @@
     function down(e){
       const tool = state.activeTool; if(!COMP_TOOLS[tool] || !compReady()) return;
       if(e.cancelable) e.preventDefault(); e.stopPropagation();
+      if(VIS.compDraw === false){ VIS.compDraw = true; saveVis(); updateCompVisBtn(); }   // wer hier zeichnet, will es sehen
       const p = ptOf(e, ov); if(p.time == null || p.price == null) return;
       if(COMP_TOOLS[tool] === 1){ addDrawing({ type: tool, p1: { time: p.time, price: p.price } }); setActiveTool('cursor'); return; }
       if(start && waitSecond){ finish(p); return; }
@@ -2314,7 +2325,7 @@
     let grab = null;
     const shiftT = (t, dx) => inComp(() => { const x = xFromTimeRobust(t); return x == null ? t : (timeFromXRobust(x + dx) ?? t); });
     function grabDown(e){
-      if(state.activeTool !== 'cursor' || !compReady() || (e.touches && e.touches.length > 1)) return;
+      if(state.activeTool !== 'cursor' || !compReady() || VIS.compDraw === false || (e.touches && e.touches.length > 1)) return;
       const xy = evXY(e, el);
       const id = inComp(() => findDrawingHit(xy.x, xy.y));
       if(!id) return;
@@ -4002,7 +4013,7 @@
   // Kaufen/Verkaufen-Knoepfe. Wird je Geraet gemerkt. Standard: Trades nur die letzten 3, sonst alles an.
   const VIS_KEY = 'tradereplay_vis_v1', VIS_RECENT = 3;
   // Boxen: 'current' = nur die noch laufenden (rechter Rand noch nicht erreicht), dazu die ausgewaehlte und die mit Order
-  const VIS = { draw:true, boxes:'current', trades:'recent', qt:true, lock:false };
+  const VIS = { draw:true, boxes:'current', trades:'recent', qt:true, lock:false, compDraw:true };
   try{ const v = JSON.parse(localStorage.getItem(VIS_KEY) || 'null'); if(v) Object.assign(VIS, v); else if(localStorage.getItem(TRAILS_KEY) === '0') VIS.trades = 'off'; }catch(e){}
   if(VIS.boxes === true) VIS.boxes = 'current'; else if(VIS.boxes === false) VIS.boxes = 'off';
   function saveVis(){ try{ localStorage.setItem(VIS_KEY, JSON.stringify(VIS)); }catch(e){} }
@@ -4232,7 +4243,8 @@
   function renderCompDrawings(){
     compRenderPending = false;
     const ov = document.getElementById('compOverlay'); if(!ov) return;
-    if(!compReady() || state.reviewing){ ov.replaceChildren(); return; }
+    updateCompVisBtn();
+    if(!compReady() || state.reviewing || (VIS.compDraw === false && !compDraft)){ ov.replaceChildren(); return; }
     const root = document.createElementNS(NS_SVG, 'g');
     inComp(() => {
       state.drawings.forEach(d => {
@@ -4244,6 +4256,12 @@
       if(compDraft){ const g = document.createElementNS(NS_SVG, 'g'); g.setAttribute('opacity', '0.75'); root.appendChild(g); try{ renderOne(g, compDraft); }catch(e){} }
     });
     ov.replaceChildren(root);
+  }
+  function updateCompVisBtn(){
+    const b = document.getElementById('compVisBtn'); if(!b) return;
+    const off = VIS.compDraw === false;
+    b.classList.toggle('off', off); b.textContent = off ? '🚫 Zeichnungen aus' : '👁 Zeichnungen';
+    b.title = off ? 'Zeichnungen in diesem Chart wieder einblenden' : 'Zeichnungen in diesem Chart ausblenden (der linke Chart bleibt, wie er ist)';
   }
   function scheduleCompRender(){ if(compRenderPending) return; compRenderPending = true; requestAnimationFrame(renderCompDrawings); }
   function renderDrawings(){
@@ -4513,7 +4531,7 @@
   // passiert hier nichts mehr (nur nachsehen, ob die Datei schon da ist).
   // Neue Version veroeffentlicht? Dann Hinweis mit Knopf (nur Web-Version). Vorher blieb eine auf dem iPad
   // geoeffnete App oft tagelang auf dem alten Stand, weil sie nie ganz geschlossen wurde.
-  const APP_BUILD = '202610310924';
+  const APP_BUILD = '202610311014';
   function checkForAppUpdate(){
     if(!archivePrefetchAllowed()) return;
     let shown = false;
@@ -8217,7 +8235,9 @@
         if(xTop + bw <= ox + plotW - 8){ x = xTop; y = oy + 8; }
         else { x = ox + (plotW - bw) / 2; y = oy + cr.height - 30 - bh - 10; }
       }
-      x = Math.max(4, Math.min(x, mr.width - bw - 4));
+      // innerhalb des (linken) Charts halten — sonst lag sie bei offenem 2. Chart ueber dessen Knoepfen
+      if(bw + 8 <= cr.width) x = Math.max(ox + 4, Math.min(x, ox + cr.width - bw - 4));
+      else x = Math.max(4, Math.min(x, mr.width - bw - 4));
       y = Math.max(oy + 2, Math.min(y, oy + cr.height - bh - 4));
       bar.style.left = Math.round(x) + 'px'; bar.style.top = Math.round(y) + 'px';
       bar.classList.add('placed');
