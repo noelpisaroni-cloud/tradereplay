@@ -175,6 +175,7 @@
   .chart-body{ display:flex; gap:8px; align-items:stretch; }
   .draw-toolbar-v{ display:flex; flex-direction:column; align-items:center; gap:5px; padding:2px 0; flex-shrink:0; }
   .chart-main{ flex:1; min-width:0; display:flex; flex-direction:column; }
+  .draw-btn.dim{ opacity:.38; }
   .draw-btn{ width:32px; height:32px; border-radius:7px; border:1px solid var(--line); background:var(--panel-alt); color:var(--ink-soft); line-height:1; display:flex; align-items:center; justify-content:center; }
   .draw-btn svg{ display:block; }
   .draw-btn:hover{ border-color:var(--accent); color:var(--ink); }
@@ -1390,7 +1391,8 @@
             <button class="draw-btn" data-tool="posshort" title="Short-Position (Ziel unten, Stop oben, frei verschieb-/anpassbar)"><svg width="16" height="16" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="8.5" fill="#EF5350"/><rect x="3" y="12.5" width="18" height="8.5" fill="#26A69A"/></svg></button>
             <button class="draw-btn" id="visBtn" type="button" title="Ein-/Ausblenden: Zeichnungen, TP/SL-Boxen, Trades, Kaufen-Knöpfe im Chart"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/><path class="vis-slash" d="M4 20L20 4"/></svg></button>
             <div class="draw-sep-v"></div>
-            <button class="draw-btn" id="undoDrawBtn" title="Letzte Zeichnung entfernen"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M7 7H15a5 5 0 0 1 0 10H10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M10 3L6 7l4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+            <button class="draw-btn" id="undoDrawBtn" title="Rückgängig (Strg+Z)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M7 7H15a5 5 0 0 1 0 10H10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M10 3L6 7l4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+            <button class="draw-btn" id="redoDrawBtn" title="Wiederholen (Strg+Umschalt+Z)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M17 7H9a5 5 0 0 0 0 10h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M14 3l4 4-4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
             <button class="draw-btn" id="clearDrawBtn" title="Alle Zeichnungen löschen"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M5 7h14M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2m-8 0v12a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><line x1="10" y1="11" x2="10" y2="17" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><line x1="14" y1="11" x2="14" y2="17" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
           </div>
           <div class="chart-main">
@@ -2296,7 +2298,14 @@
   // savedAt des Session-Platzes, den DIESES Fenster zuletzt geladen/geschrieben hat. Steht im Speicher
   // ein anderer Wert, hat inzwischen ein anderes Fenster (oder die Cloud) gespeichert.
   const slotSeen = {};
-  function pushDrawUndo(){ try{ drawUndo.push(JSON.stringify(state.drawings)); if(drawUndo.length > 80) drawUndo.shift(); }catch(e){} }
+  // Wiederholen-Stapel: was "Rueckgaengig" weggenommen hat, holt "Wiederholen" zurueck. Jede neue Aenderung leert ihn.
+  const drawRedo = [];
+  function pushDrawUndo(keepRedo){ try{ drawUndo.push(JSON.stringify(state.drawings)); if(drawUndo.length > 80) drawUndo.shift(); }catch(e){} if(!keepRedo) drawRedo.length = 0; updateUndoBtns(); }
+  function updateUndoBtns(){
+    const u = document.getElementById('undoDrawBtn'), r = document.getElementById('redoDrawBtn');
+    if(u) u.classList.toggle('dim', !drawUndo.length && !state.drawings.length);
+    if(r) r.classList.toggle('dim', !drawRedo.length);
+  }
 
   // Werkzeuge, die auch im 2. Chart gehen: 1 = ein Tipp, 2 = zwei Punkte
   var COMP_TOOLS = { hline:1, ray:1, vline:1, rect:2, trendline:2, fib:2, measure:2 };
@@ -2763,14 +2772,28 @@
   function undoDrawing(){
     if(drawUndo.length){
       const before = state.drawings.map(d => d.id);
+      try{ drawRedo.push(JSON.stringify(state.drawings)); }catch(e){}
       try{ state.drawings = JSON.parse(drawUndo.pop()); }catch(e){}
       const after = new Set(state.drawings.map(d => d.id));
       tombDrawings(before.filter(id => !after.has(id)));
     } else {
+      if(!state.drawings.length){ showToast('Nichts zum Rückgängigmachen.'); return; }
+      try{ drawRedo.push(JSON.stringify(state.drawings)); }catch(e){}
       const last = state.drawings.pop();
-      if(!last){ showToast('Nichts zum Rückgängigmachen.'); return; }
       tombDrawings([last.id]);
     }
+    afterUndoRedo();
+  }
+  function redoDrawing(){
+    if(!drawRedo.length){ showToast('Nichts zum Wiederholen.'); return; }
+    const before = state.drawings.map(d => d.id), next = drawRedo.pop();
+    pushDrawUndo(true);
+    try{ state.drawings = JSON.parse(next); }catch(e){}
+    const after = new Set(state.drawings.map(d => d.id));
+    tombDrawings(before.filter(id => !after.has(id)));
+    afterUndoRedo();
+  }
+  function afterUndoRedo(){
     // Wieder hergestellte Zeichnungen sind nicht mehr "geloescht"; durch Rueckgaengig entfernte schon.
     const now = new Set(state.drawings.map(d => d.id));
     state.drawTomb = state.drawTomb.filter(id => !now.has(id));
@@ -2778,6 +2801,7 @@
     const lb = linkedBox(); if(lb) syncOrderFromBox(lb, true);
     renderDrawings();
     saveState();
+    updateUndoBtns();
   }
   function clearDrawings(){ pushDrawUndo(); const gone = state.drawings.filter(d => !isLocked(d)); tombDrawings(gone.map(d => d.id)); state.drawings = state.drawings.filter(isLocked); state.selectedDrawingId = null; renderDrawings(); saveState(); }
   // Merkt sich geloeschte Zeichnungen ("Grabsteine"), damit sie beim Zusammenfuehren mit dem Stand
@@ -2814,7 +2838,7 @@
   }
   // Neue Kursdaten (neue Session, anderer Platz): Zeichnungen leeren, OHNE zu speichern und
   // ohne Rueckgaengig-Eintrag — die gespeicherte Session bleibt unangetastet.
-  function resetDrawingsForNewData(){ state.drawings = []; state.drawTomb = []; state.selectedDrawingId = null; drawUndo.length = 0; renderDrawings(); }
+  function resetDrawingsForNewData(){ state.drawings = []; state.drawTomb = []; state.selectedDrawingId = null; drawUndo.length = 0; drawRedo.length = 0; updateUndoBtns(); renderDrawings(); }
   function deleteDrawing(id){
     const idx = state.drawings.findIndex(d=>d.id===id);
     if(idx===-1) return;
@@ -4330,6 +4354,7 @@
     syncCompLines();
     try{ renderCompDrawings(); }catch(e){}
     renderMainDrawings();
+    updateUndoBtns();
   }
   // Nur der linke Chart (beim Ziehen/Zoomen des linken Charts aendert sich rechts nichts -> halbe Arbeit pro Bild)
   function renderMainDrawings(){
@@ -4405,6 +4430,8 @@
     btn.addEventListener('click', ()=> setActiveTool(btn.dataset.tool));
   });
   els.undoDrawBtn.addEventListener('click', undoDrawing);
+  document.getElementById('redoDrawBtn').addEventListener('click', redoDrawing);
+  updateUndoBtns();
   // Alle loeschen nur nach zweitem Tippen (liegt direkt unter "Rueckgaengig" — auf dem iPad
   // war es zu leicht, aus Versehen alles zu loeschen).
   let clearArmedUntil = 0;
@@ -4600,7 +4627,7 @@
   // passiert hier nichts mehr (nur nachsehen, ob die Datei schon da ist).
   // Neue Version veroeffentlicht? Dann Hinweis mit Knopf (nur Web-Version). Vorher blieb eine auf dem iPad
   // geoeffnete App oft tagelang auf dem alten Stand, weil sie nie ganz geschlossen wurde.
-  const APP_BUILD = '202611011421';
+  const APP_BUILD = '202611012049';
   function checkForAppUpdate(){
     if(!archivePrefetchAllowed()) return;
     let shown = false;
@@ -8391,6 +8418,7 @@
     if(e.altKey && (e.code==='KeyR' || e.key==='r' || e.key==='R')){ e.preventDefault(); resetChartView(); return; }
     if(e.target.tagName==='INPUT' || e.target.tagName==='SELECT' || e.target.tagName==='TEXTAREA') return;
     if((e.ctrlKey || e.metaKey) && (e.key==='z' || e.key==='Z') && !e.shiftKey){ e.preventDefault(); undoDrawing(); return; }
+    if((e.ctrlKey || e.metaKey) && (((e.key==='z' || e.key==='Z') && e.shiftKey) || e.key==='y' || e.key==='Y')){ e.preventDefault(); redoDrawing(); return; }
     if((e.code==='Delete' || e.code==='Backspace') && state.selectedDrawingId){ e.preventDefault(); deleteDrawing(state.selectedDrawingId); return; }
     if(e.code==='Space'){ e.preventDefault(); state.playing ? pause() : play(); }
     else if(e.code==='ArrowRight'){ e.preventDefault(); state.selectedDrawingId ? nudgeSelectedDrawingTime(1, e.shiftKey) : stepForward(); }
