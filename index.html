@@ -2154,10 +2154,17 @@
   // was the main cause of the chart feeling laggy while scrolling. Coalescing
   // to at most once per animation frame keeps it responsive.
   let drawingsRafPending = false;
+  var mainSize = { w:0, h:0 };   // vom ResizeObserver; clientWidth pro Bild erzwang jedes Mal ein komplettes Layout
+  let mainRafPending = false;
   function scheduleRenderDrawings(){
     if(drawingsRafPending) return;
     drawingsRafPending = true;
     requestAnimationFrame(()=>{ drawingsRafPending = false; renderDrawings(); });
+  }
+  function scheduleMainDrawings(){
+    if(drawingsRafPending || mainRafPending) return;
+    mainRafPending = true;
+    requestAnimationFrame(()=>{ mainRafPending = false; if(!drawingsRafPending) renderMainDrawings(); });
   }
   // Die Bibliothek meldet keine Aenderung der Preisskala (Autoskala nach neuer TP-Linie,
   // Ziehen an der Preisachse ...). Ein billiger Abgleich alle 200 ms haelt die Zeichnungen
@@ -2166,13 +2173,14 @@
   setInterval(()=>{
     if(document.hidden || !state.data.length) return;
     let sig = '';
-    try{ const h = container.clientHeight; sig = candleSeries.coordinateToPrice(10) + '|' + candleSeries.coordinateToPrice(h-40) + '|' + h; }catch(e){ return; }
-    if(sig !== lastScaleSig){ lastScaleSig = sig; scheduleRenderDrawings(); }
+    try{ const h = mainSize.h || container.clientHeight; sig = candleSeries.coordinateToPrice(10) + '|' + candleSeries.coordinateToPrice(h-40) + '|' + h; }catch(e){ return; }
+    if(sig !== lastScaleSig){ lastScaleSig = sig; scheduleMainDrawings(); }
   }, 200);
 
   new ResizeObserver(entries=>{
     const { width:w, height:h } = entries[0].contentRect;
     if(w>0 && h>0) chart.applyOptions({ width: Math.floor(w), height: Math.floor(h) });
+    mainSize = { w, h };
     if(needsRefit){ applyDefaultView(); needsRefit = false; }
     scheduleRenderDrawings();
   }).observe(container);
@@ -4321,8 +4329,13 @@
   function renderDrawings(){
     syncCompLines();
     try{ renderCompDrawings(); }catch(e){}
+    renderMainDrawings();
+  }
+  // Nur der linke Chart (beim Ziehen/Zoomen des linken Charts aendert sich rechts nichts -> halbe Arbeit pro Bild)
+  function renderMainDrawings(){
     const overlay = els.drawOverlay;
-    frameSize = { w: container.clientWidth, h: container.clientHeight };
+    if(!mainSize.w) mainSize = { w: container.clientWidth, h: container.clientHeight };
+    frameSize = { w: mainSize.w, h: mainSize.h };
     // Alles zuerst in eine (noch nicht eingehaengte) Gruppe zeichnen und dann auf einmal einsetzen
     const svg = document.createElementNS(NS_SVG, 'g');
     try{ renderDrawingsInto(svg); }
@@ -4482,7 +4495,7 @@
   window.addEventListener('touchend', onDrawUp);
   document.addEventListener('keydown', e => { if(e.key==='Escape' && drawStart){ cancelTwoPoint(); setActiveTool('cursor'); } });
 
-  chart.timeScale().subscribeVisibleTimeRangeChange(scheduleRenderDrawings);
+  chart.timeScale().subscribeVisibleTimeRangeChange(scheduleMainDrawings);
 
   // ---------- data helpers ----------
   // ---------- live data (Binance) with bundled-file fallback ----------
@@ -4587,7 +4600,7 @@
   // passiert hier nichts mehr (nur nachsehen, ob die Datei schon da ist).
   // Neue Version veroeffentlicht? Dann Hinweis mit Knopf (nur Web-Version). Vorher blieb eine auf dem iPad
   // geoeffnete App oft tagelang auf dem alten Stand, weil sie nie ganz geschlossen wurde.
-  const APP_BUILD = '202610311232';
+  const APP_BUILD = '202611011421';
   function checkForAppUpdate(){
     if(!archivePrefetchAllowed()) return;
     let shown = false;
@@ -7933,7 +7946,7 @@
       // Chart wird geschoben (Finger oder gedrueckte Maus, nichts von uns gegriffen): keine Treffer-Suche fuer den
       // Mauszeiger — die kostete bei jedem Bild Zeit und liess das Ziehen ruckeln. Die Zeichnungen folgen ueber das
       // Ereignis der Zeitachse; bei Aenderung nur der Preisskala hier einmal pro Bild nachziehen.
-      if(!dragging && (e.type === 'touchmove' || e.buttons !== 0)){ if(container.contains(e.target)) scheduleRenderDrawings(); return; }
+      if(!dragging && (e.type === 'touchmove' || e.buttons !== 0)){ if(container.contains(e.target)) scheduleMainDrawings(); return; }
       const pt = xyFromEvent(e);
       if(dragging && typeof dragging==='object' && dragging.kind==='posbox'){
         const d = state.drawings.find(dd=>dd.id===dragging.id);
@@ -8033,7 +8046,7 @@
       // inside the container that our own drag system isn't already handling
       // (buttons held, nothing of ours grabbed) is treated as "something on the
       // chart's own axes might be moving" and re-syncs the overlay just in case.
-      if(e.buttons!==0) scheduleRenderDrawings();
+      if(e.buttons!==0) scheduleMainDrawings();
     }
     function onUp(e){
       if(dragging) setChartInteractive(true);
