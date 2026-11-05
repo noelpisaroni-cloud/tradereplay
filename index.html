@@ -1,10 +1,30 @@
-<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0e1117"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="TradeReplay"><link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="icon-180.png"><link rel="icon" type="image/png" href="icon-192.png"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"><meta name="theme-color" content="#0e1117"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="TradeReplay"><link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="icon-180.png"><link rel="icon" type="image/png" href="icon-192.png"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
 <script>
   // iPad: nur der Chart soll sich zoomen lassen, nicht die ganze App (Zwei-Finger-Zoom, Doppeltippen,
   // automatisches Vergroessern beim Antippen eines Eingabefelds). Der Chart zoomt weiter mit zwei Fingern.
   (function(){
+    var FULL = 'width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover';
     var m = document.querySelector('meta[name=viewport]');
-    if(m) m.setAttribute('content', 'width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover');
+    // Nur aendern, wenn noetig (in Claude setzt die Huelle ihre eigene Zeile). Ein Umschreiben nach dem Laden
+    // liess die iPad-App beim Drehen auf Quer die Hochformat-Breite behalten (rechts schwarzer Streifen).
+    if(m && m.getAttribute('content') !== FULL) m.setAttribute('content', FULL);
+    // Beim Drehen pruefen: passt die Seitenbreite nicht zum Bildschirm, die Zeile kurz neu setzen -> iOS rechnet neu
+    var isTouch = (navigator.maxTouchPoints || 0) > 1, lastFix = 0;
+    function fixWidth(){
+      if(!m || !window.screen || !isTouch || Date.now() - lastFix < 2500) return;
+      var land = (window.matchMedia && matchMedia('(orientation: landscape)').matches) || Math.abs(window.orientation || 0) === 90;
+      var want = land ? Math.max(screen.width, screen.height) : Math.min(screen.width, screen.height);
+      var have = document.documentElement.clientWidth || window.innerWidth;
+      if(want && Math.abs(have - want) > 40 && have < want){
+        lastFix = Date.now();
+        m.setAttribute('content', 'width=device-width,initial-scale=1,viewport-fit=cover');
+        setTimeout(function(){ m.setAttribute('content', FULL); }, 60);
+      }
+    }
+    window.addEventListener('orientationchange', function(){ setTimeout(fixWidth, 350); setTimeout(fixWidth, 900); });
+    window.addEventListener('resize', function(){ clearTimeout(fixWidth.t); fixWidth.t = setTimeout(fixWidth, 400); });
+    window.addEventListener('pageshow', function(){ setTimeout(fixWidth, 300); });
+    document.addEventListener('visibilitychange', function(){ if(!document.hidden) setTimeout(fixWidth, 300); });
     ['gesturestart', 'gesturechange', 'gestureend'].forEach(function(t){ document.addEventListener(t, function(e){ e.preventDefault(); }, { passive:false }); });
     var st = document.createElement('style');
     st.textContent = 'html,body{touch-action:pan-x pan-y;-webkit-text-size-adjust:100%;text-size-adjust:100%}';
@@ -4627,7 +4647,7 @@
   // passiert hier nichts mehr (nur nachsehen, ob die Datei schon da ist).
   // Neue Version veroeffentlicht? Dann Hinweis mit Knopf (nur Web-Version). Vorher blieb eine auf dem iPad
   // geoeffnete App oft tagelang auf dem alten Stand, weil sie nie ganz geschlossen wurde.
-  const APP_BUILD = '202611012049';
+  const APP_BUILD = '202611052310';
   function checkForAppUpdate(){
     if(!archivePrefetchAllowed()) return;
     let shown = false;
