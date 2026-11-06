@@ -1389,7 +1389,7 @@
                 <label class="menu-item"><input type="checkbox" data-xind="ema200"><span>EMA 200<small>Langfristiger Trend</small></span></label>
                 <div class="menu-sep"></div>
                 <div class="menu-title">Trend &amp; Volatilität</div>
-                <label class="menu-item"><input type="checkbox" data-xind="vwap"><span>VWAP<small>Volumengewichteter Tagesdurchschnitt mit Bändern (±1 und ±2 Standardabweichungen)</small></span></label>
+                <label class="menu-item"><input type="checkbox" data-xind="vwap"><span>VWAP<small>Volumengewichteter Tagesdurchschnitt mit Bändern (wie bei TradingView)</small></span></label>
                 <label class="menu-item"><input type="checkbox" data-xind="supertrend"><span>Supertrend<small>10 / 3 – grün = Aufwärts-, rot = Abwärtstrend</small></span></label>
                 <label class="menu-item"><input type="checkbox" id="bbToggle"><span>Bollinger-Bänder<small>20 / 2</small></span></label>
                 <label class="menu-item"><input type="checkbox" id="volumeToggle"><span>Volumen</span></label>
@@ -1436,6 +1436,7 @@
             <button class="draw-btn" data-tool="vline" title="Vertikale Linie"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><line x1="12" y1="3" x2="12" y2="21" stroke="currentColor" stroke-width="1.8" stroke-dasharray="3.5 3"/></svg></button>
             <button class="draw-btn" data-tool="rect" title="Rechteck / Zone"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="4" y="6" width="16" height="12" rx="1.5" stroke="currentColor" stroke-width="1.8"/></svg></button>
             <button class="draw-btn" data-tool="vprofile" title="Volumen-Profil: von einem Punkt zum anderen ziehen (zeigt, bei welchen Preisen am meisten gehandelt wurde)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="4" y="3" width="16" height="18" rx="1.5" stroke="currentColor" stroke-width="1.4" stroke-dasharray="2 2"/><path d="M6 6h5M6 9h9M6 12h12M6 15h7M6 18h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+            <button class="draw-btn" data-tool="avwap" title="Verankerter VWAP: auf eine Kerze tippen, ab dort startet der VWAP mit Bändern"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M5 4v16" stroke="currentColor" stroke-width="1.4" stroke-dasharray="2 2"/><path d="M5 15c4-1 6-6 15-7" stroke="#2962FF" stroke-width="2" stroke-linecap="round"/><path d="M5 11c4-1 6-6 15-7M5 19c4-1 6-6 15-7" stroke="#4CAF50" stroke-width="1.3" stroke-linecap="round"/><circle cx="5" cy="15" r="2" fill="currentColor"/></svg></button>
             <button class="draw-btn" data-tool="fib" title="Fibonacci-Retracement"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><line x1="3" y1="5" x2="21" y2="5" stroke="currentColor" stroke-width="1.6"/><line x1="3" y1="9.7" x2="17" y2="9.7" stroke="currentColor" stroke-width="1.6"/><line x1="3" y1="14.3" x2="21" y2="14.3" stroke="currentColor" stroke-width="1.6"/><line x1="3" y1="19" x2="13" y2="19" stroke="currentColor" stroke-width="1.6"/></svg></button>
             <button class="draw-btn" data-tool="text" title="Text in den Chart schreiben (Notiz antippen zum Bearbeiten)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 6V4.5h14V6"/><path d="M12 4.5V19.5"/><path d="M9 19.5h6"/></svg></button>
             <button class="draw-btn" data-tool="measure" title="Messwerkzeug (Preis, Prozent &amp; Kerzenanzahl zwischen zwei Punkten)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3" y="9" width="18" height="6" rx="1" stroke="currentColor" stroke-width="1.6"/><line x1="7" y1="9" x2="7" y2="12" stroke="currentColor" stroke-width="1.4"/><line x1="11" y1="9" x2="11" y2="15" stroke="currentColor" stroke-width="1.4"/><line x1="15" y1="9" x2="15" y2="12" stroke="currentColor" stroke-width="1.4"/></svg></button>
@@ -2318,6 +2319,7 @@
     ray: 'Klicken, um einen horizontalen Strahl zu setzen, der nur nach rechts weiterl&auml;uft.',
     hline: 'Klicken, um eine horizontale Linie zu setzen.',
     vline: 'Klicken, um eine senkrechte Linie an diesem Zeitpunkt zu setzen.',
+    avwap: 'Verankerter VWAP: auf die Kerze tippen, ab der der VWAP starten soll (z. B. News-Kerze, Hoch oder Tief). Blau = VWAP, grün = Bänder.',
     vprofile: 'Volumen-Profil: vom Start- zum Endpunkt ziehen (oder zwei Punkte antippen). Rot = Preis mit dem meisten Volumen (POC), gestrichelt = Bereich mit 70 % des Volumens.',
     rect: 'Ziehen oder zwei Ecken nacheinander antippen, um eine Zone aufzuspannen. Danach Ecken/Kanten ziehen zum Anpassen; zum Verschieben einfach hineinfassen und ziehen.',
     fib: 'Von Hoch zu Tief (oder umgekehrt) ziehen &ndash; oder beide Punkte nacheinander antippen.',
@@ -3011,6 +3013,12 @@
       if(x1==null) return null;
       return { x:x1-4, y:0, w:8, h:cH() };
     }
+    if(d.type==='avwap'){
+      const a = avwapCalc(d); if(!a || !a.n) return null;
+      const x1 = xFromTimeRobust(state.data[a.i0].time), y1 = yFromPriceRobust(a.v[0]);
+      if(x1==null || y1==null) return null;
+      return { x:x1-6, y:y1-6, w:12, h:12 };
+    }
     if(d.type==='text'){
       const x1=xFromTimeRobust(d.p1.time), y1=yFromPriceRobust(d.p1.price);
       if(x1==null||y1==null) return null;
@@ -3037,6 +3045,7 @@
   // grossen Zone auswaehlen, statt immer nur die Zone zu erwischen.
   // Abstand (px) vom Punkt zur sichtbaren Linie/Kante einer Zeichnung, Infinity = kein Treffer.
   function drawingLineDist(d, x, y, HIT){
+    if(d.type==='avwap') return avwapDist(d, x, y);
     if(d.type==='hline'){
       const ly = yFromPriceRobust(d.p1.price);
       return ly!=null ? Math.abs(y-ly) : Infinity;
@@ -3090,7 +3099,7 @@
     if(near) return near.id;
     for(let i=state.drawings.length-1;i>=0;i--){
       const d = state.drawings[i];
-      if(d.type==='hline' || d.type==='trendline' || d.type==='ray' || d.type==='vline' || d.type==='text' || !drawingVisible(d)) continue;
+      if(d.type==='hline' || d.type==='trendline' || d.type==='ray' || d.type==='vline' || d.type==='avwap' || d.type==='text' || !drawingVisible(d)) continue;
       const bb = getDrawingBBox(d);
       if(bb && x>=bb.x-4 && x<=bb.x+bb.w+4 && y>=bb.y-4 && y<=bb.y+bb.h+4) return d.id;
     }
@@ -3104,7 +3113,10 @@
     const list = only ? [only] : state.drawings.filter(drawingVisible);
     for(let i=list.length-1;i>=0;i--){
       const d = list[i];
-      if(d.type==='hline'){
+      if(d.type==='avwap'){
+        // Anker verschieben: Punkt oder Linie greifen und waagrecht ziehen
+        if(avwapDist(d, x, y) <= HIT) return { id:d.id, mode:'vline' };
+      } else if(d.type==='hline'){
         const ly = yFromPriceRobust(d.p1.price);
         if(ly!=null && Math.abs(y-ly)<=HIT) return { id:d.id, mode:'line' };
       } else if(d.type==='trendline' || d.type==='fib'){
@@ -3579,8 +3591,67 @@
       svg.appendChild(svgPill(x1 + Math.min(150, (x2 - x1) / 2), Math.min(yT, yB) - 12, ['POC ' + px(pocP) + ' · VAH ' + px(vah) + ' · VAL ' + px(val)], '#2A2E39', '#FFFFFF', 0.92, 10));
     }
   }
+  // Verankerter VWAP: ab der gewaehlten Kerze bis zur aktuellen Replay-Kerze (nie in die Zukunft), mit Baendern +-1 Standardabweichung
+  const avwapCache = {};
+  function avwapCalc(d){
+    const data = state.data; if(!data.length) return null;
+    let i0 = barIndexFloor(d.p1.time); if(data[i0] && data[i0].time < d.p1.time && i0 < data.length - 1) i0++;
+    const key = i0 + '|' + state.cursor + '|' + data.length + '|' + (data[0] ? data[0].time : 0);
+    const c = avwapCache[d.id]; if(c && c.key === key) return c;
+    const n = Math.max(0, state.cursor - i0 + 1), v = new Float64Array(n), up = new Float64Array(n), lo = new Float64Array(n);
+    let pv = 0, pv2 = 0, vol = 0;
+    for(let k = 0; k < n; k++){
+      const b = data[i0 + k], w = barVolume(b), tp = (b.high + b.low + b.close) / 3;
+      pv += tp * w; pv2 += tp * tp * w; vol += w;
+      const m = pv / vol, sd = Math.sqrt(Math.max(0, pv2 / vol - m * m));
+      v[k] = m; up[k] = m + sd; lo[k] = m - sd;
+    }
+    return (avwapCache[d.id] = { key, i0, n, v, up, lo });
+  }
+  // Punkte (x, Index) im sichtbaren Bereich, hoechstens einer pro Pixel
+  function avwapPoints(d, a){
+    const w = cW(), pts = [];
+    let lastX = -1e9;
+    for(let k = 0; k < a.n; k++){
+      const x = xFromTimeRobust(state.data[a.i0 + k].time); if(x == null) continue;
+      if(x < -40){ continue; } if(x > w + 40) break;
+      if(x - lastX < 1 && k < a.n - 1) continue;
+      lastX = x; pts.push([x, k]);
+    }
+    return pts;
+  }
+  function renderAvwap(svg, d){
+    const a = avwapCalc(d); if(!a || !a.n) return;
+    const pts = avwapPoints(d, a); if(!pts.length) return;
+    const mid = drawColor(d, '#2962FF'), band = '#4CAF50';
+    const path = arr => { let s = ''; for(const [x, k] of pts){ const y = yFromPriceRobust(arr[k]); if(y == null) continue; s += (s ? 'L' : 'M') + x.toFixed(1) + ',' + y.toFixed(1); } return s; };
+    const pu = path(a.up), pl = path(a.lo), pm = path(a.v);
+    const g = document.createElementNS(NS_SVG, 'g'); g.setAttribute('data-avwap', '1');
+    let html = '';
+    if(pu && pl){
+      const back = pl.replace(/^M/, '').split('L').reverse().join('L');
+      html += '<path d="' + pu + 'L' + back + 'Z" fill="' + band + '" fill-opacity="0.08" stroke="none"/>';
+      html += '<path d="' + pu + '" fill="none" stroke="' + band + '" stroke-width="1.2"/><path d="' + pl + '" fill="none" stroke="' + band + '" stroke-width="1.2"/>';
+    }
+    if(pm) html += '<path d="' + pm + '" fill="none" stroke="' + mid + '" stroke-width="1.8"/>';
+    g.innerHTML = html; svg.appendChild(g);
+    // Anker: Punkt an der Startkerze
+    const xa = xFromTimeRobust(state.data[a.i0].time), ya = yFromPriceRobust(a.v[0]);
+    if(xa != null && ya != null){ svg.appendChild(circleAt(svg, xa, ya)); if(state.selectedDrawingId === d.id) svg.appendChild(svgText(xa + 8, ya + 16, 'AVWAP', { fill:mid, 'font-size':'11px', 'font-weight':'600' })); }
+  }
+  // Abstand zur blauen Linie (fuer Antippen/Auswaehlen)
+  function avwapDist(d, x, y){
+    const a = avwapCalc(d); if(!a || !a.n) return Infinity;
+    const xa = xFromTimeRobust(state.data[a.i0].time), ya = yFromPriceRobust(a.v[0]);
+    let best = (xa != null && ya != null) ? Math.hypot(x - xa, y - ya) : Infinity;
+    if(xa == null || x < xa - 4) return best;
+    const t = timeFromXRobust(x); if(t == null) return best;
+    const k = barIndexFloor(t) - a.i0; if(k < 0 || k >= a.n) return best;
+    const yv = yFromPriceRobust(a.v[k]); return yv == null ? best : Math.min(best, Math.abs(y - yv));
+  }
   function renderOne(svg, d){
     if(d.type==='vprofile'){ renderVolumeProfile(svg, d); return; }
+    if(d.type==='avwap'){ renderAvwap(svg, d); return; }
     const w = cW(), h = cH();
     if(d.type==='hline'){
       const y = yFromPriceRobust(d.p1.price);
@@ -4011,7 +4082,27 @@
     drawLevelSegment(svg, openPrice, x1, x2, '#26A69A', 'Weekly Open');
   }
 
+  // Gruene Flaeche zwischen den VWAP-Baendern (die Chart-Bibliothek kann keine Flaeche zwischen zwei Linien)
+  function renderVwapFill(svg){ try{ renderVwapFill0(svg); }catch(e){} }   // xSeries steht weiter unten im Skript
+  function renderVwapFill0(svg){
+    if(!xSeries.vwap || !state.data.length) return;
+    const lr = chart.timeScale().getVisibleLogicalRange(); if(!lr) return;
+    const d = xData('vwap'), ts = chart.timeScale();
+    const a = Math.max(state.sessionStart, state.sessionStart + Math.floor(lr.from) - 1), b = Math.min(state.cursor, state.sessionStart + Math.ceil(lr.to) + 1);
+    let up = [], dn = [], html = '';
+    const flush = () => { if(up.length > 1){ html += '<path d="M' + up.join('L') + 'L' + dn.reverse().join('L') + 'Z" fill="#4CAF50" fill-opacity="0.07" stroke="none"/>'; } up = []; dn = []; };
+    for(let i = a; i <= b; i++){
+      const u = d.u1[i], l = d.l1[i]; if(u == null || l == null){ flush(); continue; }
+      const x = ts.logicalToCoordinate(i - state.sessionStart), yu = candleSeries.priceToCoordinate(u), yl = candleSeries.priceToCoordinate(l);
+      if(x == null || yu == null || yl == null) continue;
+      up.push(x.toFixed(1) + ',' + yu.toFixed(1)); dn.push(x.toFixed(1) + ',' + yl.toFixed(1));
+      if(d.gap && d.gap[i]) flush();
+    }
+    flush();
+    if(html){ const g = document.createElementNS(NS_SVG, 'g'); g.setAttribute('data-vwapfill', '1'); g.innerHTML = html; svg.appendChild(g); }
+  }
   function renderSessionsAndLevels(svg){
+    renderVwapFill(svg);
     renderSessionBoxesSvg(svg);
     renderAsiaHighLowSvg(svg);
     renderPrevDayHighLowSvg(svg);
@@ -4142,7 +4233,7 @@
     const keys = []; for(let i = state.journal.length - 1; i >= 0; i--){ const k = state.journal[i].entryTime + '|' + state.journal[i].side; if(!keys.includes(k)) keys.push(k); if(keys.length > VIS_RECENT){ return i + 1; } }
     return 0;
   }
-  const DRAW_NAME = { hline:'Linie', ray:'Strahl', trendline:'Trendlinie', vline:'Senkrechte Linie', rect:'Rechteck', fib:'Fibonacci', text:'Text', measure:'Messung', posbox:'TP/SL-Box', vprofile:'Volumen-Profil' };
+  const DRAW_NAME = { hline:'Linie', ray:'Strahl', trendline:'Trendlinie', vline:'Senkrechte Linie', rect:'Rechteck', fib:'Fibonacci', text:'Text', measure:'Messung', posbox:'TP/SL-Box', vprofile:'Volumen-Profil', avwap:'Verankerter VWAP' };
   // Nur die einzeln ausgeblendeten Objekte — antippen blendet wieder ein (alle aufzulisten war zu lang)
   function hiddenDrawingsHtml(){
     const list = state.drawings.filter(d => d.hidden);
@@ -4399,7 +4490,7 @@
     if(!ts.length) return false;
     let lo = Infinity, hi = -Infinity;
     for(const t of ts){ const x = xFromTimeRobust(t); if(x == null) return false; if(x < lo) lo = x; if(x > hi) hi = x; }
-    if(d.type === 'ray') return lo > w + 40;
+    if(d.type === 'ray' || d.type === 'avwap') return lo > w + 40;
     return hi < -60 || lo > w + 60;
   }
   function scheduleCompRender(){ if(compRenderPending) return; compRenderPending = true; requestAnimationFrame(renderCompDrawings); }
@@ -4514,6 +4605,7 @@
   function placeSingleClickTool(pt){
     const tool = state.activeTool;
     if(tool==='hline' || tool==='ray' || tool==='vline'){ addDrawing({ type:tool, p1:pt }); setActiveTool('cursor'); return true; }
+    if(tool==='avwap'){ const i = barIndexFloor(pt.time), b = state.data[i]; addDrawing({ type:'avwap', p1:{ time: b ? b.time : pt.time, price: b ? b.low : pt.price } }); setActiveTool('cursor'); return true; }
     if(tool==='text'){ startTextAt(pt); setActiveTool('cursor'); return true; }
     if(tool==='planTp' || tool==='planSl'){ setDraftLevel(tool==='planTp' ? 'tp' : 'sl', pt.price); setActiveTool('cursor'); return true; }
     if(tool==='poslong' || tool==='posshort'){ const nb = makeDefaultPosbox(pt, tool==='posshort'); addDrawing(nb); setActiveTool('cursor'); offerBoxOrder(nb); return true; }
@@ -4680,7 +4772,7 @@
   // passiert hier nichts mehr (nur nachsehen, ob die Datei schon da ist).
   // Neue Version veroeffentlicht? Dann Hinweis mit Knopf (nur Web-Version). Vorher blieb eine auf dem iPad
   // geoeffnete App oft tagelang auf dem alten Stand, weil sie nie ganz geschlossen wurde.
-  const APP_BUILD = '202611062337';
+  const APP_BUILD = '202611062348';
   function checkForAppUpdate(){
     if(!archivePrefetchAllowed()) return;
     let shown = false;
@@ -5762,8 +5854,8 @@
     { id:'ema21',  label:'EMA 21',  calc:d => emaInd(d, 21),  lines:[{ key:'v', color:'#EC407A' }] },
     { id:'ema50',  label:'EMA 50',  calc:d => emaInd(d, 50),  lines:[{ key:'v', color:'#9CCC65' }] },
     { id:'ema200', label:'EMA 200', calc:d => emaInd(d, 200), lines:[{ key:'v', color:'#FF7043', width:2 }] },
-    { id:'vwap',   label:'VWAP',    calc:vwapInd,             lines:[{ key:'v', color:'#AB47BC', width:2, dotted:true },
-      { key:'u1', color:'rgba(171,71,188,0.55)' }, { key:'l1', color:'rgba(171,71,188,0.55)' }, { key:'u2', color:'rgba(171,71,188,0.30)' }, { key:'l2', color:'rgba(171,71,188,0.30)' }] },
+    // wie bei TradingView: blaue Mitte, gruene Baender (1 Standardabweichung), Flaeche dazwischen (renderVwapFill)
+    { id:'vwap',   label:'VWAP',    calc:vwapInd,             lines:[{ key:'v', color:'#2962FF', width:1.5 }, { key:'u1', color:'#4CAF50', width:1 }, { key:'l1', color:'#4CAF50', width:1 }] },
     { id:'supertrend', label:'Supertrend', calc:d => supertrendInd(d, 10, 3), lines:[{ key:'up', color:'#26A69A', width:2 }, { key:'down', color:'#EF5350', width:2 }] },
     { id:'macd',  label:'MACD',  pane:true, calc:d => macdInd(d, 12, 26, 9), lines:[{ key:'hist', type:'hist' }, { key:'macd', color:'#2962FF' }, { key:'signal', color:'#FF6D00' }] },
     { id:'stoch', label:'Stoch', pane:true, range:[0, 100], calc:d => stochInd(d, 14, 3, 3), lines:[{ key:'k', color:'#2962FF' }, { key:'d', color:'#FF6D00' }] },
@@ -8247,6 +8339,7 @@
   document.querySelectorAll('#indMenu input[data-xind]').forEach(inp => inp.addEventListener('change', () => {
     inp.checked ? addXInd(inp.dataset.xind) : removeXInd(inp.dataset.xind);
     renderIndBadge();
+    scheduleRenderDrawings();   // VWAP-Flaeche
     saveState();
   }));
   (function setupUiV2(){
