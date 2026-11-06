@@ -1389,7 +1389,7 @@
                 <label class="menu-item"><input type="checkbox" data-xind="ema200"><span>EMA 200<small>Langfristiger Trend</small></span></label>
                 <div class="menu-sep"></div>
                 <div class="menu-title">Trend &amp; Volatilität</div>
-                <label class="menu-item"><input type="checkbox" data-xind="vwap"><span>VWAP<small>Volumengewichteter Tagesdurchschnitt (Forex: zeitgewichtet)</small></span></label>
+                <label class="menu-item"><input type="checkbox" data-xind="vwap"><span>VWAP<small>Volumengewichteter Tagesdurchschnitt mit Bändern (±1 und ±2 Standardabweichungen)</small></span></label>
                 <label class="menu-item"><input type="checkbox" data-xind="supertrend"><span>Supertrend<small>10 / 3 – grün = Aufwärts-, rot = Abwärtstrend</small></span></label>
                 <label class="menu-item"><input type="checkbox" id="bbToggle"><span>Bollinger-Bänder<small>20 / 2</small></span></label>
                 <label class="menu-item"><input type="checkbox" id="volumeToggle"><span>Volumen</span></label>
@@ -4680,7 +4680,7 @@
   // passiert hier nichts mehr (nur nachsehen, ob die Datei schon da ist).
   // Neue Version veroeffentlicht? Dann Hinweis mit Knopf (nur Web-Version). Vorher blieb eine auf dem iPad
   // geoeffnete App oft tagelang auf dem alten Stand, weil sie nie ganz geschlossen wurde.
-  const APP_BUILD = '202611062308';
+  const APP_BUILD = '202611062337';
   function checkForAppUpdate(){
     if(!archivePrefetchAllowed()) return;
     let shown = false;
@@ -5357,17 +5357,22 @@
   function atrInd(bars, period){ return { v: rmaArr(trueRanges(bars), period) }; }
   // VWAP setzt jeden Tag (UTC) neu an. Forex-Daten haben kein Volumen — dort zaehlt
   // jede Kerze gleich (zeitgewichteter Tagesdurchschnitt).
+  // VWAP pro Tag (Start 00:00 UTC) mit Baendern im Abstand von 1 und 2 Standardabweichungen, wie bei TradingView.
+  // Gewichtet mit demselben Volumen wie die Volumenbalken (bei Forex geschaetzt aus der Kerzenspanne).
   function vwapInd(bars){
-    const out = new Array(bars.length).fill(null);
-    let day = null, pv = 0, vol = 0;
-    for(let i=0;i<bars.length;i++){
+    const n = bars.length, out = new Array(n).fill(null), u1 = new Array(n).fill(null), l1 = new Array(n).fill(null), u2 = new Array(n).fill(null), l2 = new Array(n).fill(null), gap = new Array(n).fill(false);
+    let day = null, pv = 0, pv2 = 0, vol = 0;
+    for(let i=0;i<n;i++){
       const b = bars[i], d = Math.floor(b.time/86400);
-      if(d !== day){ day = d; pv = 0; vol = 0; }
-      const w = b.volume > 0 ? b.volume : 1;
-      pv += (b.high+b.low+b.close)/3 * w; vol += w;
-      out[i] = pv/vol;
+      const fresh = d !== day;
+      if(fresh){ day = d; pv = 0; pv2 = 0; vol = 0; }
+      const w = barVolume(b), tp = (b.high+b.low+b.close)/3;
+      pv += tp * w; pv2 += tp * tp * w; vol += w;
+      if(fresh && i > 0) gap[i - 1] = true;   /* Farbe eines Punkts gilt fuer das Stueck danach */   // Luecke beim Tageswechsel, sonst verbindet die Linie den alten mit dem neuen Tag
+      const v = pv/vol, sd = Math.sqrt(Math.max(0, pv2/vol - v*v));
+      out[i] = v; u1[i] = v + sd; l1[i] = v - sd; u2[i] = v + 2*sd; l2[i] = v - 2*sd;
     }
-    return { v: out };
+    return { v: out, u1, l1, u2, l2, gap };
   }
   // Supertrend wie bei TradingView (ATR nach Wilder): unter dem Kurs im Aufwaertstrend, darueber im Abwaertstrend.
   function supertrendInd(bars, period, mult){
@@ -5757,7 +5762,8 @@
     { id:'ema21',  label:'EMA 21',  calc:d => emaInd(d, 21),  lines:[{ key:'v', color:'#EC407A' }] },
     { id:'ema50',  label:'EMA 50',  calc:d => emaInd(d, 50),  lines:[{ key:'v', color:'#9CCC65' }] },
     { id:'ema200', label:'EMA 200', calc:d => emaInd(d, 200), lines:[{ key:'v', color:'#FF7043', width:2 }] },
-    { id:'vwap',   label:'VWAP',    calc:vwapInd,             lines:[{ key:'v', color:'#AB47BC', width:2, dotted:true }] },
+    { id:'vwap',   label:'VWAP',    calc:vwapInd,             lines:[{ key:'v', color:'#AB47BC', width:2, dotted:true },
+      { key:'u1', color:'rgba(171,71,188,0.55)' }, { key:'l1', color:'rgba(171,71,188,0.55)' }, { key:'u2', color:'rgba(171,71,188,0.30)' }, { key:'l2', color:'rgba(171,71,188,0.30)' }] },
     { id:'supertrend', label:'Supertrend', calc:d => supertrendInd(d, 10, 3), lines:[{ key:'up', color:'#26A69A', width:2 }, { key:'down', color:'#EF5350', width:2 }] },
     { id:'macd',  label:'MACD',  pane:true, calc:d => macdInd(d, 12, 26, 9), lines:[{ key:'hist', type:'hist' }, { key:'macd', color:'#2962FF' }, { key:'signal', color:'#FF6D00' }] },
     { id:'stoch', label:'Stoch', pane:true, range:[0, 100], calc:d => stochInd(d, 14, 3, 3), lines:[{ key:'k', color:'#2962FF' }, { key:'d', color:'#FF6D00' }] },
@@ -5770,8 +5776,11 @@
     if(!state.xFull[id]) state.xFull[id] = XIND_BY_ID[id].calc(state.data);
     return state.xFull[id];
   }
-  function xPoint(type, time, v){
+  // gap: unsichtbares Stueck vor diesem Punkt (z. B. VWAP-Neustart am Tageswechsel). Ein leerer Punkt
+  // trennt Linien in dieser Chart-Version nicht, eine durchsichtige Farbe schon.
+  function xPoint(type, time, v, gap){
     if(v==null) return { time };
+    if(gap) return { time, value:v, color:'rgba(0,0,0,0)' };
     if(type==='hist') return { time, value:v, color: v>=0 ? 'rgba(38,166,154,0.65)' : 'rgba(239,83,80,0.65)' };
     return { time, value:v };
   }
@@ -5799,14 +5808,14 @@
     const d = xData(id);
     xSeries[id].forEach(l => {
       const arr = d[l.key], out = [];
-      for(let i=state.sessionStart;i<=state.cursor;i++) out.push(xPoint(l.type, state.data[i].time, arr[i]));
+      for(let i=state.sessionStart;i<=state.cursor;i++) out.push(xPoint(l.type, state.data[i].time, arr[i], d.gap && d.gap[i]));
       l.series.setData(out);
     });
   }
   function stepXInd(idx){
     for(const id in xSeries){
       const d = xData(id);
-      xSeries[id].forEach(l => l.series.update(xPoint(l.type, state.data[idx].time, d[l.key][idx])));
+      xSeries[id].forEach(l => l.series.update(xPoint(l.type, state.data[idx].time, d[l.key][idx], d.gap && d.gap[idx])));
     }
   }
   // Legende wie bei TradingView: aktive Indikatoren mit Farbe und Wert der aktuellen Kerze.
