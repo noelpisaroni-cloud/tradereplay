@@ -1390,7 +1390,7 @@
                 <div class="menu-sep"></div>
                 <div class="menu-title">Trend &amp; Volatilität</div>
                 <label class="menu-item"><input type="checkbox" data-xind="vwap"><span>VWAP<small>Volumengewichteter Tagesdurchschnitt mit Bändern (wie bei TradingView)</small></span></label>
-                <label class="menu-item"><input type="checkbox" data-xind="cvd"><span>CVD (geschätzt)<small>Kumuliertes Delta pro Tag aus der Kerzenform – Divergenzen zum Preis beachten</small></span></label>
+                <label class="menu-item"><input type="checkbox" data-xind="cvd"><span>CVD (geschätzt)<small>Kauf-/Verkaufsdruck pro Tag aus der Kerzenform, mit Balken pro Kerze und automatisch markierten Divergenzen</small></span></label>
                 <label class="menu-item"><input type="checkbox" data-xind="volspike"><span>Volumen-Spitzen<small>Punkt = doppeltes Volumen, „A“ = langer Docht (mögliche Absorption)</small></span></label>
                 <label class="menu-item"><input type="checkbox" data-xind="supertrend"><span>Supertrend<small>10 / 3 – grün = Aufwärts-, rot = Abwärtstrend</small></span></label>
                 <label class="menu-item"><input type="checkbox" id="bbToggle"><span>Bollinger-Bänder<small>20 / 2</small></span></label>
@@ -4128,9 +4128,25 @@
   function renderCvdLabel(svg){ try{
     if(!xSeries.cvd) return;
     const sc = chart.priceScale('x_cvd').options().scaleMargins, h = cH(); if(!sc) return;
-    const y = sc.top * h - 7, s0 = xSeries.cvd[0].series, y0 = s0.priceToCoordinate(0);
-    let html = '<rect x="2" y="' + (y - 12).toFixed(1) + '" width="470" height="16" rx="4" fill="#0e1117" fill-opacity="0.85"/><text x="8" y="' + y.toFixed(1) + '" font-size="11" font-weight="600" fill="#A3ACBB">CVD (geschätzt) · <tspan fill="#26A69A">grün = Käufer vorn</tspan> · <tspan fill="#EF5350">rot = Verkäufer vorn</tspan> · startet täglich 01:00 bei 0</text>';
+    const s0 = (xSeries.cvd.find(l => l.type === 'baseline') || xSeries.cvd[0]).series;
+    const y = sc.top * h - 7, y0 = s0.priceToCoordinate(0);
+    let html = '<rect x="2" y="' + (y - 12).toFixed(1) + '" width="540" height="16" rx="4" fill="#0e1117" fill-opacity="0.85"/><text x="8" y="' + y.toFixed(1) + '" font-size="11" font-weight="600" fill="#A3ACBB">CVD (geschätzt) · Linie: <tspan fill="#26A69A">grün = Käufer vorn</tspan> / <tspan fill="#EF5350">rot = Verkäufer vorn</tspan> · Balken: Druck pro Kerze · Start 01:00</text>';
     if(y0 != null && y0 > y && y0 < h) html += '<line x1="0" x2="' + plotRightX() + '" y1="' + y0.toFixed(1) + '" y2="' + y0.toFixed(1) + '" stroke="#A3ACBB" stroke-opacity="0.35" stroke-dasharray="3 4"/><text x="' + (plotRightX() - 6) + '" y="' + (y0 - 3).toFixed(1) + '" text-anchor="end" font-size="10" fill="#A3ACBB" fill-opacity="0.8">0</text>';
+    // Divergenzen: Linie zwischen den zwei Hochs/Tiefs im Preis-Chart und im CVD-Fenster
+    const d = xData('cvd'), ts = chart.timeScale(), lx = i => ts.logicalToCoordinate(i - state.sessionStart);
+    (d.divs || []).forEach(v => {
+      if(v.conf > state.cursor || v.a < state.sessionStart) return;
+      const xa = lx(v.a), xb = lx(v.b); if(xa == null || xb == null || xb < -20 || xa > plotRightX() + 20) return;
+      const A = state.data[v.a], B = state.data[v.b], col = v.bear ? '#EF5350' : '#26A69A';
+      const ya = candleSeries.priceToCoordinate(v.bear ? A.high : A.low), yb = candleSeries.priceToCoordinate(v.bear ? B.high : B.low);
+      const ca = s0.priceToCoordinate(d.v[v.a]), cb = s0.priceToCoordinate(d.v[v.b]);
+      const off = v.bear ? -6 : 6;
+      if(ya != null && yb != null){
+        html += '<line x1="' + xa.toFixed(1) + '" y1="' + (ya + off).toFixed(1) + '" x2="' + xb.toFixed(1) + '" y2="' + (yb + off).toFixed(1) + '" stroke="' + col + '" stroke-width="1.6" stroke-dasharray="5 3"/>';
+        html += '<rect x="' + (xb - 26).toFixed(1) + '" y="' + (yb + (v.bear ? -26 : 12)).toFixed(1) + '" width="52" height="15" rx="3" fill="' + col + '" fill-opacity="0.9"/><text x="' + xb.toFixed(1) + '" y="' + (yb + (v.bear ? -15 : 23)).toFixed(1) + '" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">' + (v.bear ? 'Div ▼' : 'Div ▲') + '</text>';
+      }
+      if(ca != null && cb != null) html += '<line x1="' + xa.toFixed(1) + '" y1="' + ca.toFixed(1) + '" x2="' + xb.toFixed(1) + '" y2="' + cb.toFixed(1) + '" stroke="' + col + '" stroke-width="1.6" stroke-dasharray="5 3"/><circle cx="' + xa.toFixed(1) + '" cy="' + ca.toFixed(1) + '" r="2.5" fill="' + col + '"/><circle cx="' + xb.toFixed(1) + '" cy="' + cb.toFixed(1) + '" r="2.5" fill="' + col + '"/>';
+    });
     const g = document.createElementNS(NS_SVG, 'g'); g.setAttribute('data-cvdlabel', '1'); g.innerHTML = html; svg.appendChild(g);
   }catch(e){} }
   function renderSessionsAndLevels(svg){
@@ -4806,7 +4822,7 @@
   // passiert hier nichts mehr (nur nachsehen, ob die Datei schon da ist).
   // Neue Version veroeffentlicht? Dann Hinweis mit Knopf (nur Web-Version). Vorher blieb eine auf dem iPad
   // geoeffnete App oft tagelang auf dem alten Stand, weil sie nie ganz geschlossen wurde.
-  const APP_BUILD = '202611072108';
+  const APP_BUILD = '202611072117';
   function checkForAppUpdate(){
     if(!archivePrefetchAllowed()) return;
     let shown = false;
@@ -5504,16 +5520,34 @@
   // (Delta = Volumen x ((Schluss - Tief) - (Hoch - Schluss)) / Spanne). Aufaddiert pro Tag = CVD. Kein echtes Orderflow,
   // dafuer fehlen Einzel-Trades mit Kauf/Verkauf-Seite.
   function cvdInd(bars){
-    const n = bars.length, out = new Array(n).fill(null), gap = new Array(n).fill(false);
+    const n = bars.length, out = new Array(n).fill(null), dl = new Array(n).fill(null), gap = new Array(n).fill(false), dayOf = new Array(n);
     let day = null, cum = 0;
     for(let i=0;i<n;i++){
       const b = bars[i], d = Math.floor(b.time/86400);
       if(d !== day){ if(day !== null && i > 0) gap[i - 1] = true; day = d; cum = 0; }
-      const rng = b.high - b.low;
-      cum += rng > 0 ? barVolume(b) * ((b.close - b.low) - (b.high - b.close)) / rng : 0;
-      out[i] = cum;
+      dayOf[i] = d;
+      const rng = b.high - b.low, delta = rng > 0 ? barVolume(b) * ((b.close - b.low) - (b.high - b.close)) / rng : 0;
+      cum += delta; out[i] = cum; dl[i] = delta;
     }
-    return { v: out, gap };
+    // Divergenzen: Umkehrpunkte (Hoch/Tief hoeher bzw. tiefer als je 3 Kerzen links und rechts), am selben Tag mit dem
+    // vorigen Umkehrpunkt verglichen. Erst sichtbar, wenn die 3 Kerzen danach gelaufen sind (conf) - nichts aus der Zukunft.
+    const divs = [], S = 3; let lastH = -1, lastL = -1;
+    for(let i = S; i < n - S; i++){
+      let isH = true, isL = true;
+      for(let k = 1; k <= S; k++){
+        if(!(bars[i].high > bars[i-k].high && bars[i].high >= bars[i+k].high)) isH = false;
+        if(!(bars[i].low < bars[i-k].low && bars[i].low <= bars[i+k].low)) isL = false;
+      }
+      if(isH){
+        if(lastH >= 0 && dayOf[lastH] === dayOf[i] && i - lastH <= 80 && bars[i].high > bars[lastH].high && out[i] < out[lastH]) divs.push({ a:lastH, b:i, conf:i + S, bear:true });
+        lastH = i;
+      }
+      if(isL){
+        if(lastL >= 0 && dayOf[lastL] === dayOf[i] && i - lastL <= 80 && bars[i].low < bars[lastL].low && out[i] > out[lastL]) divs.push({ a:lastL, b:i, conf:i + S, bear:false });
+        lastL = i;
+      }
+    }
+    return { v: out, dl, gap, divs };
   }
   // Volumen-Spitzen: mindestens doppeltes Volumen der letzten 20 Kerzen. 2 = mit langem Docht (moegliche Absorption)
   function volSpikeInd(bars){
@@ -5909,11 +5943,17 @@
       volumeSeries.priceScale().applyOptions({ scaleMargins: DEFAULT_VOLUME_MARGINS });
       return;
     }
-    const H = n===1 ? 0.2 : n<=2 ? 0.15 : 0.36/n;
+    let hasCvd = false; try{ hasCvd = !!xSeries.cvd; }catch(e){}
+    const H = n===1 ? (hasCvd ? 0.27 : 0.2) : n<=2 ? 0.17 : 0.4/n;
     chart.priceScale('right').applyOptions({ scaleMargins:{ top:0.05, bottom:0.18 + n*H } });
     volumeSeries.priceScale().applyOptions({ scaleMargins:{ top:Math.max(0.3, 1 - n*H - 0.14), bottom:n*H + 0.02 } });
     // CVD: oben etwas Platz fuer die Beschriftung im Fenster
-    panes.forEach((id, k) => chart.priceScale(id).applyOptions({ scaleMargins:{ top:1 - (k+1)*H + (id === 'x_cvd' ? 0.045 : 0.015), bottom:k*H + 0.005 }, borderVisible:false }));
+    panes.forEach((id, k) => {
+      const m = { top:1 - (k+1)*H + (id === 'x_cvd' ? 0.07 : 0.015), bottom:k*H + 0.005 };
+      chart.priceScale(id).applyOptions({ scaleMargins:m, borderVisible:false });
+      // CVD: Balken pro Kerze in der unteren Haelfte desselben Fensters, eigene Skala, ohne Achsen-Beschriftung
+      if(id === 'x_cvd') try{ chart.priceScale('x_cvd_d').applyOptions({ scaleMargins:{ top:m.top + (1 - m.top - m.bottom) * 0.55, bottom:m.bottom }, visible:false }); }catch(e){}
+    });
   }
 
   // ---------- Indikator-Register (zusaetzlich zu MA/BB/RSI) ----------
@@ -5928,7 +5968,7 @@
     { id:'macd',  label:'MACD',  pane:true, calc:d => macdInd(d, 12, 26, 9), lines:[{ key:'hist', type:'hist' }, { key:'macd', color:'#2962FF' }, { key:'signal', color:'#FF6D00' }] },
     { id:'stoch', label:'Stoch', pane:true, range:[0, 100], calc:d => stochInd(d, 14, 3, 3), lines:[{ key:'k', color:'#2962FF' }, { key:'d', color:'#FF6D00' }] },
     { id:'atr',   label:'ATR',   pane:true, calc:d => atrInd(d, 14), lines:[{ key:'v', color:'#E57373' }] },
-    { id:'cvd',   label:'CVD (geschätzt)', pane:true, zero:true, calc:cvdInd, lines:[{ key:'v', type:'baseline', color:'#26A69A', width:2 }] },
+    { id:'cvd',   label:'CVD (geschätzt)', pane:true, zero:true, calc:cvdInd, lines:[{ key:'dl', type:'hist', scale:'_d', color:'#26A69A' }, { key:'v', type:'baseline', color:'#26A69A', width:2 }] },
     { id:'volspike', label:'Volumen-Spitzen', overlay:true, calc:volSpikeInd, lines:[] },
   ];
   const XIND_BY_ID = Object.fromEntries(XIND.map(x => [x.id, x]));
@@ -5944,7 +5984,7 @@
     if(v==null) return { time };
     if(gap && type==='baseline'){ const t0 = 'rgba(0,0,0,0)'; return { time, value:v, topLineColor:t0, bottomLineColor:t0, topFillColor1:t0, topFillColor2:t0, bottomFillColor1:t0, bottomFillColor2:t0 }; }
     if(gap) return { time, value:v, color:'rgba(0,0,0,0)' };
-    if(type==='hist') return { time, value:v, color: v>=0 ? 'rgba(38,166,154,0.65)' : 'rgba(239,83,80,0.65)' };
+    if(type==='hist') return { time, value:v, color: v>=0 ? 'rgba(38,166,154,0.55)' : 'rgba(239,83,80,0.55)' };
     return { time, value:v };
   }
   function addXInd(id){
@@ -5952,10 +5992,10 @@
     if(!x || xSeries[id]) return;
     const scaleId = x.pane ? 'x_'+id : 'right';
     xSeries[id] = x.lines.map(l => {
-      const opts = { priceScaleId:scaleId, priceLineVisible:false, lastValueVisible:false };
+      const opts = { priceScaleId:scaleId + (l.scale || ''), priceLineVisible:false, lastValueVisible:false };
       if(x.range) opts.autoscaleInfoProvider = () => ({ priceRange:{ minValue:x.range[0], maxValue:x.range[1] } });
       // Null immer sichtbar halten (CVD: darueber Kaeufer vorn, darunter Verkaeufer vorn)
-      if(x.zero) opts.autoscaleInfoProvider = orig => { const r = orig(); if(!r || !r.priceRange) return r; r.priceRange.minValue = Math.min(0, r.priceRange.minValue); r.priceRange.maxValue = Math.max(0, r.priceRange.maxValue); return r; };
+      if(x.zero && !l.scale) opts.autoscaleInfoProvider = orig => { const r = orig(); if(!r || !r.priceRange) return r; r.priceRange.minValue = Math.min(0, r.priceRange.minValue); r.priceRange.maxValue = Math.max(0, r.priceRange.maxValue); return r; };
       if(l.type==='baseline') return { key:l.key, type:'baseline', color:l.color, series: chart.addBaselineSeries({ ...opts, baseValue:{ type:'price', price:0 }, lineWidth:l.width || 2, crosshairMarkerVisible:false,
         topLineColor:'#26A69A', topFillColor1:'rgba(38,166,154,0.30)', topFillColor2:'rgba(38,166,154,0.04)',
         bottomLineColor:'#EF5350', bottomFillColor1:'rgba(239,83,80,0.04)', bottomFillColor2:'rgba(239,83,80,0.30)' }) };
