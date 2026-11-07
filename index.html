@@ -4125,7 +4125,16 @@
     }
     if(html){ const g = document.createElementNS(NS_SVG, 'g'); g.setAttribute('data-volspike', '1'); g.innerHTML = html; svg.appendChild(g); }
   }
+  function renderCvdLabel(svg){ try{
+    if(!xSeries.cvd) return;
+    const sc = chart.priceScale('x_cvd').options().scaleMargins, h = cH(); if(!sc) return;
+    const y = sc.top * h - 7, s0 = xSeries.cvd[0].series, y0 = s0.priceToCoordinate(0);
+    let html = '<rect x="2" y="' + (y - 12).toFixed(1) + '" width="470" height="16" rx="4" fill="#0e1117" fill-opacity="0.85"/><text x="8" y="' + y.toFixed(1) + '" font-size="11" font-weight="600" fill="#A3ACBB">CVD (geschätzt) · <tspan fill="#26A69A">grün = Käufer vorn</tspan> · <tspan fill="#EF5350">rot = Verkäufer vorn</tspan> · startet täglich 01:00 bei 0</text>';
+    if(y0 != null && y0 > y && y0 < h) html += '<line x1="0" x2="' + plotRightX() + '" y1="' + y0.toFixed(1) + '" y2="' + y0.toFixed(1) + '" stroke="#A3ACBB" stroke-opacity="0.35" stroke-dasharray="3 4"/><text x="' + (plotRightX() - 6) + '" y="' + (y0 - 3).toFixed(1) + '" text-anchor="end" font-size="10" fill="#A3ACBB" fill-opacity="0.8">0</text>';
+    const g = document.createElementNS(NS_SVG, 'g'); g.setAttribute('data-cvdlabel', '1'); g.innerHTML = html; svg.appendChild(g);
+  }catch(e){} }
   function renderSessionsAndLevels(svg){
+    renderCvdLabel(svg);
     renderVwapFill(svg);
     renderVolSpikes(svg);
     renderSessionBoxesSvg(svg);
@@ -4797,7 +4806,7 @@
   // passiert hier nichts mehr (nur nachsehen, ob die Datei schon da ist).
   // Neue Version veroeffentlicht? Dann Hinweis mit Knopf (nur Web-Version). Vorher blieb eine auf dem iPad
   // geoeffnete App oft tagelang auf dem alten Stand, weil sie nie ganz geschlossen wurde.
-  const APP_BUILD = '202611071722';
+  const APP_BUILD = '202611072108';
   function checkForAppUpdate(){
     if(!archivePrefetchAllowed()) return;
     let shown = false;
@@ -5900,10 +5909,11 @@
       volumeSeries.priceScale().applyOptions({ scaleMargins: DEFAULT_VOLUME_MARGINS });
       return;
     }
-    const H = n<=2 ? 0.14 : 0.36/n;
+    const H = n===1 ? 0.2 : n<=2 ? 0.15 : 0.36/n;
     chart.priceScale('right').applyOptions({ scaleMargins:{ top:0.05, bottom:0.18 + n*H } });
     volumeSeries.priceScale().applyOptions({ scaleMargins:{ top:Math.max(0.3, 1 - n*H - 0.14), bottom:n*H + 0.02 } });
-    panes.forEach((id, k) => chart.priceScale(id).applyOptions({ scaleMargins:{ top:1 - (k+1)*H + 0.015, bottom:k*H + 0.005 }, borderVisible:false }));
+    // CVD: oben etwas Platz fuer die Beschriftung im Fenster
+    panes.forEach((id, k) => chart.priceScale(id).applyOptions({ scaleMargins:{ top:1 - (k+1)*H + (id === 'x_cvd' ? 0.045 : 0.015), bottom:k*H + 0.005 }, borderVisible:false }));
   }
 
   // ---------- Indikator-Register (zusaetzlich zu MA/BB/RSI) ----------
@@ -5918,7 +5928,7 @@
     { id:'macd',  label:'MACD',  pane:true, calc:d => macdInd(d, 12, 26, 9), lines:[{ key:'hist', type:'hist' }, { key:'macd', color:'#2962FF' }, { key:'signal', color:'#FF6D00' }] },
     { id:'stoch', label:'Stoch', pane:true, range:[0, 100], calc:d => stochInd(d, 14, 3, 3), lines:[{ key:'k', color:'#2962FF' }, { key:'d', color:'#FF6D00' }] },
     { id:'atr',   label:'ATR',   pane:true, calc:d => atrInd(d, 14), lines:[{ key:'v', color:'#E57373' }] },
-    { id:'cvd',   label:'CVD (geschätzt)', pane:true, calc:cvdInd, lines:[{ key:'v', color:'#26A69A', width:1.5 }] },
+    { id:'cvd',   label:'CVD (geschätzt)', pane:true, zero:true, calc:cvdInd, lines:[{ key:'v', type:'baseline', color:'#26A69A', width:2 }] },
     { id:'volspike', label:'Volumen-Spitzen', overlay:true, calc:volSpikeInd, lines:[] },
   ];
   const XIND_BY_ID = Object.fromEntries(XIND.map(x => [x.id, x]));
@@ -5932,6 +5942,7 @@
   // trennt Linien in dieser Chart-Version nicht, eine durchsichtige Farbe schon.
   function xPoint(type, time, v, gap){
     if(v==null) return { time };
+    if(gap && type==='baseline'){ const t0 = 'rgba(0,0,0,0)'; return { time, value:v, topLineColor:t0, bottomLineColor:t0, topFillColor1:t0, topFillColor2:t0, bottomFillColor1:t0, bottomFillColor2:t0 }; }
     if(gap) return { time, value:v, color:'rgba(0,0,0,0)' };
     if(type==='hist') return { time, value:v, color: v>=0 ? 'rgba(38,166,154,0.65)' : 'rgba(239,83,80,0.65)' };
     return { time, value:v };
@@ -5943,6 +5954,11 @@
     xSeries[id] = x.lines.map(l => {
       const opts = { priceScaleId:scaleId, priceLineVisible:false, lastValueVisible:false };
       if(x.range) opts.autoscaleInfoProvider = () => ({ priceRange:{ minValue:x.range[0], maxValue:x.range[1] } });
+      // Null immer sichtbar halten (CVD: darueber Kaeufer vorn, darunter Verkaeufer vorn)
+      if(x.zero) opts.autoscaleInfoProvider = orig => { const r = orig(); if(!r || !r.priceRange) return r; r.priceRange.minValue = Math.min(0, r.priceRange.minValue); r.priceRange.maxValue = Math.max(0, r.priceRange.maxValue); return r; };
+      if(l.type==='baseline') return { key:l.key, type:'baseline', color:l.color, series: chart.addBaselineSeries({ ...opts, baseValue:{ type:'price', price:0 }, lineWidth:l.width || 2, crosshairMarkerVisible:false,
+        topLineColor:'#26A69A', topFillColor1:'rgba(38,166,154,0.30)', topFillColor2:'rgba(38,166,154,0.04)',
+        bottomLineColor:'#EF5350', bottomFillColor1:'rgba(239,83,80,0.04)', bottomFillColor2:'rgba(239,83,80,0.30)' }) };
       const series = l.type==='hist' ? chart.addHistogramSeries(opts)
         : chart.addLineSeries({ ...opts, color:l.color, lineWidth:l.width || 1.5, crosshairMarkerVisible:false,
             lineStyle: l.dotted ? LightweightCharts.LineStyle.Dotted : LightweightCharts.LineStyle.Solid });
@@ -5984,6 +6000,8 @@
       XIND.forEach(x => {
         if(!xSeries[x.id]) return;
         const d = xData(x.id);
+        if(x.id === 'cvd'){ const v = d.v[i], p = i > 0 && !(d.gap && d.gap[i - 1]) ? d.v[i - 1] : 0; if(v == null){ items.push([x.label, '#26A69A', '–']); return; }
+          items.push([x.label, v >= 0 ? '#26A69A' : '#EF5350', (v >= 0 ? 'Käufer vorn' : 'Verkäufer vorn') + (v > p ? ' ▲' : v < p ? ' ▼' : '')]); return; }
         if(x.id === 'volspike'){ const r = d.ratio[i]; items.push([x.label, '#FFB74D', r == null ? '–' : (r.toFixed(1).replace('.', ',') + '× Ø' + (d.kind[i] === 2 ? ' · Absorption?' : ''))]); return; }
         const line = x.lines.find(l => l.type!=='hist' && d[l.key][i]!=null) || x.lines.find(l => l.type!=='hist');
         if(!line) return;
