@@ -1390,6 +1390,8 @@
                 <div class="menu-sep"></div>
                 <div class="menu-title">Trend &amp; Volatilität</div>
                 <label class="menu-item"><input type="checkbox" data-xind="vwap"><span>VWAP<small>Volumengewichteter Tagesdurchschnitt mit Bändern (wie bei TradingView)</small></span></label>
+                <label class="menu-item"><input type="checkbox" data-xind="cvd"><span>CVD (geschätzt)<small>Kumuliertes Delta pro Tag aus der Kerzenform – Divergenzen zum Preis beachten</small></span></label>
+                <label class="menu-item"><input type="checkbox" data-xind="volspike"><span>Volumen-Spitzen<small>Punkt = doppeltes Volumen, „A“ = langer Docht (mögliche Absorption)</small></span></label>
                 <label class="menu-item"><input type="checkbox" data-xind="supertrend"><span>Supertrend<small>10 / 3 – grün = Aufwärts-, rot = Abwärtstrend</small></span></label>
                 <label class="menu-item"><input type="checkbox" id="bbToggle"><span>Bollinger-Bänder<small>20 / 2</small></span></label>
                 <label class="menu-item"><input type="checkbox" id="volumeToggle"><span>Volumen</span></label>
@@ -4101,8 +4103,31 @@
     flush();
     if(html){ const g = document.createElementNS(NS_SVG, 'g'); g.setAttribute('data-vwapfill', '1'); g.innerHTML = html; svg.appendChild(g); }
   }
+  // Markierung der Volumen-Spitzen: Punkt ueber der Kerze, bei moeglicher Absorption ein „A“ an der Docht-Seite
+  function renderVolSpikes(svg){ try{ renderVolSpikes0(svg); }catch(e){} }
+  function renderVolSpikes0(svg){
+    if(!xSeries.volspike || !state.data.length) return;
+    const lr = chart.timeScale().getVisibleLogicalRange(); if(!lr) return;
+    const d = xData('volspike'), ts = chart.timeScale();
+    const a = Math.max(state.sessionStart, state.sessionStart + Math.floor(lr.from)), b = Math.min(state.cursor, state.sessionStart + Math.ceil(lr.to));
+    let html = '';
+    for(let i = a; i <= b; i++){
+      if(!d.kind[i]) continue;
+      const bar = state.data[i], x = ts.logicalToCoordinate(i - state.sessionStart); if(x == null) continue;
+      const yH = candleSeries.priceToCoordinate(bar.high), yL = candleSeries.priceToCoordinate(bar.low); if(yH == null || yL == null) continue;
+      if(d.kind[i] === 2){
+        const below = d.side[i] > 0, y = below ? yL + 13 : yH - 6, col = below ? '#26A69A' : '#EF5350';
+        html += '<circle cx="' + x.toFixed(1) + '" cy="' + (below ? yL + 9 : yH - 10).toFixed(1) + '" r="7" fill="' + col + '" fill-opacity="0.18" stroke="' + col + '" stroke-width="1"/>' +
+          '<text x="' + x.toFixed(1) + '" y="' + (below ? yL + 12.5 : yH - 6.5).toFixed(1) + '" text-anchor="middle" font-size="9.5" font-weight="700" fill="' + col + '">A</text>';
+      } else {
+        html += '<circle cx="' + x.toFixed(1) + '" cy="' + (yH - 7).toFixed(1) + '" r="3" fill="#FFB74D"/>';
+      }
+    }
+    if(html){ const g = document.createElementNS(NS_SVG, 'g'); g.setAttribute('data-volspike', '1'); g.innerHTML = html; svg.appendChild(g); }
+  }
   function renderSessionsAndLevels(svg){
     renderVwapFill(svg);
+    renderVolSpikes(svg);
     renderSessionBoxesSvg(svg);
     renderAsiaHighLowSvg(svg);
     renderPrevDayHighLowSvg(svg);
@@ -4772,7 +4797,7 @@
   // passiert hier nichts mehr (nur nachsehen, ob die Datei schon da ist).
   // Neue Version veroeffentlicht? Dann Hinweis mit Knopf (nur Web-Version). Vorher blieb eine auf dem iPad
   // geoeffnete App oft tagelang auf dem alten Stand, weil sie nie ganz geschlossen wurde.
-  const APP_BUILD = '202611062348';
+  const APP_BUILD = '202611071722';
   function checkForAppUpdate(){
     if(!archivePrefetchAllowed()) return;
     let shown = false;
@@ -5466,6 +5491,39 @@
     }
     return { v: out, u1, l1, u2, l2, gap };
   }
+  // Geschaetztes Delta pro Kerze aus der Kerzenform: Schluss nahe am Hoch = eher Kaeufer, nahe am Tief = eher Verkaeufer
+  // (Delta = Volumen x ((Schluss - Tief) - (Hoch - Schluss)) / Spanne). Aufaddiert pro Tag = CVD. Kein echtes Orderflow,
+  // dafuer fehlen Einzel-Trades mit Kauf/Verkauf-Seite.
+  function cvdInd(bars){
+    const n = bars.length, out = new Array(n).fill(null), gap = new Array(n).fill(false);
+    let day = null, cum = 0;
+    for(let i=0;i<n;i++){
+      const b = bars[i], d = Math.floor(b.time/86400);
+      if(d !== day){ if(day !== null && i > 0) gap[i - 1] = true; day = d; cum = 0; }
+      const rng = b.high - b.low;
+      cum += rng > 0 ? barVolume(b) * ((b.close - b.low) - (b.high - b.close)) / rng : 0;
+      out[i] = cum;
+    }
+    return { v: out, gap };
+  }
+  // Volumen-Spitzen: mindestens doppeltes Volumen der letzten 20 Kerzen. 2 = mit langem Docht (moegliche Absorption)
+  function volSpikeInd(bars){
+    const n = bars.length, kind = new Array(n).fill(0), side = new Array(n).fill(0), ratio = new Array(n).fill(null);
+    let sum = 0; const vols = bars.map(barVolume);
+    for(let i=0;i<n;i++){
+      if(i >= 20){
+        const avg = sum / 20, r = avg > 0 ? vols[i] / avg : 0; ratio[i] = r;
+        if(r >= 2){
+          const b = bars[i], rng = b.high - b.low, body = Math.abs(b.close - b.open);
+          const upW = b.high - Math.max(b.open, b.close), loW = Math.min(b.open, b.close) - b.low;
+          kind[i] = 1;
+          if(rng > 0 && body <= rng * 0.4 && Math.max(upW, loW) >= rng * 0.45){ kind[i] = 2; side[i] = loW >= upW ? 1 : -1; }
+        }
+      }
+      sum += vols[i]; if(i >= 20) sum -= vols[i - 20];
+    }
+    return { kind, side, ratio };
+  }
   // Supertrend wie bei TradingView (ATR nach Wilder): unter dem Kurs im Aufwaertstrend, darueber im Abwaertstrend.
   function supertrendInd(bars, period, mult){
     const atr = rmaArr(trueRanges(bars), period);
@@ -5860,6 +5918,8 @@
     { id:'macd',  label:'MACD',  pane:true, calc:d => macdInd(d, 12, 26, 9), lines:[{ key:'hist', type:'hist' }, { key:'macd', color:'#2962FF' }, { key:'signal', color:'#FF6D00' }] },
     { id:'stoch', label:'Stoch', pane:true, range:[0, 100], calc:d => stochInd(d, 14, 3, 3), lines:[{ key:'k', color:'#2962FF' }, { key:'d', color:'#FF6D00' }] },
     { id:'atr',   label:'ATR',   pane:true, calc:d => atrInd(d, 14), lines:[{ key:'v', color:'#E57373' }] },
+    { id:'cvd',   label:'CVD (geschätzt)', pane:true, calc:cvdInd, lines:[{ key:'v', color:'#26A69A', width:1.5 }] },
+    { id:'volspike', label:'Volumen-Spitzen', overlay:true, calc:volSpikeInd, lines:[] },
   ];
   const XIND_BY_ID = Object.fromEntries(XIND.map(x => [x.id, x]));
   const xSeries = {};   // id -> [{ key, type, color, series }]
@@ -5924,7 +5984,9 @@
       XIND.forEach(x => {
         if(!xSeries[x.id]) return;
         const d = xData(x.id);
+        if(x.id === 'volspike'){ const r = d.ratio[i]; items.push([x.label, '#FFB74D', r == null ? '–' : (r.toFixed(1).replace('.', ',') + '× Ø' + (d.kind[i] === 2 ? ' · Absorption?' : ''))]); return; }
         const line = x.lines.find(l => l.type!=='hist' && d[l.key][i]!=null) || x.lines.find(l => l.type!=='hist');
+        if(!line) return;
         items.push([x.label, line.color, num(d[line.key][i], x.pane)]);
       });
     }
