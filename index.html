@@ -3598,23 +3598,31 @@
   function avwapCalc(d){
     const data = state.data; if(!data.length) return null;
     let i0 = barIndexFloor(d.p1.time); if(data[i0] && data[i0].time < d.p1.time && i0 < data.length - 1) i0++;
-    const key = i0 + '|' + state.cursor + '|' + data.length + '|' + (data[0] ? data[0].time : 0);
-    const c = avwapCache[d.id]; if(c && c.key === key) return c;
-    const n = Math.max(0, state.cursor - i0 + 1), v = new Float64Array(n), up = new Float64Array(n), lo = new Float64Array(n);
-    let pv = 0, pv2 = 0, vol = 0;
-    for(let k = 0; k < n; k++){
+    const base = i0 + '|' + data.length + '|' + (data[0] ? data[0].time : 0);
+    const n = Math.max(0, state.cursor - i0 + 1);
+    let c = avwapCache[d.id];
+    // Weiterspielen: nur die neuen Kerzen dazurechnen statt alles von vorn (sonst bei weit zurueckliegendem Anker langsam)
+    if(c && c.base === base && c.n === n) return c;
+    if(!c || c.base !== base || c.n > n){ c = avwapCache[d.id] = { base, i0, n:0, v:[], up:[], lo:[], pv:0, pv2:0, vol:0 }; }
+    for(let k = c.n; k < n; k++){
       const b = data[i0 + k], w = barVolume(b), tp = (b.high + b.low + b.close) / 3;
-      pv += tp * w; pv2 += tp * tp * w; vol += w;
-      const m = pv / vol, sd = Math.sqrt(Math.max(0, pv2 / vol - m * m));
-      v[k] = m; up[k] = m + sd; lo[k] = m - sd;
+      c.pv += tp * w; c.pv2 += tp * tp * w; c.vol += w;
+      const m = c.pv / c.vol, sd = Math.sqrt(Math.max(0, c.pv2 / c.vol - m * m));
+      c.v[k] = m; c.up[k] = m + sd; c.lo[k] = m - sd;
     }
-    return (avwapCache[d.id] = { key, i0, n, v, up, lo });
+    c.n = n;
+    return c;
   }
   // Punkte (x, Index) im sichtbaren Bereich, hoechstens einer pro Pixel
   function avwapPoints(d, a){
     const w = cW(), pts = [];
     let lastX = -1e9;
-    for(let k = 0; k < a.n; k++){
+    // nur den sichtbaren Ausschnitt durchgehen (vorher: jede Kerze seit dem Anker, bei jedem Bild)
+    let kL = 0, kR = a.n - 1;
+    const tL = timeFromXRobust(-40), tR = timeFromXRobust(w + 40);
+    if(tL != null) kL = Math.max(0, barIndexFloor(tL) - a.i0 - 1);
+    if(tR != null) kR = Math.min(a.n - 1, barIndexFloor(tR) - a.i0 + 1);
+    for(let k = kL; k <= kR; k++){
       const x = xFromTimeRobust(state.data[a.i0 + k].time); if(x == null) continue;
       if(x < -40){ continue; } if(x > w + 40) break;
       if(x - lastX < 1 && k < a.n - 1) continue;
@@ -4091,13 +4099,22 @@
     const lr = chart.timeScale().getVisibleLogicalRange(); if(!lr) return;
     const d = xData('vwap'), ts = chart.timeScale();
     const a = Math.max(state.sessionStart, state.sessionStart + Math.floor(lr.from) - 1), b = Math.min(state.cursor, state.sessionStart + Math.ceil(lr.to) + 1);
-    let up = [], dn = [], html = '';
-    const flush = () => { if(up.length > 1){ html += '<path d="M' + up.join('L') + 'L' + dn.reverse().join('L') + 'Z" fill="#4CAF50" fill-opacity="0.07" stroke="none"/>'; } up = []; dn = []; };
+    let up = [], dn = [], mid = [], html = '';
+    const flush = () => {
+      if(up.length > 1){
+        const U = up.join('L'), D = dn.join('L');
+        html += '<path d="M' + U + 'L' + dn.slice().reverse().join('L') + 'Z" fill="#4CAF50" fill-opacity="0.07" stroke="none"/>' +
+          '<path d="M' + U + '" fill="none" stroke="#4CAF50" stroke-width="1"/><path d="M' + D + '" fill="none" stroke="#4CAF50" stroke-width="1"/>' +
+          '<path d="M' + mid.join('L') + '" fill="none" stroke="#2962FF" stroke-width="1.6"/>';
+      }
+      up = []; dn = []; mid = [];
+    };
     for(let i = a; i <= b; i++){
       const u = d.u1[i], l = d.l1[i]; if(u == null || l == null){ flush(); continue; }
-      const x = ts.logicalToCoordinate(i - state.sessionStart), yu = candleSeries.priceToCoordinate(u), yl = candleSeries.priceToCoordinate(l);
-      if(x == null || yu == null || yl == null) continue;
-      up.push(x.toFixed(1) + ',' + yu.toFixed(1)); dn.push(x.toFixed(1) + ',' + yl.toFixed(1));
+      const x = ts.logicalToCoordinate(i - state.sessionStart), yu = candleSeries.priceToCoordinate(u), yl = candleSeries.priceToCoordinate(l), ym = candleSeries.priceToCoordinate(d.v[i]);
+      if(x == null || yu == null || yl == null || ym == null) continue;
+      const xs = x.toFixed(1);
+      up.push(xs + ',' + yu.toFixed(1)); dn.push(xs + ',' + yl.toFixed(1)); mid.push(xs + ',' + ym.toFixed(1));
       if(d.gap && d.gap[i]) flush();
     }
     flush();
@@ -4128,7 +4145,7 @@
   function renderCvdLabel(svg){ try{
     if(!xSeries.cvd) return;
     const sc = chart.priceScale('x_cvd').options().scaleMargins, h = cH(); if(!sc) return;
-    const s0 = (xSeries.cvd.find(l => l.type === 'baseline') || xSeries.cvd[0]).series;
+    const s0 = (xSeries.cvd.find(l => l.type === 'signline' || l.type === 'baseline') || xSeries.cvd[0]).series;
     const y = sc.top * h - 7, y0 = s0.priceToCoordinate(0);
     let html = '<rect x="2" y="' + (y - 12).toFixed(1) + '" width="540" height="16" rx="4" fill="#0e1117" fill-opacity="0.85"/><text x="8" y="' + y.toFixed(1) + '" font-size="11" font-weight="600" fill="#A3ACBB">CVD (geschätzt) · Linie: <tspan fill="#26A69A">grün = Käufer vorn</tspan> / <tspan fill="#EF5350">rot = Verkäufer vorn</tspan> · Balken: Druck pro Kerze · Start 01:00</text>';
     if(y0 != null && y0 > y && y0 < h) html += '<line x1="0" x2="' + plotRightX() + '" y1="' + y0.toFixed(1) + '" y2="' + y0.toFixed(1) + '" stroke="#A3ACBB" stroke-opacity="0.35" stroke-dasharray="3 4"/><text x="' + (plotRightX() - 6) + '" y="' + (y0 - 3).toFixed(1) + '" text-anchor="end" font-size="10" fill="#A3ACBB" fill-opacity="0.8">0</text>';
@@ -4822,7 +4839,7 @@
   // passiert hier nichts mehr (nur nachsehen, ob die Datei schon da ist).
   // Neue Version veroeffentlicht? Dann Hinweis mit Knopf (nur Web-Version). Vorher blieb eine auf dem iPad
   // geoeffnete App oft tagelang auf dem alten Stand, weil sie nie ganz geschlossen wurde.
-  const APP_BUILD = '202611072117';
+  const APP_BUILD = '202611091132';
   function checkForAppUpdate(){
     if(!archivePrefetchAllowed()) return;
     let shown = false;
@@ -5963,12 +5980,13 @@
     { id:'ema50',  label:'EMA 50',  calc:d => emaInd(d, 50),  lines:[{ key:'v', color:'#9CCC65' }] },
     { id:'ema200', label:'EMA 200', calc:d => emaInd(d, 200), lines:[{ key:'v', color:'#FF7043', width:2 }] },
     // wie bei TradingView: blaue Mitte, gruene Baender (1 Standardabweichung), Flaeche dazwischen (renderVwapFill)
-    { id:'vwap',   label:'VWAP',    calc:vwapInd,             lines:[{ key:'v', color:'#2962FF', width:1.5 }, { key:'u1', color:'#4CAF50', width:1 }, { key:'l1', color:'#4CAF50', width:1 }] },
+    // Linien und Flaeche zeichnet renderVwapFill im Overlay (schneller als drei Chart-Linien, Tageswechsel = echte Luecke)
+    { id:'vwap',   label:'VWAP',    overlay:true, calc:vwapInd, lines:[] },
     { id:'supertrend', label:'Supertrend', calc:d => supertrendInd(d, 10, 3), lines:[{ key:'up', color:'#26A69A', width:2 }, { key:'down', color:'#EF5350', width:2 }] },
     { id:'macd',  label:'MACD',  pane:true, calc:d => macdInd(d, 12, 26, 9), lines:[{ key:'hist', type:'hist' }, { key:'macd', color:'#2962FF' }, { key:'signal', color:'#FF6D00' }] },
     { id:'stoch', label:'Stoch', pane:true, range:[0, 100], calc:d => stochInd(d, 14, 3, 3), lines:[{ key:'k', color:'#2962FF' }, { key:'d', color:'#FF6D00' }] },
     { id:'atr',   label:'ATR',   pane:true, calc:d => atrInd(d, 14), lines:[{ key:'v', color:'#E57373' }] },
-    { id:'cvd',   label:'CVD (geschätzt)', pane:true, zero:true, calc:cvdInd, lines:[{ key:'dl', type:'hist', scale:'_d', color:'#26A69A' }, { key:'v', type:'baseline', color:'#26A69A', width:2 }] },
+    { id:'cvd',   label:'CVD (geschätzt)', pane:true, zero:true, calc:cvdInd, lines:[{ key:'dl', type:'hist', scale:'_d', color:'#26A69A' }, { key:'v', type:'signline', color:'#26A69A', width:2 }] },
     { id:'volspike', label:'Volumen-Spitzen', overlay:true, calc:volSpikeInd, lines:[] },
   ];
   const XIND_BY_ID = Object.fromEntries(XIND.map(x => [x.id, x]));
@@ -5982,6 +6000,8 @@
   // trennt Linien in dieser Chart-Version nicht, eine durchsichtige Farbe schon.
   function xPoint(type, time, v, gap){
     if(v==null) return { time };
+    // CVD-Linie: Farbe nach Vorzeichen (gruen = Kaeufer vorn, rot = Verkaeufer vorn); Farbe gilt fuer das Stueck danach
+    if(type==='signline') return { time, value:v, color: gap ? 'rgba(0,0,0,0)' : (v >= 0 ? '#26A69A' : '#EF5350') };
     if(gap && type==='baseline'){ const t0 = 'rgba(0,0,0,0)'; return { time, value:v, topLineColor:t0, bottomLineColor:t0, topFillColor1:t0, topFillColor2:t0, bottomFillColor1:t0, bottomFillColor2:t0 }; }
     if(gap) return { time, value:v, color:'rgba(0,0,0,0)' };
     if(type==='hist') return { time, value:v, color: v>=0 ? 'rgba(38,166,154,0.55)' : 'rgba(239,83,80,0.55)' };
@@ -5996,6 +6016,7 @@
       if(x.range) opts.autoscaleInfoProvider = () => ({ priceRange:{ minValue:x.range[0], maxValue:x.range[1] } });
       // Null immer sichtbar halten (CVD: darueber Kaeufer vorn, darunter Verkaeufer vorn)
       if(x.zero && !l.scale) opts.autoscaleInfoProvider = orig => { const r = orig(); if(!r || !r.priceRange) return r; r.priceRange.minValue = Math.min(0, r.priceRange.minValue); r.priceRange.maxValue = Math.max(0, r.priceRange.maxValue); return r; };
+      if(l.type==='signline') return { key:l.key, type:'signline', color:l.color, series: chart.addLineSeries({ ...opts, lineWidth:l.width || 2, crosshairMarkerVisible:false, color:'#26A69A' }) };
       if(l.type==='baseline') return { key:l.key, type:'baseline', color:l.color, series: chart.addBaselineSeries({ ...opts, baseValue:{ type:'price', price:0 }, lineWidth:l.width || 2, crosshairMarkerVisible:false,
         topLineColor:'#26A69A', topFillColor1:'rgba(38,166,154,0.30)', topFillColor2:'rgba(38,166,154,0.04)',
         bottomLineColor:'#EF5350', bottomFillColor1:'rgba(239,83,80,0.04)', bottomFillColor2:'rgba(239,83,80,0.30)' }) };
@@ -6040,6 +6061,7 @@
       XIND.forEach(x => {
         if(!xSeries[x.id]) return;
         const d = xData(x.id);
+        if(x.id === 'vwap'){ items.push([x.label, '#2962FF', num(d.v[i])]); return; }
         if(x.id === 'cvd'){ const v = d.v[i], p = i > 0 && !(d.gap && d.gap[i - 1]) ? d.v[i - 1] : 0; if(v == null){ items.push([x.label, '#26A69A', '–']); return; }
           items.push([x.label, v >= 0 ? '#26A69A' : '#EF5350', (v >= 0 ? 'Käufer vorn' : 'Verkäufer vorn') + (v > p ? ' ▲' : v < p ? ' ▼' : '')]); return; }
         if(x.id === 'volspike'){ const r = d.ratio[i]; items.push([x.label, '#FFB74D', r == null ? '–' : (r.toFixed(1).replace('.', ',') + '× Ø' + (d.kind[i] === 2 ? ' · Absorption?' : ''))]); return; }
