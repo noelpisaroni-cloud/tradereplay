@@ -4144,26 +4144,59 @@
     if(html){ const g = document.createElementNS(NS_SVG, 'g'); g.setAttribute('data-volspike', '1'); g.innerHTML = html; svg.appendChild(g); }
   }
   function renderCvdLabel(svg){ try{
-    if(!xSeries.cvd) return;
-    const sc = chart.priceScale('x_cvd').options().scaleMargins, h = cH(); if(!sc) return;
-    const s0 = (xSeries.cvd.find(l => l.type === 'signline' || l.type === 'baseline') || xSeries.cvd[0]).series;
-    const y = sc.top * h - 7, y0 = s0.priceToCoordinate(0);
-    let html = '<rect x="2" y="' + (y - 12).toFixed(1) + '" width="540" height="16" rx="4" fill="#0e1117" fill-opacity="0.85"/><text x="8" y="' + y.toFixed(1) + '" font-size="11" font-weight="600" fill="#A3ACBB">CVD (geschätzt) · Linie: <tspan fill="#26A69A">grün = Käufer vorn</tspan> / <tspan fill="#EF5350">rot = Verkäufer vorn</tspan> · Balken: Druck pro Kerze · Start 01:00</text>';
-    if(y0 != null && y0 > y && y0 < h) html += '<line x1="0" x2="' + plotRightX() + '" y1="' + y0.toFixed(1) + '" y2="' + y0.toFixed(1) + '" stroke="#A3ACBB" stroke-opacity="0.35" stroke-dasharray="3 4"/><text x="' + (plotRightX() - 6) + '" y="' + (y0 - 3).toFixed(1) + '" text-anchor="end" font-size="10" fill="#A3ACBB" fill-opacity="0.8">0</text>';
-    // Divergenzen: Linie zwischen den zwei Hochs/Tiefs im Preis-Chart und im CVD-Fenster
+    if(!xSeries.cvd || !VPANE.x_cvd || !state.data.length) return;
+    const m = VPANE.x_cvd, h = cH() - ((chart.timeScale().height && chart.timeScale().height()) || 0), W = plotRightX();
+    const top = m.top * h, bot = h - m.bottom * h; if(bot - top < 30) return;
+    const lineTop = top + 4, lineBot = top + (bot - top) * 0.62, histTop = top + (bot - top) * 0.6, histBot = bot - 2, histMid = (histTop + histBot) / 2;
     const d = xData('cvd'), ts = chart.timeScale(), lx = i => ts.logicalToCoordinate(i - state.sessionStart);
+    const lr = ts.getVisibleLogicalRange(); if(!lr) return;
+    const a = Math.max(state.sessionStart, state.sessionStart + Math.floor(lr.from) - 1), b = Math.min(state.cursor, state.sessionStart + Math.ceil(lr.to) + 1);
+    // Skala aus dem sichtbaren Bereich, Null immer drin
+    let mn = 0, mx = 0, dm = 0;
+    for(let i = a; i <= b; i++){ const v = d.v[i]; if(v != null){ if(v < mn) mn = v; if(v > mx) mx = v; } const q = Math.abs(d.dl[i] || 0); if(q > dm) dm = q; }
+    if(mx - mn < 1e-9) mx = mn + 1; if(!(dm > 0)) dm = 1;
+    const pad = (mx - mn) * 0.08, yv = v => lineTop + (mx + pad - v) / ((mx - mn) + 2 * pad) * (lineBot - lineTop);
+    const y = top - 7, y0 = yv(0);
+    let html = '<line x1="0" x2="' + W + '" y1="' + (top - 1).toFixed(1) + '" y2="' + (top - 1).toFixed(1) + '" stroke="#A3ACBB" stroke-opacity="0.18"/>';
+    html += '<rect x="2" y="' + (y - 12).toFixed(1) + '" width="540" height="16" rx="4" fill="#0e1117" fill-opacity="0.85"/><text x="8" y="' + y.toFixed(1) + '" font-size="11" font-weight="600" fill="#A3ACBB">CVD (geschätzt) · Linie: <tspan fill="#26A69A">grün = Käufer vorn</tspan> / <tspan fill="#EF5350">rot = Verkäufer vorn</tspan> · Balken: Druck pro Kerze · Start 01:00</text>';
+    html += '<line x1="0" x2="' + W + '" y1="' + y0.toFixed(1) + '" y2="' + y0.toFixed(1) + '" stroke="#A3ACBB" stroke-opacity="0.35" stroke-dasharray="3 4"/><text x="' + (W - 6) + '" y="' + (y0 - 3).toFixed(1) + '" text-anchor="end" font-size="10" fill="#A3ACBB" fill-opacity="0.8">0</text>';
+    // Balken pro Kerze: zwei Pfade (gruen/rot) statt einzelner Elemente
+    const xa = lx(a), xb = lx(b), bw = Math.max(1, (b > a && xa != null && xb != null ? (xb - xa) / (b - a) : 6) * 0.6);
+    let pg = '', pr = '';
+    for(let i = a; i <= b; i++){
+      const q = d.dl[i]; if(q == null || !q) continue; const x = lx(i); if(x == null) continue;
+      const hh = Math.max(1, Math.abs(q) / dm * (histBot - histTop) / 2), yt = q > 0 ? histMid - hh : histMid;
+      const r = 'M' + (x - bw / 2).toFixed(1) + ',' + yt.toFixed(1) + 'h' + bw.toFixed(1) + 'v' + hh.toFixed(1) + 'h' + (-bw).toFixed(1) + 'Z';
+      if(q > 0) pg += r; else pr += r;
+    }
+    if(pg) html += '<path d="' + pg + '" fill="#26A69A" fill-opacity="0.55"/>';
+    if(pr) html += '<path d="' + pr + '" fill="#EF5350" fill-opacity="0.55"/>';
+    // CVD-Linie: gruen ueber 0, rot unter 0, Luecke am Tageswechsel
+    let seg = '', col = null, prev = null;
+    const flush = () => { if(seg && seg.indexOf('L') > 0) html += '<path d="' + seg + '" fill="none" stroke="' + col + '" stroke-width="2" stroke-linejoin="round"/>'; seg = ''; };
+    for(let i = a; i <= b; i++){
+      const v = d.v[i]; if(v == null){ flush(); prev = null; continue; }
+      const x = lx(i); if(x == null) continue;
+      const c = v >= 0 ? '#26A69A' : '#EF5350', pt = x.toFixed(1) + ',' + yv(v).toFixed(1);
+      if(c !== col){ if(seg) seg += 'L' + pt; flush(); col = c; seg = prev ? 'M' + prev + 'L' + pt : 'M' + pt; }
+      else seg += (seg ? 'L' : 'M') + pt;
+      prev = pt;
+      if(d.gap && d.gap[i]){ flush(); prev = null; col = null; }
+    }
+    flush();
+    // Divergenzen: Linie zwischen den zwei Hochs/Tiefs im Preis-Chart und im CVD-Fenster
     (d.divs || []).forEach(v => {
       if(v.conf > state.cursor || v.a < state.sessionStart) return;
-      const xa = lx(v.a), xb = lx(v.b); if(xa == null || xb == null || xb < -20 || xa > plotRightX() + 20) return;
-      const A = state.data[v.a], B = state.data[v.b], col = v.bear ? '#EF5350' : '#26A69A';
+      const xa2 = lx(v.a), xb2 = lx(v.b); if(xa2 == null || xb2 == null || xb2 < -20 || xa2 > W + 20) return;
+      const A = state.data[v.a], B = state.data[v.b], c = v.bear ? '#EF5350' : '#26A69A';
       const ya = candleSeries.priceToCoordinate(v.bear ? A.high : A.low), yb = candleSeries.priceToCoordinate(v.bear ? B.high : B.low);
-      const ca = s0.priceToCoordinate(d.v[v.a]), cb = s0.priceToCoordinate(d.v[v.b]);
       const off = v.bear ? -6 : 6;
       if(ya != null && yb != null){
-        html += '<line x1="' + xa.toFixed(1) + '" y1="' + (ya + off).toFixed(1) + '" x2="' + xb.toFixed(1) + '" y2="' + (yb + off).toFixed(1) + '" stroke="' + col + '" stroke-width="1.6" stroke-dasharray="5 3"/>';
-        html += '<rect x="' + (xb - 26).toFixed(1) + '" y="' + (yb + (v.bear ? -26 : 12)).toFixed(1) + '" width="52" height="15" rx="3" fill="' + col + '" fill-opacity="0.9"/><text x="' + xb.toFixed(1) + '" y="' + (yb + (v.bear ? -15 : 23)).toFixed(1) + '" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">' + (v.bear ? 'Div ▼' : 'Div ▲') + '</text>';
+        html += '<line x1="' + xa2.toFixed(1) + '" y1="' + (ya + off).toFixed(1) + '" x2="' + xb2.toFixed(1) + '" y2="' + (yb + off).toFixed(1) + '" stroke="' + c + '" stroke-width="1.6" stroke-dasharray="5 3"/>';
+        html += '<rect x="' + (xb2 - 26).toFixed(1) + '" y="' + (yb + (v.bear ? -26 : 12)).toFixed(1) + '" width="52" height="15" rx="3" fill="' + c + '" fill-opacity="0.9"/><text x="' + xb2.toFixed(1) + '" y="' + (yb + (v.bear ? -15 : 23)).toFixed(1) + '" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">' + (v.bear ? 'Div ▼' : 'Div ▲') + '</text>';
       }
-      if(ca != null && cb != null) html += '<line x1="' + xa.toFixed(1) + '" y1="' + ca.toFixed(1) + '" x2="' + xb.toFixed(1) + '" y2="' + cb.toFixed(1) + '" stroke="' + col + '" stroke-width="1.6" stroke-dasharray="5 3"/><circle cx="' + xa.toFixed(1) + '" cy="' + ca.toFixed(1) + '" r="2.5" fill="' + col + '"/><circle cx="' + xb.toFixed(1) + '" cy="' + cb.toFixed(1) + '" r="2.5" fill="' + col + '"/>';
+      if(v.a >= a && v.b <= b){ const ca = yv(d.v[v.a]), cb = yv(d.v[v.b]);
+        html += '<line x1="' + xa2.toFixed(1) + '" y1="' + ca.toFixed(1) + '" x2="' + xb2.toFixed(1) + '" y2="' + cb.toFixed(1) + '" stroke="' + c + '" stroke-width="1.6" stroke-dasharray="5 3"/><circle cx="' + xa2.toFixed(1) + '" cy="' + ca.toFixed(1) + '" r="2.5" fill="' + c + '"/><circle cx="' + xb2.toFixed(1) + '" cy="' + cb.toFixed(1) + '" r="2.5" fill="' + c + '"/>'; }
     });
     const g = document.createElementNS(NS_SVG, 'g'); g.setAttribute('data-cvdlabel', '1'); g.innerHTML = html; svg.appendChild(g);
   }catch(e){} }
@@ -4840,7 +4873,7 @@
   // passiert hier nichts mehr (nur nachsehen, ob die Datei schon da ist).
   // Neue Version veroeffentlicht? Dann Hinweis mit Knopf (nur Web-Version). Vorher blieb eine auf dem iPad
   // geoeffnete App oft tagelang auf dem alten Stand, weil sie nie ganz geschlossen wurde.
-  const APP_BUILD = '202611091214';
+  const APP_BUILD = '202611092145';
   function checkForAppUpdate(){
     if(!archivePrefetchAllowed()) return;
     let shown = false;
@@ -5951,10 +5984,12 @@
   // Oszillatoren (RSI, MACD, Stochastik, ATR) bekommen je einen eigenen Streifen unter dem
   // Kursbereich — lightweight-charts v4 kennt keine echten Panes, darum wird der Platz ueber die
   // scaleMargins der Preisskalen aufgeteilt (unterster Streifen = erster Eintrag).
+  var VPANE = {};   // Fenster, die im Overlay gezeichnet werden: id -> { top, bottom } (Anteile der Chart-Hoehe)
   function layoutPanes(){
     const panes = [];
     if(rsiSeries) panes.push('rsi');
-    XIND.forEach(x => { if(x.pane && xSeries[x.id]) panes.push('x_'+x.id); });
+    XIND.forEach(x => { if((x.pane || x.vpane) && xSeries[x.id]) panes.push('x_'+x.id); });
+    for(const k in VPANE) delete VPANE[k];
     const n = panes.length;
     if(!n){
       chart.priceScale('right').applyOptions({ scaleMargins: DEFAULT_RIGHT_MARGINS });
@@ -5968,9 +6003,8 @@
     // CVD: oben etwas Platz fuer die Beschriftung im Fenster
     panes.forEach((id, k) => {
       const m = { top:1 - (k+1)*H + (id === 'x_cvd' ? 0.07 : 0.015), bottom:k*H + 0.005 };
+      if(id === 'x_cvd'){ VPANE[id] = m; return; }   // Overlay-Fenster: nur Platz reservieren
       chart.priceScale(id).applyOptions({ scaleMargins:m, borderVisible:false });
-      // CVD: Balken pro Kerze in der unteren Haelfte desselben Fensters, eigene Skala, ohne Achsen-Beschriftung
-      if(id === 'x_cvd') try{ chart.priceScale('x_cvd_d').applyOptions({ scaleMargins:{ top:m.top + (1 - m.top - m.bottom) * 0.55, bottom:m.bottom }, visible:false }); }catch(e){}
     });
   }
 
@@ -5987,7 +6021,9 @@
     { id:'macd',  label:'MACD',  pane:true, calc:d => macdInd(d, 12, 26, 9), lines:[{ key:'hist', type:'hist' }, { key:'macd', color:'#2962FF' }, { key:'signal', color:'#FF6D00' }] },
     { id:'stoch', label:'Stoch', pane:true, range:[0, 100], calc:d => stochInd(d, 14, 3, 3), lines:[{ key:'k', color:'#2962FF' }, { key:'d', color:'#FF6D00' }] },
     { id:'atr',   label:'ATR',   pane:true, calc:d => atrInd(d, 14), lines:[{ key:'v', color:'#E57373' }] },
-    { id:'cvd',   label:'CVD (geschätzt)', pane:true, zero:true, calc:cvdInd, lines:[{ key:'dl', type:'hist', scale:'_d', color:'#26A69A' }, { key:'v', type:'signline', color:'#26A69A', width:2 }] },
+    // CVD: eigenes Fenster, aber ohne Chart-Spur - komplett im Overlay gezeichnet (renderCvdLabel). Mit eigener Spur
+    // hat die Chart-Bibliothek bei jeder neuen Kerze den ganzen Chart neu gezeichnet -> Abspielen auf dem iPad zaeh.
+    { id:'cvd',   label:'CVD (geschätzt)', vpane:true, overlay:true, calc:cvdInd, lines:[] },
     { id:'volspike', label:'Volumen-Spitzen', overlay:true, calc:volSpikeInd, lines:[] },
   ];
   const XIND_BY_ID = Object.fromEntries(XIND.map(x => [x.id, x]));
@@ -6002,7 +6038,7 @@
   function xPoint(type, time, v, gap){
     if(v==null) return { time };
     // CVD-Linie: Farbe nach Vorzeichen (gruen = Kaeufer vorn, rot = Verkaeufer vorn); Farbe gilt fuer das Stueck danach
-    if(type==='signline') return { time, value:v, color: gap ? 'rgba(0,0,0,0)' : (v >= 0 ? '#26A69A' : '#EF5350') };
+    if(type==='signline') return { time, value:v };
     if(gap && type==='baseline'){ const t0 = 'rgba(0,0,0,0)'; return { time, value:v, topLineColor:t0, bottomLineColor:t0, topFillColor1:t0, topFillColor2:t0, bottomFillColor1:t0, bottomFillColor2:t0 }; }
     if(gap) return { time, value:v, color:'rgba(0,0,0,0)' };
     if(type==='hist') return { time, value:v, color: v>=0 ? 'rgba(38,166,154,0.55)' : 'rgba(239,83,80,0.55)' };
@@ -6017,7 +6053,9 @@
       if(x.range) opts.autoscaleInfoProvider = () => ({ priceRange:{ minValue:x.range[0], maxValue:x.range[1] } });
       // Null immer sichtbar halten (CVD: darueber Kaeufer vorn, darunter Verkaeufer vorn)
       if(x.zero && !l.scale) opts.autoscaleInfoProvider = orig => { const r = orig(); if(!r || !r.priceRange) return r; r.priceRange.minValue = Math.min(0, r.priceRange.minValue); r.priceRange.maxValue = Math.max(0, r.priceRange.maxValue); return r; };
-      if(l.type==='signline') return { key:l.key, type:'signline', color:l.color, series: chart.addLineSeries({ ...opts, lineWidth:l.width || 2, crosshairMarkerVisible:false, color:'#26A69A' }) };
+      // CVD-Linie: die Chart-Linie bleibt unsichtbar (nur fuer die Skala), gezeichnet wird sie gruen/rot im Overlay
+      // (renderCvdLabel). Eine Linie mit Farbe pro Punkt war fuer die Chart-Bibliothek sehr teuer.
+      if(l.type==='signline') return { key:l.key, type:'signline', color:l.color, series: chart.addLineSeries({ ...opts, lineWidth:1, lineVisible:false, crosshairMarkerVisible:false, color:'rgba(0,0,0,0)' }) };
       if(l.type==='baseline') return { key:l.key, type:'baseline', color:l.color, series: chart.addBaselineSeries({ ...opts, baseValue:{ type:'price', price:0 }, lineWidth:l.width || 2, crosshairMarkerVisible:false,
         topLineColor:'#26A69A', topFillColor1:'rgba(38,166,154,0.30)', topFillColor2:'rgba(38,166,154,0.04)',
         bottomLineColor:'#EF5350', bottomFillColor1:'rgba(239,83,80,0.04)', bottomFillColor2:'rgba(239,83,80,0.30)' }) };
