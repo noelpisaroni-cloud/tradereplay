@@ -728,6 +728,7 @@
   .chart-comp[hidden]{ display:none; }
   .comp-head{ display:flex; align-items:center; gap:6px; padding:0 0 6px; min-width:0; }
   .comp-head > button{ flex:none; }
+  @media (pointer:coarse){ .comp-head > button{ min-width:36px; height:34px; } }
   .comp-head select{ height:28px; width:auto; min-width:76px; flex:0 1 auto; font-size:12px; padding-top:0; padding-bottom:0; }
   /* schmaler 2. Chart: Knoepfe kompakt, damit nichts ueber den Rand ins Order-Feld rutscht */
   @container (max-width:470px){ .comp-head .comp-vis-btn .cv-lbl{ display:none; } }
@@ -4839,7 +4840,7 @@
   // passiert hier nichts mehr (nur nachsehen, ob die Datei schon da ist).
   // Neue Version veroeffentlicht? Dann Hinweis mit Knopf (nur Web-Version). Vorher blieb eine auf dem iPad
   // geoeffnete App oft tagelang auf dem alten Stand, weil sie nie ganz geschlossen wurde.
-  const APP_BUILD = '202611091132';
+  const APP_BUILD = '202611091214';
   function checkForAppUpdate(){
     if(!archivePrefetchAllowed()) return;
     let shown = false;
@@ -7835,7 +7836,20 @@
     if(comp.on) { setCompanion(false); return; }
     setCompanion(true, COMP_DEFAULT_FOR[state.tf] || '1h');
   });
-  document.getElementById('compCloseBtn').addEventListener('click', () => setCompanion(false));
+  // iPad: Knopf schon beim Loslassen des Fingers ausloesen. Sonst landete der nachgeschobene Klick von Safari manchmal
+  // auf der Zeitrahmen-Auswahl, die sich dann oeffnete statt den 2. Chart zu schliessen.
+  function fastTap(el, fn){
+    if(!el) return;
+    let t0 = null, lastTouch = 0;
+    el.addEventListener('touchstart', e => { const t = e.touches[0]; t0 = t ? { x:t.clientX, y:t.clientY } : null; }, { passive:true });
+    el.addEventListener('touchend', e => {
+      const t = e.changedTouches[0]; if(!t0 || !t || Math.hypot(t.clientX - t0.x, t.clientY - t0.y) > 12) return;
+      if(e.cancelable) e.preventDefault(); lastTouch = Date.now(); fn();
+    }, { passive:false });
+    el.addEventListener('click', () => { if(Date.now() - lastTouch > 600) fn(); });
+  }
+  window.fastTap = fastTap;
+  fastTap(document.getElementById('compCloseBtn'), () => setCompanion(false));
   document.getElementById('compResetBtn').addEventListener('click', compResetView);
   document.getElementById('compTfSelect').addEventListener('change', e => {
     comp.tf = e.target.value;
@@ -8707,7 +8721,10 @@
     });
   }
   els.fullscreenBtn.addEventListener('click', ()=> setChartFullscreen(!chartCardEl.classList.contains('chart-fullscreen')));
-  document.getElementById('fsExitBtn').addEventListener('click', ()=> setChartFullscreen(false));
+  (window.fastTap || ((el, fn) => el.addEventListener('click', fn)))(document.getElementById('fsExitBtn'), ()=> setChartFullscreen(false));
+  // iPad/Safari: Auswahlfelder (Zeitrahmen usw.) nach der Auswahl wieder loslassen, sonst bleiben sie „aktiv“
+  // und der naechste Tipp irgendwo oeffnet die Liste erneut
+  document.addEventListener('change', e => { const t = e.target; if(t && t.tagName === 'SELECT' && TOUCH_UI) setTimeout(() => { try{ t.blur(); }catch(err){} }, 0); }, true);
 
   document.addEventListener('keydown', (e)=>{
     if(e.code==='Escape' && chartCardEl.classList.contains('chart-fullscreen')){ setChartFullscreen(false); return; }
