@@ -2372,8 +2372,8 @@
     if(compWired) return; compWired = true;
     const ov = document.getElementById('compOverlay'), el = document.getElementById('compContainer');
     document.getElementById('compVisBtn').addEventListener('click', () => {
-      VIS.compDraw = VIS.compDraw === false; saveVis(); renderCompDrawings();
-      showToast(VIS.compDraw ? 'Zeichnungen im 2. Chart wieder sichtbar.' : 'Zeichnungen im 2. Chart ausgeblendet – im linken Chart bleiben sie.', 2500);
+      VIS.compDraw = VIS.compDraw === false ? true : (VIS.compDraw === 'big' ? false : 'big'); saveVis(); renderCompDrawings();
+      showToast(VIS.compDraw === 'big' ? 'Nur große Zeichnungen: Kleines aus dem kleinen Zeitrahmen ist hier ausgeblendet, Linien und große Zonen bleiben.' : (VIS.compDraw ? 'Alle Zeichnungen im 2. Chart sichtbar.' : 'Zeichnungen im 2. Chart ausgeblendet – im linken Chart bleiben sie.'), 3500);
     });
     updateCompVisBtn();
     const evXY = (e, box) => { const r = box.getBoundingClientRect(), t = (e.touches && e.touches[0]) || (e.changedTouches && e.changedTouches[0]) || e; return { x: t.clientX - r.left, y: t.clientY - r.top }; };
@@ -2384,7 +2384,7 @@
       const tool = state.activeTool;
       if(!start || Math.hypot(p.x - start.x, p.y - start.y) < TWO_POINT_MIN_PX) return;
       if(tool === 'rect' && (p.time === start.time || Math.abs(p.price - start.price) < start.price * 1e-5)) return;
-      addDrawing({ type: tool, p1: { time: start.time, price: start.price }, p2: { time: p.time, price: p.price } });
+      addDrawing({ type: tool, tf: comp.tf, p1: { time: start.time, price: start.price }, p2: { time: p.time, price: p.price } });
       start = null; waitSecond = false; compDraft = null; setActiveTool('cursor');
     };
     function down(e){
@@ -2392,7 +2392,7 @@
       if(e.cancelable) e.preventDefault(); e.stopPropagation();
       if(VIS.compDraw === false){ VIS.compDraw = true; saveVis(); updateCompVisBtn(); }   // wer hier zeichnet, will es sehen
       const p = ptOf(e, ov); if(p.time == null || p.price == null) return;
-      if(COMP_TOOLS[tool] === 1){ addDrawing({ type: tool, p1: { time: p.time, price: p.price } }); setActiveTool('cursor'); return; }
+      if(COMP_TOOLS[tool] === 1){ addDrawing({ type: tool, tf: comp.tf, p1: { time: p.time, price: p.price } }); setActiveTool('cursor'); return; }
       if(start && waitSecond){ finish(p); return; }
       start = p; waitSecond = false; compDraft = { type: tool, p1: { time: p.time, price: p.price }, p2: { time: p.time, price: p.price } };
       scheduleCompRender();
@@ -2820,6 +2820,7 @@
     if(!drawingVisible(d) && !(d.type === 'posbox' && VIS.boxes === 'current')){ setVis(d.type === 'posbox' ? { boxes:'current' } : { draw:true }); showToast(d.type === 'posbox' ? 'TP/SL-Boxen wieder eingeblendet.' : 'Zeichnungen wieder eingeblendet.', 2500); }
     pushDrawUndo();
     d.tv = 2;
+    if(!d.tf) d.tf = state.tf;   // Zeitrahmen merken, in dem gezeichnet wurde (fuer "Nur grosse" im 2. Chart)
     posboxTouch(d);
     if(d.type === 'fib') d.fv = 2;
     d.id = 'd' + Date.now() + Math.floor(Math.random()*1000);
@@ -4323,10 +4324,23 @@
   function posboxTouch(d){ if(d && d.type === 'posbox' && state.data.length && state.data[state.cursor]) d.at = state.data[state.cursor].time; }
   function drawingVisible(d){
     if(!d || d.hidden) return false;   // einzeln ausgeblendet (Knopf in der Leiste ueber dem Objekt)
+    if(VIEW_COMP && VIS.compDraw === 'big' && !compBig(d)) return false;
     if(d.type !== 'posbox') return VIS.draw;
     if(boxLinkedTo(d) || d.id === state.selectedDrawingId) return VIS.boxes !== 'off' || boxLinkedTo(d);
     if(state.reviewing) return VIS.boxes !== 'off';   // Rueckblick: die Boxen von damals zeigen
     return VIS.boxes === 'all' || (VIS.boxes === 'current' && !posboxPast(d));
+  }
+  // 2. Chart, Stufe "Nur grosse": Linien bleiben immer. Alles andere bleibt, wenn es in diesem oder einem
+  // groesseren Zeitrahmen gezeichnet wurde oder hier mindestens 4 Kerzen breit ist. So verschwinden die kleinen
+  // Kaestchen aus dem kleinen Zeitrahmen, die grossen Zonen fuer den Bias bleiben stehen.
+  function compBig(d){
+    if(d.id === state.selectedDrawingId || d.type === 'hline' || d.type === 'ray' || d.type === 'vline' || d.type === 'avwap') return true;
+    if(d.type === 'posbox' && boxLinkedTo(d)) return true;
+    const ms = TF_MS[comp.tf] || 900000;
+    if(d.tf && TF_MS[d.tf] && TF_MS[d.tf] >= ms) return true;
+    const a = d.type === 'posbox' ? d.t1 : (d.p1 && d.p1.time), b = d.type === 'posbox' ? d.t2 : (d.p2 && d.p2.time);
+    if(a == null || b == null) return !d.tf;   // nur ein Punkt und Herkunft unbekannt: lieber zeigen
+    return Math.abs(b - a) >= 4 * ms / 1000;
   }
   // Bei "letzte 3": Index der ersten gezeigten Trade-Zeile im Journal
   function recentTradeFrom(){
@@ -4578,10 +4592,10 @@
   }
   function updateCompVisBtn(){
     const b = document.getElementById('compVisBtn'); if(!b) return;
-    const off = VIS.compDraw === false;
-    if(b._off === off) return; b._off = off;
-    b.classList.toggle('off', off); b.innerHTML = off ? '🚫<span class="cv-lbl"> Zeichnungen aus</span>' : '👁<span class="cv-lbl"> Zeichnungen</span>';
-    b.title = off ? 'Zeichnungen in diesem Chart wieder einblenden' : 'Zeichnungen in diesem Chart ausblenden (der linke Chart bleibt, wie er ist)';
+    const st = VIS.compDraw === false ? 'off' : (VIS.compDraw === 'big' ? 'big' : 'all');
+    if(b._st === st) return; b._st = st;
+    b.classList.toggle('off', st !== 'all'); b.innerHTML = st === 'off' ? '🚫<span class="cv-lbl"> Zeichnungen aus</span>' : (st === 'big' ? '◧<span class="cv-lbl"> Nur große</span>' : '👁<span class="cv-lbl"> Zeichnungen</span>');
+    b.title = st === 'off' ? 'Zeichnungen in diesem Chart wieder einblenden' : (st === 'big' ? 'Nur große Zeichnungen sichtbar – antippen blendet alle aus' : 'Antippen: nur große Zeichnungen zeigen (der linke Chart bleibt, wie er ist)');
   }
   // Liegt die Zeichnung ganz ausserhalb des sichtbaren Bereichs? Dann gar nicht erst zeichnen (spart beim
   // Ziehen des Charts viel Zeit, wenn sehr viele Objekte in der Session sind). Waagrechte Linien gehen immer quer.
@@ -4873,7 +4887,7 @@
   // passiert hier nichts mehr (nur nachsehen, ob die Datei schon da ist).
   // Neue Version veroeffentlicht? Dann Hinweis mit Knopf (nur Web-Version). Vorher blieb eine auf dem iPad
   // geoeffnete App oft tagelang auf dem alten Stand, weil sie nie ganz geschlossen wurde.
-  const APP_BUILD = '202611092145';
+  const APP_BUILD = '202611141108';
   function checkForAppUpdate(){
     if(!archivePrefetchAllowed()) return;
     let shown = false;
