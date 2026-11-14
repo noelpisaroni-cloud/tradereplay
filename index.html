@@ -102,6 +102,7 @@
     if(['gedaempft','kraeftig'].indexOf(c) < 0) c = 'gedaempft';
     document.documentElement.setAttribute('data-design', d);
     document.documentElement.setAttribute('data-candles', c);
+    try{ if(localStorage.getItem('tradereplay_tvlook_v1') === '1') document.documentElement.classList.add('tv-look'); }catch(e){}
   })();
 </script>
 <title>TradeReplay</title>
@@ -1134,6 +1135,9 @@
   /* ---------- Kerzenfarben ---------- */
   html[data-candles="kraeftig"]{ --chart-up:#26a69a; --chart-down:#ef5350; }
   html[data-design="hell"][data-candles="kraeftig"]{ --chart-up:#089981; --chart-down:#f23645; }
+  /* TradingView-Look (Schalter im Design-Menue): dunkelblauer Grund, kein Gitter, TV-Gruen/-Rot. Nur der Chart. */
+  html.tv-look:not([data-design="hell"]){ --chart-bg:#131722; --chart-grid:rgba(0,0,0,0); --chart-axis:#2a2e39; --chart-cross:#9598a1; --chart-up:#089981; --chart-down:#f23645; }
+  html[data-design="hell"] .tvlook-item{ display:none; }
 
   /* =====================================================================
      Layout "Wie FX Replay" (data-layout="pro", Standard). Nur die Anordnung aendert sich:
@@ -1348,6 +1352,9 @@
         <label class="menu-item"><input type="radio" name="candleChoice" id="candlesGedaempft" value="gedaempft"><span>Gedämpft<small>Ruhige Farben (bisherige Einstellung)</small></span></label>
         <label class="menu-item"><input type="radio" name="candleChoice" id="candlesKraeftig" value="kraeftig"><span>Kräftig<small>Klassisches TradingView-Grün und -Rot</small></span></label>
         <p class="menu-note">Beim Umschalten lädt TradeReplay kurz neu. Dein Fortschritt bleibt erhalten.</p>
+        <div class="menu-sep tvlook-item"></div>
+        <div class="menu-title tvlook-item">Chart-Hintergrund</div>
+        <label class="menu-item tvlook-item"><input type="checkbox" id="tvLookChk"><span>TradingView-Look<small>Dunkelblau, ohne Gitter, TradingView-Kerzen – schaltet sofort um</small></span></label>
       </div>
     </div>
     <button class="icon-btn" id="helpBtn" title="Hilfe: So funktioniert TradeReplay">?</button>
@@ -2384,7 +2391,7 @@
       const tool = state.activeTool;
       if(!start || Math.hypot(p.x - start.x, p.y - start.y) < TWO_POINT_MIN_PX) return;
       if(tool === 'rect' && (p.time === start.time || Math.abs(p.price - start.price) < start.price * 1e-5)) return;
-      addDrawing({ type: tool, tf: comp.tf, p1: { time: start.time, price: start.price }, p2: { time: p.time, price: p.price } });
+      addDrawing({ type: tool, tf: comp.tf, p1: { time: start.time, price: start.price }, p2: { time: p.time, price: p.price } }, true);
       start = null; waitSecond = false; compDraft = null; setActiveTool('cursor');
     };
     function down(e){
@@ -2392,7 +2399,7 @@
       if(e.cancelable) e.preventDefault(); e.stopPropagation();
       if(VIS.compDraw === false){ VIS.compDraw = true; saveVis(); updateCompVisBtn(); }   // wer hier zeichnet, will es sehen
       const p = ptOf(e, ov); if(p.time == null || p.price == null) return;
-      if(COMP_TOOLS[tool] === 1){ addDrawing({ type: tool, tf: comp.tf, p1: { time: p.time, price: p.price } }); setActiveTool('cursor'); return; }
+      if(COMP_TOOLS[tool] === 1){ addDrawing({ type: tool, tf: comp.tf, p1: { time: p.time, price: p.price } }, true); setActiveTool('cursor'); return; }
       if(start && waitSecond){ finish(p); return; }
       start = p; waitSecond = false; compDraft = { type: tool, p1: { time: p.time, price: p.price }, p2: { time: p.time, price: p.price } };
       scheduleCompRender();
@@ -2816,8 +2823,8 @@
     });
   })();
 
-  function addDrawing(d){
-    if(!drawingVisible(d) && !(d.type === 'posbox' && VIS.boxes === 'current')){ setVis(d.type === 'posbox' ? { boxes:'current' } : { draw:true }); showToast(d.type === 'posbox' ? 'TP/SL-Boxen wieder eingeblendet.' : 'Zeichnungen wieder eingeblendet.', 2500); }
+  function addDrawing(d, fromComp){
+    if(!fromComp && !drawingVisible(d) && !(d.type === 'posbox' && VIS.boxes === 'current')){ setVis(d.type === 'posbox' ? { boxes:'current' } : { draw:true }); showToast(d.type === 'posbox' ? 'TP/SL-Boxen wieder eingeblendet.' : 'Zeichnungen wieder eingeblendet.', 2500); }
     pushDrawUndo();
     d.tv = 2;
     if(!d.tf) d.tf = state.tf;   // Zeitrahmen merken, in dem gezeichnet wurde (fuer "Nur grosse" im 2. Chart)
@@ -3183,7 +3190,7 @@
   const SEL_COLORS = ['#9C27B0', '#2962FF', '#26A69A', '#EF5350', '#E0A438', '#B2B5BE'];
   const COLORABLE = { hline:1, ray:1, vline:1, trendline:1, rect:1, text:1 };
   const DEFAULT_DRAW_COLOR = { hline:'#E0A438', ray:'#B39DDB', vline:'#B39DDB', trendline:'#2962FF', rect:'#9C27B0', text:'#FFD166' };
-  let selBarKey = '';
+  let selBarKey = '', selBarAsk = null;
   function updateSelBar(){
     const bar = document.getElementById('selBar');
     if(!bar) return;
@@ -3191,7 +3198,14 @@
     const bb = d ? getDrawingBBox(d) : null;
     if(!d || !bb || state.activeTool !== 'cursor'){ bar.hidden = true; selBarKey = ''; return; }
     const key = [d.id, d.type, d.type === 'posbox' ? boxLevels(d).map(t => t.id + ':' + t.frac).join(',') : '', isLocked(d) ? 'L' : '', d.color || '', d.alert ? 1 : 0, d.text ? 1 : 0, d.textSize || '', d.textPos || '', state.position ? 1 : 0, state.pendingOrder ? 1 : 0, d.type === 'posbox' ? (d.tpPrice < d.entryPrice ? 's' : 'l') + (boxLinkedTo(d) ? 'k' : '') : ''].join('|');
-    if(key !== selBarKey){
+    if(selBarAsk && selBarAsk !== d.id) selBarAsk = null;
+    if(selBarAsk){
+      if(selBarKey !== 'ask|' + d.id){
+        selBarKey = 'ask|' + d.id;
+        bar.innerHTML = `<span class="sb-link">Ausblenden:</span><button class="sb-btn" data-sb="hide-l" title="Nur im linken Chart ausblenden">◧ Nur links</button><button class="sb-btn" data-sb="hide-r" title="Nur im rechten Chart ausblenden">◨ Nur rechts</button><button class="sb-btn" data-sb="hide-b" title="In beiden Charts ausblenden">Beide</button><button class="sb-btn" data-sb="hide-x" title="Abbrechen">✕</button>`;
+      }
+    }
+    else if(key !== selBarKey){
       selBarKey = key;
       let html = '';
       if(d.type === 'posbox'){
@@ -3264,8 +3278,12 @@
         renderDrawings(); saveState();
       }
       else if(act === 'dup'){ duplicateDrawing(d); }
-      else if(act === 'hide'){ d.hidden = true; state.selectedDrawingId = null; selBarKey = ''; renderDrawings(); saveState(); applyVis(false);
-        showToast(DRAW_NAME[d.type] + ' ausgeblendet – wieder einblenden über das Auge links.', 4000, [{ label:'Rückgängig', fn:() => { delete d.hidden; renderDrawings(); saveState(); applyVis(false); } }]); }
+      else if(act === 'hide' && compReady()){ selBarAsk = d.id; updateSelBar(); }   // 2. Chart offen: erst fragen, auf welcher Seite
+      else if(act === 'hide-x'){ selBarAsk = null; selBarKey = ''; updateSelBar(); }
+      else if(act === 'hide' || act === 'hide-l' || act === 'hide-r' || act === 'hide-b'){
+        const side = act === 'hide-l' ? 'l' : act === 'hide-r' ? 'r' : true, was = d.hidden;
+        d.hidden = side; selBarAsk = null; state.selectedDrawingId = null; selBarKey = ''; renderDrawings(); saveState(); applyVis(false);
+        showToast(DRAW_NAME[d.type] + (side === 'l' ? ' nur links' : side === 'r' ? ' nur rechts' : '') + ' ausgeblendet – wieder einblenden über das Auge links.', 4000, [{ label:'Rückgängig', fn:() => { if(was) d.hidden = was; else delete d.hidden; renderDrawings(); saveState(); applyVis(false); } }]); }
       else if(act === 'be'){ setBreakEven(); selBarKey = ''; renderDrawings(); }
       else if(act === 'lock'){ d.locked = !d.locked; if(!d.locked) delete d.locked; selBarKey = ''; renderDrawings(); saveState(); showToast(d.locked ? '🔒 Gesperrt – lässt sich nicht mehr verschieben. Nochmal antippen zum Entsperren.' : '🔓 Entsperrt.', 2500); }
       else if(act === 'unlockall'){ setVis({ lock:false }); selBarKey = ''; renderDrawings(); showToast('🔓 Alle Objekte entsperrt.', 2500); }
@@ -4159,7 +4177,7 @@
     const pad = (mx - mn) * 0.08, yv = v => lineTop + (mx + pad - v) / ((mx - mn) + 2 * pad) * (lineBot - lineTop);
     const y = top - 7, y0 = yv(0);
     let html = '<line x1="0" x2="' + W + '" y1="' + (top - 1).toFixed(1) + '" y2="' + (top - 1).toFixed(1) + '" stroke="#A3ACBB" stroke-opacity="0.18"/>';
-    html += '<rect x="2" y="' + (y - 12).toFixed(1) + '" width="540" height="16" rx="4" fill="#0e1117" fill-opacity="0.85"/><text x="8" y="' + y.toFixed(1) + '" font-size="11" font-weight="600" fill="#A3ACBB">CVD (geschätzt) · Linie: <tspan fill="#26A69A">grün = Käufer vorn</tspan> / <tspan fill="#EF5350">rot = Verkäufer vorn</tspan> · Balken: Druck pro Kerze · Start 01:00</text>';
+    html += '<rect x="2" y="' + (y - 12).toFixed(1) + '" width="540" height="16" rx="4" fill="' + THEME.chartBg + '" fill-opacity="0.85"/><text x="8" y="' + y.toFixed(1) + '" font-size="11" font-weight="600" fill="#A3ACBB">CVD (geschätzt) · Linie: <tspan fill="#26A69A">grün = Käufer vorn</tspan> / <tspan fill="#EF5350">rot = Verkäufer vorn</tspan> · Balken: Druck pro Kerze · Start 01:00</text>';
     html += '<line x1="0" x2="' + W + '" y1="' + y0.toFixed(1) + '" y2="' + y0.toFixed(1) + '" stroke="#A3ACBB" stroke-opacity="0.35" stroke-dasharray="3 4"/><text x="' + (W - 6) + '" y="' + (y0 - 3).toFixed(1) + '" text-anchor="end" font-size="10" fill="#A3ACBB" fill-opacity="0.8">0</text>';
     // Balken pro Kerze: zwei Pfade (gruen/rot) statt einzelner Elemente
     const xa = lx(a), xb = lx(b), bw = Math.max(1, (b > a && xa != null && xb != null ? (xb - xa) / (b - a) : 6) * 0.6);
@@ -4323,9 +4341,11 @@
   }
   function posboxTouch(d){ if(d && d.type === 'posbox' && state.data.length && state.data[state.cursor]) d.at = state.data[state.cursor].time; }
   function drawingVisible(d){
-    if(!d || d.hidden) return false;   // einzeln ausgeblendet (Knopf in der Leiste ueber dem Objekt)
+    // einzeln ausgeblendet (Knopf in der Leiste ueber dem Objekt): true = beide Charts, 'l' = nur links, 'r' = nur rechts
+    if(!d || d.hidden === true || d.hidden === (VIEW_COMP ? 'r' : 'l')) return false;
     if(VIEW_COMP && VIS.compDraw === 'big' && !compBig(d)) return false;
-    if(d.type !== 'posbox') return VIS.draw;
+    // Das Auge links gilt fuer den linken Chart; der rechte hat oben seinen eigenen Knopf
+    if(d.type !== 'posbox') return VIEW_COMP ? true : VIS.draw;
     if(boxLinkedTo(d) || d.id === state.selectedDrawingId) return VIS.boxes !== 'off' || boxLinkedTo(d);
     if(state.reviewing) return VIS.boxes !== 'off';   // Rueckblick: die Boxen von damals zeigen
     return VIS.boxes === 'all' || (VIS.boxes === 'current' && !posboxPast(d));
@@ -4358,7 +4378,7 @@
     const label = d => esc(DRAW_NAME[d.type] || d.type) + (d.text ? ' · ' + esc(String(d.text).slice(0, 18))
       : (d.type === 'hline' || d.type === 'ray') ? ' · ' + px(d.p1.price) : d.type === 'posbox' ? ' · ' + (d.tpPrice > d.entryPrice ? 'Long' : 'Short') + ' ' + px(d.entryPrice) : '');
     return `<div class="vm-row vm-hid-head"><span>Ausgeblendet (${list.length})<br><small>antippen zum Wiedereinblenden</small></span>${nHid > 1 ? '<button type="button" class="vm-show-all" data-vshowall="1">Alle einblenden</button>' : ''}</div>`
-      + list.slice().reverse().map(d => `<button type="button" class="vm-obj${d.hidden ? ' off' : ''}" data-vtoggle="${esc(d.id)}"><span class="vm-eye">${d.hidden ? '🚫' : '👁'}</span><span class="vm-obj-l">${label(d)}</span><span class="vm-obj-s">${d.hidden ? 'aus' : 'an'}</span></button>`).join('');
+      + list.slice().reverse().map(d => `<button type="button" class="vm-obj${d.hidden ? ' off' : ''}" data-vtoggle="${esc(d.id)}"><span class="vm-eye">${d.hidden ? '🚫' : '👁'}</span><span class="vm-obj-l">${label(d)}</span><span class="vm-obj-s">${d.hidden === 'l' ? 'links aus' : d.hidden === 'r' ? 'rechts aus' : d.hidden ? 'aus' : 'an'}</span></button>`).join('');
   }
   function visAllHidden(){ return !VIS.draw && VIS.boxes === 'off' && VIS.trades === 'off' && !VIS.qt; }
   function applyVis(rerender){
@@ -4378,7 +4398,7 @@
     const onOff = key => seg(key, [[true, 'An'], [false, 'Aus']]);
     visMenuEl.innerHTML = '<h4>Im Chart anzeigen</h4>'
       + `<button type="button" class="vm-all" data-vall="1">${visAllHidden() ? '👁 Alles wieder einblenden' : '🚫 Alles ausblenden – nur Kerzen'}</button>`
-      + `<div class="vm-row"><span>Zeichnungen<br><small>Linien, Zonen, Text</small></span>${onOff('draw')}</div>`
+      + `<div class="vm-row"><span>Zeichnungen<br><small>Linien, Zonen, Text · linker Chart</small></span>${onOff('draw')}</div>`
       + `<div class="vm-row"><span>TP/SL-Boxen<br><small>Aktuelle = noch nicht abgelaufen</small></span>${seg('boxes', [['all', 'Alle'], ['current', 'Aktuelle'], ['off', 'Aus']])}</div>`
       + `<div class="vm-row"><span>Trades</span>${seg('trades', [['all', 'Alle'], ['recent', 'Letzte 3'], ['off', 'Aus']])}</div>`
       + `<div class="vm-row"><span>Kaufen/Verkaufen<br><small>oben links im Chart</small></span>${onOff('qt')}</div>`
@@ -4887,7 +4907,7 @@
   // passiert hier nichts mehr (nur nachsehen, ob die Datei schon da ist).
   // Neue Version veroeffentlicht? Dann Hinweis mit Knopf (nur Web-Version). Vorher blieb eine auf dem iPad
   // geoeffnete App oft tagelang auf dem alten Stand, weil sie nie ganz geschlossen wurde.
-  const APP_BUILD = '202611141108';
+  const APP_BUILD = '202611141301';
   function checkForAppUpdate(){
     if(!archivePrefetchAllowed()) return;
     let shown = false;
@@ -8597,6 +8617,26 @@
     pick('designChoice', 'tradereplay_design_v1', 'data-design');
     pick('candleChoice', 'tradereplay_candles_v1', 'data-candles');
     pick('layoutChoice', 'tradereplay_layout_v1', 'data-layout');
+  })();
+  // ---------- TradingView-Look: An/Aus-Schalter, wirkt sofort (kein Neuladen) ----------
+  function applyChartTheme(){
+    Object.assign(THEME, { chartBg: cssVar('--chart-bg'), grid: cssVar('--chart-grid'), border: cssVar('--chart-axis'), up: cssVar('--chart-up'), down: cssVar('--chart-down'), cross: cssVar('--chart-cross') });
+    const o = { layout:{ background:{ color:THEME.chartBg } }, grid:{ vertLines:{ color:THEME.grid }, horzLines:{ color:THEME.grid } }, rightPriceScale:{ borderColor:THEME.border }, timeScale:{ borderColor:THEME.border },
+      crosshair:{ vertLine:{ color:THEME.cross }, horzLine:{ color:THEME.cross } } };
+    const c = { upColor:THEME.up, downColor:THEME.down, wickUpColor:THEME.up, wickDownColor:THEME.down };
+    chart.applyOptions(o); candleSeries.applyOptions(c);
+    try{ if(comp && comp.chart){ comp.chart.applyOptions(o); if(comp.series) comp.series.applyOptions(c); } }catch(e){}
+    try{ renderDrawings(); }catch(e){}
+  }
+  (function setupTvLook(){
+    const chk = document.getElementById('tvLookChk'); if(!chk) return;
+    chk.checked = document.documentElement.classList.contains('tv-look');
+    chk.addEventListener('change', () => {
+      document.documentElement.classList.toggle('tv-look', chk.checked);
+      try{ localStorage.setItem('tradereplay_tvlook_v1', chk.checked ? '1' : '0'); }catch(e){}
+      applyChartTheme();
+      showToast(chk.checked ? 'TradingView-Look an.' : 'TradingView-Look aus.', 1800);
+    });
   })();
 
   // ---------- Layout "Wie FX Replay" ----------
